@@ -1,114 +1,83 @@
-import { UserRole } from './types';
-import { authApi } from './api';
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 
-export type { UserRole };
+export type UserRole = "doctor" | "vhv" | "patient" | "caregiver"
 
-export interface User {
-  id: string;
-  email: string;
-  name?: string;
-  role: UserRole;
+export interface AuthUser {
+  id: string
+  email: string
+  full_name: string
+  role: UserRole
+  phone?: string
 }
 
-// Get current user from API
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const userData = await authApi.getCurrentUser();
-    return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.email, // Use email as name for now
-      role: userData.role,
-    };
-  } catch (error) {
-    // Try to get from localStorage as fallback
-    const storedUser = getCurrentUserFromStorage();
-    return storedUser;
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error || !user) {
+    return null
+  }
+
+  // Get user profile from our users table
+  const { data: profile, error: profileError } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+  if (profileError || !profile) {
+    return null
+  }
+
+  return {
+    id: profile.id,
+    email: profile.email,
+    full_name: profile.full_name,
+    role: profile.role as UserRole,
+    phone: profile.phone,
   }
 }
 
-// Login function
-export async function authenticateUser(email: string, password: string): Promise<User | null> {
-  try {
-    const loginResponse = await authApi.login({ email, password });
+export async function requireAuth(allowedRoles?: UserRole[]) {
+  const user = await getCurrentUser()
 
-    // Create user object from login response
-    const roleString = loginResponse.role as string;
-    
-    // Get the actual user ID from the login response
-    const userId = loginResponse.userId || 
-                   (roleString === 'admin' ? 'admin_id' : 
-                    roleString === 'doctor' ? 'doctor_id' : 
-                    roleString === 'vhv' ? 'vhv_id' : 'patient_id');
-    
-    const user: User = {
-      id: userId,
-      email: email,
-      name: email.split('@')[0], // Use email prefix as name
-      role: roleString.toUpperCase() as UserRole,
-    };
-
-    // Store user in localStorage
-    setCurrentUser(user);
-    
-    return user;
-  } catch (error) {
-    console.error('Login failed:', error);
-    return null;
+  if (!user) {
+    redirect("/auth/login")
   }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    redirect("/unauthorized")
+  }
+
+  return user
 }
 
-// Set current user in storage
-export function setCurrentUser(user: User): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('currentUser', JSON.stringify(user));
-  }
-}
-
-// Get current user from storage
-export function getCurrentUserFromStorage(): User | null {
-  if (typeof window !== 'undefined') {
-    const userData = localStorage.getItem('currentUser');
-    return userData ? JSON.parse(userData) : null;
-  }
-  return null;
-}
-
-// Clear current user
-export function clearCurrentUser(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-  }
-  // Use the mock API logout
-  authApi.logout();
-}
-
-// Role-based route protection
-export const roleRoutes: Record<UserRole, string[]> = {
-  [UserRole.ADMIN]: ["/admin"],
-  [UserRole.DOCTOR]: ["/doctor"],
-  [UserRole.VHV]: ["/vhv"],
-  [UserRole.PATIENT]: ["/patient"],
-};
-
-export function getDefaultRoute(role: UserRole): string {
+export function getRoleDisplayName(role: UserRole): string {
   switch (role) {
-    case UserRole.ADMIN:
-      return "/admin/dashboard";
-    case UserRole.DOCTOR:
-      return "/doctor/dashboard";
-    case UserRole.VHV:
-      return "/vhv/dashboard";
-    case UserRole.PATIENT:
-      return "/patient/dashboard";
+    case "doctor":
+      return "Doctor"
+    case "vhv":
+      return "Village Health Volunteer"
+    case "patient":
+      return "Patient"
+    case "caregiver":
+      return "Caregiver"
     default:
-      return "/login";
+      return "User"
   }
 }
 
-export function canAccessRoute(userRole: UserRole, path: string): boolean {
-  const allowedRoutes = roleRoutes[userRole];
-  return allowedRoutes.some(route => path.startsWith(route));
+export function getRoleDashboardPath(role: UserRole): string {
+  switch (role) {
+    case "doctor":
+      return "/doctor"
+    case "vhv":
+      return "/vhv"
+    case "patient":
+      return "/patient"
+    case "caregiver":
+      return "/caregiver"
+    default:
+      return "/"
+  }
 }
