@@ -1,0 +1,23 @@
+# Documentation files (except README)
+*.md
+!README.md
+!DEPLOYMENT_GUIDE.md
+
+# Environment files
+.env*
+!.env.example
+
+# Development dependencies (built files are needed for deployment)
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+*.tsbuildinfo
+
+# Keep dist/ and out/ for deployment
+# dist/ contains compiled API code
+# out/ contains static web assets
+
+# Docker and development files  
+docker-compose.yml
+Dockerfile*

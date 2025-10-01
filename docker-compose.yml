@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: healthcare-postgres
+    environment:
+      POSTGRES_DB: care_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./api/prisma/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - healthcare-network
+
+  # MinIO for S3-compatible object storage (optional)
+  minio:
+    image: minio/minio:latest
+    container_name: healthcare-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - healthcare-network
+
+  # Redis for session storage (optional for future use)
+  redis:
+    image: redis:7-alpine
+    container_name: healthcare-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - healthcare-network
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:
+
+networks:
+  healthcare-network:
+    driver: bridge
