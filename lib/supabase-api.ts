@@ -1029,14 +1029,13 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
       *,
       patients:patient_id (
         id,
-        first_name,
-        last_name,
-        email,
-        phone,
+        user_id,
+        patient_id,
+        date_of_birth,
+        gender,
         address,
-        national_id,
-        dob,
-        is_active
+        emergency_contact,
+        emergency_phone
       )
     `)
     .eq('vhv_id', vhvId)
@@ -1054,6 +1053,13 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
   // Get tasks and intakes for each assignment
   const enhancedAssignments = await Promise.all(
     assignments.map(async (assignment) => {
+      // Get patient user details from auth.users
+      const { data: userData } = await supabase!
+        .from('users')
+        .select('full_name, email, phone')
+        .eq('id', assignment.patients.user_id)
+        .single()
+
       // Get tasks for this assignment
       const { data: tasksData } = await supabase!
         .from('tasks')
@@ -1069,18 +1075,24 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
         .eq('vhv_id', assignment.vhv_id)
         .order('created_at', { ascending: false })
 
+      // Split full_name into first and last name
+      const fullName = userData?.full_name || ''
+      const nameParts = fullName.split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+
       return {
         ...convertAssignmentRow(assignment),
         patient: assignment.patients ? {
           id: assignment.patients.id,
-          firstName: assignment.patients.first_name,
-          lastName: assignment.patients.last_name,
-          email: assignment.patients.email,
-          phone: assignment.patients.phone,
+          firstName: firstName,
+          lastName: lastName,
+          email: userData?.email || '',
+          phone: userData?.phone || '',
           address: assignment.patients.address,
-          nationalId: assignment.patients.national_id,
-          dob: assignment.patients.dob,
-          isActive: assignment.patients.is_active,
+          nationalId: assignment.patients.patient_id, // Using patient_id as nationalId
+          dob: assignment.patients.date_of_birth,
+          isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
           intakeSubmissions: intakesData?.map(intake => ({
