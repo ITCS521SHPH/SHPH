@@ -33,6 +33,9 @@ import type {
   ReviewComment,
   CreateDoctorRequest,
   CreateVHVRequest,
+  DoctorProfile,
+  VHVProfile,
+  UpdateVHVProfileRequest,
   CreateTaskRequest,
   AssignPatientRequest,
   CreateEmergencyAlertRequest,
@@ -53,6 +56,8 @@ type IntakeRow = Database['public']['Tables']['intake_submissions']['Row']
 type HealthWorkerRow = Database['public']['Tables']['health_workers']['Row']
 type AssignmentRow = Database['public']['Tables']['assignments']['Row']
 type TaskRow = Database['public']['Tables']['tasks']['Row']
+type DoctorRow = Database['public']['Tables']['doctors']['Row']
+type VhvRow = Database['public']['Tables']['vhvs']['Row']
 type EmergencyAlertRow = Database['public']['Tables']['emergency_alerts']['Row'] & {
   doctor_id?: string
   vhv_id?: string
@@ -71,6 +76,7 @@ const convertPatientRow = (row: PatientRow): Patient => ({
   dob: new Date(row.dob),
   phone: row.phone || undefined,
   address: row.address || undefined,
+  district: row.district || undefined,
   medicalCondition: (row as any).medical_condition || undefined,
   lastVisit: (row as any).last_visit ? new Date((row as any).last_visit) : undefined,
   createdAt: new Date(row.created_at),
@@ -123,6 +129,40 @@ const convertTaskRow = (row: TaskRow): Task => ({
           row.status as any,
   dueDate: row.due_date ? new Date(row.due_date) : undefined,
   completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+  createdAt: new Date(row.created_at),
+  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
+})
+
+const convertDoctorRow = (row: DoctorRow): DoctorProfile => ({
+  id: row.id,
+  email: row.email,
+  firstName: row.first_name,
+  lastName: row.last_name,
+  name: `${row.first_name} ${row.last_name}`.trim(),
+  phone: row.phone || undefined,
+  district: row.district || undefined,
+  licenseNumber: row.license_number,
+  specialization: row.specialization || undefined,
+  experienceYears: typeof row.experience_years === 'number' ? row.experience_years : undefined,
+  status: row.is_active ? 'active' : 'inactive',
+  isActive: row.is_active ?? true,
+  createdAt: new Date(row.created_at),
+  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
+})
+
+const convertVHVRow = (row: VhvRow): VHVProfile => ({
+  id: row.id,
+  email: row.email,
+  firstName: row.first_name,
+  lastName: row.last_name,
+  name: `${row.first_name} ${row.last_name}`.trim(),
+  phone: row.phone || undefined,
+  district: row.district || undefined,
+  licenseNumber: row.license_number,
+  specialization: row.specialization || undefined,
+  experienceYears: typeof row.experience_years === 'number' ? row.experience_years : undefined,
+  status: row.is_active ? 'active' : 'inactive',
+  isActive: row.is_active ?? true,
   createdAt: new Date(row.created_at),
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
 })
@@ -330,27 +370,66 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
   // This is a temporary workaround until the migration can be applied
   const dummyEmail = `noemail_${Date.now()}_${Math.random().toString(36).substring(7)}@temp.local`
 
-  const { data, error } = await supabase
+  // Generate a placeholder password hash to satisfy NOT NULL constraints when present
+  let placeholderHash: string | null = null
+  try {
+    const tempPassword = `Temp_${Math.random().toString(36).slice(2, 10)}!`
+    const { data: hashed, error: hashErr } = await supabase.rpc('hash_password', { password: tempPassword })
+    if (!hashErr && typeof hashed === 'string') {
+      placeholderHash = hashed
+    }
+  } catch (_) {
+    // ignore; we'll fallback to a static string if needed
+  }
+
+  // Attempt insert including optional columns; fall back to minimal payload if schema lacks columns
+  const optionalPayload: any = {
+    email: patientData.email || dummyEmail,
+    national_id: patientData.nationalId || null,
+    first_name: patientData.firstName,
+    last_name: patientData.lastName,
+    dob: patientData.dob,
+    phone: patientData.phone || null,
+    address: patientData.address || null,
+    district: patientData.district || null,
+    medical_condition: patientData.medicalCondition || null,
+    last_visit: patientData.lastVisit || null,
+    password_hash: placeholderHash || 'placeholder_password_hash'
+  }
+
+  const minimalPayload: any = {
+    email: patientData.email || dummyEmail,
+    first_name: patientData.firstName,
+    last_name: patientData.lastName,
+    dob: patientData.dob,
+    password_hash: placeholderHash || 'placeholder_password_hash'
+  }
+
+  // First try with optional fields
+  let insertResp = await supabase
     .from('patients')
-    .insert({
-      email: patientData.email || dummyEmail, // Use provided email or unique dummy email
-      national_id: patientData.nationalId || null, // Convert empty string to null
-      first_name: patientData.firstName,
-      last_name: patientData.lastName,
-      dob: patientData.dob,
-      phone: patientData.phone || null, // Convert empty string to null
-      address: patientData.address || null, // Convert empty string to null
-      medical_condition: patientData.medicalCondition || null,
-      last_visit: patientData.lastVisit || null
-    })
+    .insert(optionalPayload)
     .select()
     .single()
 
-  if (error) {
-    throw new Error(error.message)
+  // If unknown column errors (42703) or schema cache messages, retry with minimal
+  if (insertResp.error) {
+    const code = (insertResp.error as any).code || ''
+    const msg = (insertResp.error as any).message || ''
+    if (code === '42703' || /schema cache/i.test(msg) || /column/i.test(msg)) {
+      insertResp = await supabase
+        .from('patients')
+        .insert(minimalPayload)
+        .select()
+        .single()
+    }
   }
 
-  return convertPatientRow(data)
+  if (insertResp.error) {
+    throw new Error(insertResp.error.message)
+  }
+
+  return convertPatientRow(insertResp.data)
 }
 
 // Intake Submissions API
@@ -586,7 +665,7 @@ export const createTask = async (taskData: CreateTaskRequest): Promise<Task> => 
     .insert({
       title: taskData.title,
       description: taskData.description,
-      patient_id: taskData.patientId,
+      patient_id: taskData.patientId || null,
       vhv_id: taskData.vhvId,
       doctor_id: taskData.doctorId,
       priority: taskData.priority,
@@ -959,62 +1038,74 @@ export const getAssignmentsWithDetails = async (doctorId: string) => {
     return []
   }
 
-  // Get assignments for the specific doctor
-  const { data: assignments, error: assignmentsError } = await supabase
+  // Fetch assignments with joined patient and VHV data in one round-trip
+  const { data: joined, error: joinError } = await supabase
     .from('assignments')
-    .select('*')
+    .select(`
+      *,
+      patients:patient_id (*),
+      vhvs:vhv_id (*)
+    `)
     .eq('doctor_id', doctorId)
     .order('created_at', { ascending: false })
 
-  if (assignmentsError) {
-    throw new Error(assignmentsError.message)
+  if (joinError) {
+    throw new Error(joinError.message)
   }
 
-  if (!assignments || assignments.length === 0) {
-    return []
+  const assignments = joined || []
+  if (assignments.length === 0) return []
+
+  // Build OR filter for tasks by (patient_id, vhv_id) pairs to avoid N+1
+  const pairs = assignments.map((a: any) => ({ p: a.patient_id, v: a.vhv_id }))
+  const uniquePairs: Array<{ p: string; v: string }> = []
+  const seen = new Set<string>()
+  for (const pair of pairs) {
+    const key = `${pair.p}|${pair.v}`
+    if (!seen.has(key)) { seen.add(key); uniquePairs.push(pair) }
   }
 
-  // Get patient and VHV details for each assignment
-  const enhancedAssignments = await Promise.all(
-    assignments.map(async (assignment) => {
-      // Get patient details
-      const { data: patientData } = await supabase!
-        .from('patients')
-        .select('*')
-        .eq('id', assignment.patient_id)
-        .single()
+  let tasksByKey = new Map<string, any[]>()
+  if (uniquePairs.length > 0) {
+    // Construct OR filter string like: and(patient_id.eq.X,vhv_id.eq.Y),and(...)
+    const orClauses = uniquePairs.map(({ p, v }) => `and(patient_id.eq.${p},vhv_id.eq.${v})`).join(',')
+    const { data: tasksData, error: tasksError } = await supabase
+      .from('tasks')
+      .select('*')
+      .or(orClauses)
 
-      // Get VHV details
-      const { data: vhvData } = await supabase!
-        .from('vhvs')
-        .select('*')
-        .eq('id', assignment.vhv_id)
-        .single()
+    if (!tasksError && tasksData) {
+      for (const t of tasksData) {
+        const key = `${t.patient_id}|${t.vhv_id}`
+        if (!tasksByKey.has(key)) tasksByKey.set(key, [])
+        tasksByKey.get(key)!.push(t)
+      }
+    }
+  }
 
-      // Get tasks for this assignment
-      const { data: tasksData } = await supabase!
-        .from('tasks')
-        .select('*')
-        .eq('patient_id', assignment.patient_id)
-        .eq('vhv_id', assignment.vhv_id)
-
-      return {
-        ...convertAssignmentRow(assignment),
-        patient: patientData ? convertPatientRow(patientData) : null,
-        vhv: vhvData ? {
-          id: vhvData.id,
-          email: vhvData.email,
+  // Map joined results into expected shape
+  return assignments.map((a: any) => {
+    const key = `${a.patient_id}|${a.vhv_id}`
+    const tasks = (tasksByKey.get(key) || []).map(convertTaskRow)
+    const patient = a.patients ? convertPatientRow(a.patients) : null
+    const vhv = a.vhvs
+      ? {
+          id: a.vhvs.id,
+          email: a.vhvs.email,
           passwordHash: '',
           role: 'VHV' as any,
-          createdAt: new Date(vhvData.created_at),
-          updatedAt: vhvData.updated_at ? new Date(vhvData.updated_at) : undefined
-        } : null,
-        tasks: tasksData?.map(convertTaskRow) || []
-      }
-    })
-  )
+          createdAt: new Date(a.vhvs.created_at),
+          updatedAt: a.vhvs.updated_at ? new Date(a.vhvs.updated_at) : undefined,
+        }
+      : null
 
-  return enhancedAssignments
+    return {
+      ...convertAssignmentRow(a),
+      patient,
+      vhv,
+      tasks,
+    }
+  })
 }
 
 export const getAssignmentsByVHV = async (vhvId: string) => {
@@ -1022,10 +1113,35 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
     return []
   }
 
-  // Get assignments for the specific VHV with patient details
-  const { data: assignments, error: assignmentsError } = await supabase
+  const baseSelect = `
+      *,
+      patients:patient_id (
+        id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        address,
+        district,
+        national_id,
+        dob,
+        is_active
+      )
+    `
+
+  let assignments: any[] | null = null
+  let assignmentsError: any = null
+
+  const { data: withDistrict, error: withDistrictError } = await supabase
     .from('assignments')
-    .select(`
+    .select(baseSelect)
+    .eq('vhv_id', vhvId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+
+  if (withDistrictError && withDistrictError.code === '42703') {
+    console.warn('[v0] District column missing in patients table, falling back without district field.')
+    const fallbackSelect = `
       *,
       patients:patient_id (
         id,
@@ -1038,10 +1154,20 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
         dob,
         is_active
       )
-    `)
-    .eq('vhv_id', vhvId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
+    `
+    const { data: withoutDistrict, error: fallbackError } = await supabase
+      .from('assignments')
+      .select(fallbackSelect)
+      .eq('vhv_id', vhvId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+
+    assignments = withoutDistrict
+    assignmentsError = fallbackError
+  } else {
+    assignments = withDistrict
+    assignmentsError = withDistrictError
+  }
 
   if (assignmentsError) {
     throw new Error(assignmentsError.message)
@@ -1075,10 +1201,11 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
           id: assignment.patients.id,
           firstName: assignment.patients.first_name,
           lastName: assignment.patients.last_name,
-          email: assignment.patients.email,
-          phone: assignment.patients.phone,
-          address: assignment.patients.address,
-          nationalId: assignment.patients.national_id,
+        email: assignment.patients.email,
+        phone: assignment.patients.phone,
+        address: assignment.patients.address,
+        district: assignment.patients.district,
+        nationalId: assignment.patients.national_id,
           dob: assignment.patients.dob,
           isActive: assignment.patients.is_active,
           createdAt: new Date(),
@@ -1592,6 +1719,24 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
     console.log(`[v0] Error finding assignment for patient ${alertData.patientId}:`, error)
   }
 
+  const { data: patientRecord, error: patientError } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('id', alertData.patientId)
+    .single()
+
+  if (patientError || !patientRecord) {
+    throw new Error('Patient not found. Please ensure the patient record exists before creating an emergency alert.')
+  }
+
+  const safeDescription = typeof alertData.description === 'string' && alertData.description.trim()
+    ? alertData.description.trim()
+    : 'No description provided.'
+
+  const safeLocation = typeof alertData.location === 'string' && alertData.location.trim()
+    ? alertData.location.trim()
+    : null
+
   const { data, error } = await supabase
     .from('emergency_alerts')
     .insert({
@@ -1600,8 +1745,8 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
       vhv_id: assignedVHVId,
       priority: dbPriority,
       status: 'active', // Default status
-      description: alertData.description,
-      location: alertData.location
+      description: safeDescription,
+      location: safeLocation
     })
     .select()
     .single()
@@ -1846,7 +1991,7 @@ export const getAdmins = async (): Promise<any[]> => {
 }
 
 // Get doctors
-export const getDoctors = async (): Promise<any[]> => {
+export const getDoctors = async (): Promise<DoctorProfile[]> => {
   if (!supabase) {
     return []
   }
@@ -1862,20 +2007,7 @@ export const getDoctors = async (): Promise<any[]> => {
       throw new Error(`Doctors query failed: ${error.message}`)
     }
 
-    return data?.map(row => ({
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      name: `${row.first_name} ${row.last_name}`,
-      status: row.is_active ? 'active' : 'inactive',
-      phone: row.phone,
-      licenseNumber: row.license_number,
-      specialization: row.specialization,
-      experienceYears: row.experience_years,
-      createdAt: new Date(row.created_at),
-      updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
-    })) || []
+    return data?.map(convertDoctorRow) || []
   } catch (error) {
     console.error('Error fetching doctors:', error)
     throw new Error('Failed to fetch doctors')
@@ -1883,7 +2015,7 @@ export const getDoctors = async (): Promise<any[]> => {
 }
 
 // Get VHVs
-export const getVHVs = async (): Promise<any[]> => {
+export const getVHVs = async (): Promise<VHVProfile[]> => {
   if (!supabase) {
     return []
   }
@@ -1899,24 +2031,71 @@ export const getVHVs = async (): Promise<any[]> => {
       throw new Error(`VHVs query failed: ${error.message}`)
     }
 
-    return data?.map(row => ({
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      name: `${row.first_name} ${row.last_name}`,
-      status: row.is_active ? 'active' : 'inactive',
-      phone: row.phone,
-      licenseNumber: row.license_number,
-      specialization: row.specialization,
-      experienceYears: row.experience_years,
-      createdAt: new Date(row.created_at),
-      updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
-    })) || []
+    return data?.map(convertVHVRow) || []
   } catch (error) {
     console.error('Error fetching VHVs:', error)
     throw new Error('Failed to fetch VHVs')
   }
+}
+
+export const getVHVProfile = async (vhvId: string): Promise<VHVProfile | null> => {
+  if (!supabase) {
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from('vhvs')
+    .select('*')
+    .eq('id', vhvId)
+    .single()
+
+  if (error) {
+    if ((error as any).code === 'PGRST116') {
+      return null
+    }
+    throw new Error(error.message)
+  }
+
+  return convertVHVRow(data)
+}
+
+export const updateVHVProfile = async (vhvId: string, updates: UpdateVHVProfileRequest): Promise<VHVProfile> => {
+  if (!supabase) {
+    throw new Error('Supabase not configured')
+  }
+
+  const payload: Partial<VhvRow> = {}
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'phone')) {
+    const phoneValue = updates.phone ?? ''
+    payload.phone = phoneValue && phoneValue.trim() !== '' ? phoneValue.trim() : null
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'district')) {
+    const districtValue = updates.district ?? ''
+    payload.district = districtValue && districtValue.trim() !== '' ? districtValue.trim() : null
+  }
+
+  if (Object.keys(payload).length === 0) {
+    const current = await getVHVProfile(vhvId)
+    if (!current) {
+      throw new Error('VHV profile not found')
+    }
+    return current
+  }
+
+  const { data, error } = await supabase
+    .from('vhvs')
+    .update(payload)
+    .eq('id', vhvId)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return convertVHVRow(data)
 }
 
 // Get all users from all role tables (deprecated - use individual functions instead)
@@ -1980,37 +2159,45 @@ export const getUsers = async (): Promise<User[]> => {
     }
 
     if (doctorsResult.data) {
-      allUsers.push(...doctorsResult.data.map(row => ({
-        id: row.id,
-        email: row.email,
-        passwordHash: '',
-        role: 'DOCTOR' as any,
-        firstName: row.first_name,
-        lastName: row.last_name,
-        name: `${row.first_name} ${row.last_name}`,
-        status: row.is_active ? 'active' : 'inactive',
-        licenseNumber: row.license_number,
-        specialization: row.specialization,
-        createdAt: new Date(row.created_at),
-        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
-      })))
+      allUsers.push(...doctorsResult.data.map(row => {
+        const doctor = convertDoctorRow(row)
+        return {
+          id: doctor.id,
+          email: doctor.email,
+          passwordHash: '',
+          role: 'DOCTOR' as any,
+          firstName: doctor.firstName,
+          lastName: doctor.lastName,
+          name: doctor.name,
+          status: doctor.status,
+          licenseNumber: doctor.licenseNumber,
+          specialization: doctor.specialization,
+          district: doctor.district,
+          phone: doctor.phone,
+          createdAt: doctor.createdAt,
+          updatedAt: doctor.updatedAt
+        }
+      }))
     }
 
     if (vhvsResult.data) {
-      allUsers.push(...vhvsResult.data.map(row => ({
-        id: row.id,
-        email: row.email,
-        passwordHash: '',
-        role: 'VHV' as any,
-        firstName: row.first_name,
-        lastName: row.last_name,
-        name: `${row.first_name} ${row.last_name}`,
-        status: row.is_active ? 'active' : 'inactive',
-        licenseNumber: row.license_number,
-        specialization: row.specialization,
-        createdAt: new Date(row.created_at),
-        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
-      })))
+      allUsers.push(...vhvsResult.data.map(row => {
+        const vhv = convertVHVRow(row)
+        return {
+          id: vhv.id,
+          email: vhv.email,
+          passwordHash: '',
+          role: 'VHV' as any,
+          firstName: vhv.firstName,
+          lastName: vhv.lastName,
+          name: vhv.name,
+          status: vhv.status,
+          licenseNumber: vhv.licenseNumber,
+          specialization: vhv.specialization,
+          createdAt: vhv.createdAt,
+          updatedAt: vhv.updatedAt
+        }
+      }))
     }
 
     if (patientsResult.data) {
@@ -2141,6 +2328,113 @@ export const getDashboardStats = async () => {
   }
 }
 
+
+const convertAreaTaskRow = (row: any) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description || '',
+  doctorId: row.doctor_id,
+  vhvId: row.vhv_id,
+  district: row.district || undefined,
+  priority: row.priority,
+  status: row.status,
+  dueDate: row.due_date ? new Date(row.due_date) : undefined,
+  completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+  createdAt: new Date(row.created_at),
+  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+})
+
+export const getAreaTasksByVHV = async (vhvId: string) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .select('*')
+    .eq('vhv_id', vhvId)
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data || []).map(convertAreaTaskRow)
+}
+
+export const getAreaTasksByDoctor = async (doctorId: string) => {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .select('*')
+    .eq('doctor_id', doctorId)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data || []).map(convertAreaTaskRow)
+}
+
+export const createAreaTask = async (taskData: any) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .insert({
+      title: taskData.title,
+      description: taskData.description,
+      doctor_id: taskData.doctorId,
+      vhv_id: taskData.vhvId,
+      district: taskData.district || taskData.areaDistrict || null,
+      priority: taskData.priority,
+      due_date: taskData.dueDate && `${taskData.dueDate}`.trim() !== '' ? taskData.dueDate : null
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
+}
+
+export const updateAreaTask = async (id: string, updateData: any) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .update({
+      title: updateData.title,
+      description: updateData.description,
+      priority: updateData.priority,
+      status: updateData.status,
+      due_date: updateData.dueDate ? new Date(updateData.dueDate).toISOString() : null,
+      completed_at: updateData.completedAt ? new Date(updateData.completedAt).toISOString() : null
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
+}
+
+export const completeAreaTask = async (id: string) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
+}
+
+export const reopenAreaTask = async (id: string) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('area_tasks')
+    .update({ status: 'pending', completed_at: null })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
+}
+
+export const deleteAreaTask = async (id: string) => {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { error } = await supabase.from('area_tasks').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 // Export all functions as supabaseApi object
 export const supabaseApi = {
   // Authentication
@@ -2177,6 +2471,13 @@ export const supabaseApi = {
   completeTask,
   reopenTask,
   deleteTask,
+  getAreaTasksByVHV,
+  getAreaTasksByDoctor,
+  createAreaTask,
+  updateAreaTask,
+  completeAreaTask,
+  reopenAreaTask,
+  deleteAreaTask,
   
   // Emergency alerts
   createEmergencyAlert,
@@ -2195,6 +2496,8 @@ export const supabaseApi = {
   getAdmins,
   getDoctors,
   getVHVs,
+  getVHVProfile,
+  updateVHVProfile,
   getAvailableVHVs,
   
   // Dashboard stats

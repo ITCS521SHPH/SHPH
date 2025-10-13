@@ -99,6 +99,7 @@ export const demoPatients: Patient[] = [
     dob: new Date("1980-05-15"),
     phone: "+1234567890",
     address: "123 Main St, City, Country",
+    district: "Phra Nakhon",
     createdAt: new Date("2024-01-01"),
   },
   {
@@ -109,6 +110,7 @@ export const demoPatients: Patient[] = [
     dob: new Date("1975-08-22"),
     phone: "+1234567891",
     address: "456 Oak Ave, City, Country",
+    district: "Dusit",
     createdAt: new Date("2024-01-10"),
   },
   {
@@ -119,6 +121,7 @@ export const demoPatients: Patient[] = [
     dob: new Date("1990-12-03"),
     phone: "+1234567892",
     address: "789 Pine Rd, City, Country",
+    district: "Bang Rak",
     createdAt: new Date("2024-01-15"),
   },
   {
@@ -129,6 +132,7 @@ export const demoPatients: Patient[] = [
     dob: new Date("1965-03-18"),
     phone: "+1234567893",
     address: "321 Elm St, City, Country",
+    district: "Bang Kapi",
     createdAt: new Date("2024-01-20"),
   },
   {
@@ -139,6 +143,7 @@ export const demoPatients: Patient[] = [
     dob: new Date("1988-07-09"),
     phone: "+1234567894",
     address: "654 Maple Ave, City, Country",
+    district: "Chatuchak",
     createdAt: new Date("2024-01-25"),
   },
 ]

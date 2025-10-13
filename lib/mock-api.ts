@@ -167,6 +167,7 @@ export const mockPatientsApi = {
       dob: new Date(patientData.dob),
       phone: patientData.phone,
       address: patientData.address,
+      district: patientData.district || undefined,
       createdAt: new Date(),
     }
 
@@ -472,6 +473,8 @@ export const mockAdminApi = {
     licenseNumber: string
     specialization: string
     hospitalAffiliation: string
+    district: string
+    phoneNumber: string
   }) => {
     await delay()
 
