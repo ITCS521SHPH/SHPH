@@ -25,4 +25,3 @@ BEGIN
     CREATE INDEX IF NOT EXISTS idx_area_tasks_status ON public.area_tasks(status);
   END IF;
 END $$;
-

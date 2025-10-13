@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useCallback, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1074,13 +1074,3 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
