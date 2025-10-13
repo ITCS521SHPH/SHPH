@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { getCurrentUser, getCurrentUserFromStorage, canAccessRoute, getDefaultRoute, clearCurrentUser, type User } from "@/lib/auth"
+import { getCurrentUser, canAccessRoute, type User } from "@/lib/auth"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,52 +21,25 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const pathname = usePathname()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // First check localStorage for cached user
-      const cachedUser = getCurrentUserFromStorage()
-      if (cachedUser) {
-        setUser(cachedUser)
-        
-        // Check if user can access current route
-        const canAccess = canAccessRoute(cachedUser.role, pathname)
-        setHasAccess(canAccess)
-        
-        if (!canAccess) {
-          console.log("[v0] Access denied for user:", cachedUser.email, "to route:", pathname)
-        }
-        
-        setIsLoading(false)
-        return
-      }
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
 
-      // No cached user, try to get current user from API
-      try {
-        const currentUser = await getCurrentUser()
-        if (!currentUser) {
-          // Not authenticated, redirect to login
-          router.push("/")
-          return
-        }
-
-        setUser(currentUser)
-        
-        // Check if user can access current route
-        const canAccess = canAccessRoute(currentUser.role, pathname)
-        setHasAccess(canAccess)
-
-        if (!canAccess) {
-          console.log("[v0] Access denied for user:", currentUser.email, "to route:", pathname)
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error)
-        router.push("/")
-        return
-      }
-
-      setIsLoading(false)
+    // Check if user can access current route
+    if (!currentUser) {
+      // Not authenticated, redirect to login
+      router.push("/")
+      return
     }
 
-    checkAuth()
+    const canAccess = canAccessRoute(currentUser, pathname)
+    setHasAccess(canAccess)
+
+    if (!canAccess) {
+      // User doesn't have permission for this route
+      console.log("[v0] Access denied for user:", currentUser.email, "to route:", pathname)
+    }
+
+    setIsLoading(false)
   }, [pathname, router])
 
   if (isLoading) {
@@ -107,16 +80,18 @@ export function RouteGuard({ children }: RouteGuardProps) {
               <Button
                 onClick={() => {
                   // Redirect to appropriate dashboard based on role
-                  const defaultRoute = getDefaultRoute(user.role)
-                  router.push(defaultRoute)
+                  const dashboardRoutes = {
+                    doctor: "/doctor/dashboard",
+                    vhv: "/vhv/dashboard",
+                    caregiver: "/caregiver/dashboard",
+                    patient: "/patient/dashboard",
+                  }
+                  router.push(dashboardRoutes[user.role])
                 }}
               >
                 Go to My Dashboard
               </Button>
-              <Button variant="outline" onClick={() => {
-                clearCurrentUser()
-                router.push("/")
-              }}>
+              <Button variant="outline" onClick={() => router.push("/")}>
                 Sign Out
               </Button>
             </div>

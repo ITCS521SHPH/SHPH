@@ -21,92 +21,35 @@ interface PatientReviewProps {
       medicalHistory: { completed: boolean; items: string[] }
     }
   }
-  formData?: any // Add formData prop
   onBack: () => void
   onConfirm: () => void
 }
 
-export function PatientReview({ patient, formData, onBack, onConfirm }: PatientReviewProps) {
-  // Use real form data if available, otherwise fall back to mock data
-  const collectedData = formData ? {
-    patientInfo: {
-      name: formData.patientFullName || patient.name,
-      hospitalNumber: formData.hospitalNumber || "Not provided",
-      gender: "Not specified", // This field is not in our form
-      contact: patient.phone,
-    },
-    vitalSigns: {
-      oxygenSaturation: formData.oxygenSaturation ? `${formData.oxygenSaturation}%` : "Not measured",
-      bloodPressure: formData.bloodPressureSystolic && formData.bloodPressureDiastolic 
-        ? `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic} mmHg` 
-        : "Not measured",
-      heartRate: formData.heartRate ? `${formData.heartRate} bpm` : "Not measured",
-      bloodGlucose: formData.bloodGlucose ? `${formData.bloodGlucose} mg/dL` : "Not measured",
-    },
-    physicalFunction: {
-      dyspneaScore: formData.dyspneaScore || "Not assessed",
-      balanceScore: formData.balanceScore || "Not assessed",
-      ipaqScore: formData.ipaqScore || "Not assessed",
-      sitToStandReps: formData.sitToStandReps || "Not tested",
-      sixMinuteWalk: formData.sixMinuteWalk || "Not tested",
-      sppbScore: formData.sppbScore || "Not assessed",
-      gripStrengthRight: formData.gripStrengthRight || "Not measured",
-      gripStrengthLeft: formData.gripStrengthLeft || "Not measured",
-    },
-    mentalCognitive: {
-      mocaScore: formData.mocaScore || "Not assessed",
-      fatigueSeverityScale: formData.fatigueSeverityScale || "Not assessed",
-      facitFatigueScale: formData.facitFatigueScale || "Not assessed",
-      chalderFatigueScale: formData.chalderFatigueScale || "Not assessed",
-      gad7Score: formData.gad7Score || "Not assessed",
-      hadsAnxietyScore: formData.hadsAnxietyScore || "Not assessed",
-      hadsDepressionScore: formData.hadsDepressionScore || "Not assessed",
-      beckScore: formData.beckScore || "Not assessed",
-      iesrScore: formData.iesrScore || "Not assessed",
-    },
-    vhvNotes: {
-      patientConcerns: formData.patientConcerns || "No concerns noted",
-      vhvObservations: formData.vhvObservations || "No observations noted",
-    }
-  } : {
-    // Fallback mock data when no form data is available
+export function PatientReview({ patient, onBack, onConfirm }: PatientReviewProps) {
+  const mockCollectedData = {
     patientInfo: {
       name: patient.name,
-      hospitalNumber: "No data available",
-      gender: "Not specified",
+      age: patient.age,
+      gender: "Female",
       contact: patient.phone,
     },
     vitalSigns: {
-      oxygenSaturation: "No data collected",
-      bloodPressure: "No data collected", 
-      heartRate: "No data collected",
-      bloodGlucose: "No data collected",
+      temperature: "37.2°C",
+      bloodPressure: "120/80 mmHg",
+      pulse: "72 bpm",
+      weight: "65 kg",
     },
-    physicalFunction: {
-      dyspneaScore: "No data collected",
-      balanceScore: "No data collected",
-      ipaqScore: "No data collected",
-      sitToStandReps: "No data collected",
-      sixMinuteWalk: "No data collected",
-      sppbScore: "No data collected",
-      gripStrengthRight: "No data collected",
-      gripStrengthLeft: "No data collected",
+    symptoms: {
+      primaryComplaint: "Persistent cough and mild fever",
+      duration: "3 days",
+      severity: "Moderate",
+      associatedSymptoms: "Fatigue, slight headache",
     },
-    mentalCognitive: {
-      mocaScore: "No data collected",
-      fatigueSeverityScale: "No data collected",
-      facitFatigueScale: "No data collected",
-      chalderFatigueScale: "No data collected",
-      gad7Score: "No data collected",
-      hadsAnxietyScore: "No data collected",
-      hadsDepressionScore: "No data collected",
-      beckScore: "No data collected",
-      iesrScore: "No data collected",
+    medicalHistory: {
+      previousConditions: patient.condition,
+      currentMedications: "Lisinopril 10mg daily",
+      allergies: "No known allergies",
     },
-    vhvNotes: {
-      patientConcerns: "No concerns noted",
-      vhvObservations: "No observations noted",
-    }
   }
 
   return (
@@ -186,19 +129,19 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Name:</span>
-                    <span className="text-sm">{collectedData.patientInfo.name}</span>
+                    <span className="text-sm">{mockCollectedData.patientInfo.name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium">Hospital Number:</span>
-                    <span className="text-sm">{collectedData.patientInfo.hospitalNumber}</span>
+                    <span className="text-sm font-medium">Age:</span>
+                    <span className="text-sm">{mockCollectedData.patientInfo.age}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Gender:</span>
-                    <span className="text-sm">{collectedData.patientInfo.gender}</span>
+                    <span className="text-sm">{mockCollectedData.patientInfo.gender}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Contact:</span>
-                    <span className="text-sm">{collectedData.patientInfo.contact}</span>
+                    <span className="text-sm">{mockCollectedData.patientInfo.contact}</span>
                   </div>
                 </div>
               </CardContent>
@@ -221,140 +164,32 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
               <CardContent className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium">Oxygen Saturation:</span>
-                    <span className="text-sm">{collectedData.vitalSigns.oxygenSaturation}</span>
+                    <span className="text-sm font-medium">Temperature:</span>
+                    <span className="text-sm">{mockCollectedData.vitalSigns.temperature}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium">Blood Pressure:</span>
-                    <span className="text-sm">{collectedData.vitalSigns.bloodPressure}</span>
+                    <span className="text-sm">{mockCollectedData.vitalSigns.bloodPressure}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium">Heart Rate:</span>
-                    <span className="text-sm">{collectedData.vitalSigns.heartRate}</span>
+                    <span className="text-sm font-medium">Pulse:</span>
+                    <span className="text-sm">{mockCollectedData.vitalSigns.pulse}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium">Blood Glucose:</span>
-                    <span className="text-sm">{collectedData.vitalSigns.bloodGlucose}</span>
+                    <span className="text-sm font-medium">Weight:</span>
+                    <span className="text-sm">{mockCollectedData.vitalSigns.weight}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Physical Function & Performance */}
+            {/* Symptoms */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    Physical Function & Performance
-                  </span>
-                  <Badge variant="default" className="bg-green-500">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Complete
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Dyspnea Score:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.dyspneaScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Balance Score:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.balanceScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">IPAQ Score:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.ipaqScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Sit-to-Stand Reps:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.sitToStandReps}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">6-Minute Walk:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.sixMinuteWalk}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">SPPB Score:</span>
-                    <span className="text-sm">{collectedData.physicalFunction.sppbScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Grip Strength (Right):</span>
-                    <span className="text-sm">{collectedData.physicalFunction.gripStrengthRight}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Grip Strength (Left):</span>
-                    <span className="text-sm">{collectedData.physicalFunction.gripStrengthLeft}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Mental, Cognitive & Fatigue Assessment */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Mental, Cognitive & Fatigue Assessment
-                  </span>
-                  <Badge variant="default" className="bg-green-500">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Complete
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">MoCA Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.mocaScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Fatigue Severity Scale:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.fatigueSeverityScale}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">FACIT Fatigue Scale:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.facitFatigueScale}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Chalder Fatigue Scale:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.chalderFatigueScale}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">GAD-7 Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.gad7Score}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">HADS Anxiety Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.hadsAnxietyScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">HADS Depression Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.hadsDepressionScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Beck Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.beckScore}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">IES-R Score:</span>
-                    <span className="text-sm">{collectedData.mentalCognitive.iesrScore}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* VHV Notes */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    VHV Notes & Observations
+                    <AlertCircle className="h-4 w-4" />
+                    Symptoms
                   </span>
                   <Badge variant="default" className="bg-green-500">
                     <CheckCircle className="h-3 w-3 mr-1" />
@@ -365,12 +200,58 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
               <CardContent className="space-y-3">
                 <div className="space-y-2">
                   <div>
-                    <span className="text-sm font-medium">Patient Concerns:</span>
-                    <p className="text-sm text-muted-foreground mt-1">{collectedData.vhvNotes.patientConcerns}</p>
+                    <span className="text-sm font-medium">Primary Complaint:</span>
+                    <p className="text-sm text-muted-foreground mt-1">{mockCollectedData.symptoms.primaryComplaint}</p>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium">Duration:</span>
+                    <span className="text-sm">{mockCollectedData.symptoms.duration}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-medium">Severity:</span>
+                    <span className="text-sm">{mockCollectedData.symptoms.severity}</span>
                   </div>
                   <div>
-                    <span className="text-sm font-medium">VHV Observations:</span>
-                    <p className="text-sm text-muted-foreground mt-1">{collectedData.vhvNotes.vhvObservations}</p>
+                    <span className="text-sm font-medium">Associated Symptoms:</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {mockCollectedData.symptoms.associatedSymptoms}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Medical History */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Medical History
+                  </span>
+                  <Badge variant="default" className="bg-green-500">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Complete
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-sm font-medium">Previous Conditions:</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {mockCollectedData.medicalHistory.previousConditions}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium">Current Medications:</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {mockCollectedData.medicalHistory.currentMedications}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium">Allergies:</span>
+                    <p className="text-sm text-muted-foreground mt-1">{mockCollectedData.medicalHistory.allergies}</p>
                   </div>
                 </div>
               </CardContent>

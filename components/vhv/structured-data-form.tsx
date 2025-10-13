@@ -9,9 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Clock, FileText, Activity, User, Heart } from "lucide-react"
-import { useState, useEffect } from "react"
-import { intakesApi } from "@/lib/api"
-import { saveFormDataOffline, getOfflineFormData, offlineStorage } from "@/lib/offline-storage"
+import { useState } from "react"
 
 interface StructuredDataFormProps {
   patient: {
@@ -19,7 +17,6 @@ interface StructuredDataFormProps {
     name: string
     hospitalNumber?: string
   }
-  intakeId?: string | null
   onSectionComplete: (section: string) => void
   onFormComplete: () => void
   completedSections: string[]
@@ -27,14 +24,12 @@ interface StructuredDataFormProps {
 
 export function StructuredDataForm({
   patient,
-  intakeId,
   onSectionComplete,
   onFormComplete,
   completedSections,
 }: StructuredDataFormProps) {
   const [vhvName, setVhvName] = useState("Maria Santos")
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0])
-  const [isDataLoaded, setIsDataLoaded] = useState(false)
 
   const [formData, setFormData] = useState({
     // Patient Information
@@ -131,145 +126,8 @@ export function StructuredDataForm({
     },
   ]
 
-  // Save data to backend with debouncing and offline fallback
-  const saveToBackend = async (updatedData: any) => {
-    // More comprehensive intakeId validation
-    if (!intakeId || intakeId.trim() === '' || intakeId === 'undefined' || intakeId === 'null') {
-      console.warn('Cannot save: Invalid intake ID. IntakeId:', intakeId, 'Type:', typeof intakeId)
-      return
-    }
-    
-    // Don't save if data hasn't been loaded yet to prevent overwriting
-    if (!isDataLoaded) {
-      console.log('Skipping save: Data not loaded yet')
-      return
-    }
-    
-    // Additional validation: check if patient exists
-    if (!patient || !patient.id) {
-      console.warn('Cannot save: No valid patient. Patient:', patient)
-      return
-    }
-    
-    try {
-      console.log('Saving form data for intake:', intakeId)
-      if (offlineStorage.isOnline()) {
-        await intakesApi.update(intakeId, updatedData)
-        console.log('Form data saved to backend')
-      } else {
-        // Save offline when no internet connection
-        await saveFormDataOffline(patient.id.toString(), intakeId, updatedData, completedSections)
-        console.log('Form data saved offline')
-      }
-    } catch (error) {
-      console.error('Failed to save form data:', error)
-      // Fallback to offline storage if API call fails
-      try {
-        console.log('Falling back to offline storage')
-        await saveFormDataOffline(patient.id.toString(), intakeId, updatedData, completedSections)
-        console.log('Form data saved offline as fallback')
-      } catch (offlineError) {
-        console.error('Failed to save offline:', offlineError)
-      }
-    }
-  }
-
-  // Load offline data on component mount
-  useEffect(() => {
-    const loadOfflineData = async () => {
-      try {
-        console.log('Loading offline data for patient:', patient.id)
-        const offlineData = await getOfflineFormData(patient.id.toString())
-        console.log('Retrieved offline data:', offlineData)
-        
-        if (offlineData && offlineData.formData) {
-          console.log('Setting form data from offline storage:', offlineData.formData)
-          setFormData(prev => {
-            const updated = { ...prev, ...offlineData.formData }
-            console.log('Updated form data:', updated)
-            return updated
-          })
-        }
-        // Also load completed sections if available
-        if (offlineData && offlineData.completedSections) {
-          console.log('Loading completed sections:', offlineData.completedSections)
-          // Update completed sections through the parent component
-          offlineData.completedSections.forEach((section: string) => {
-            if (!completedSections.includes(section)) {
-              console.log('Marking section as complete:', section)
-              onSectionComplete(section)
-            }
-          })
-        }
-        
-        // Mark data as loaded to prevent premature saves
-        setIsDataLoaded(true)
-        console.log('Data loading completed')
-      } catch (error) {
-        console.error('Failed to load offline data:', error)
-        setIsDataLoaded(true) // Still mark as loaded even if there's an error
-      }
-    }
-    
-    loadOfflineData()
-  }, [patient.id]) // Only depend on patient.id to avoid loops
-
-  // Debounced save function for form data
-  useEffect(() => {
-    // Only save if data has been loaded to prevent saving empty initial state
-    if (!isDataLoaded) {
-      console.log('Skipping save - data not loaded yet')
-      return
-    }
-    
-    // Comprehensive intakeId validation before setting timeout
-    if (!intakeId || intakeId.trim() === '' || intakeId === 'undefined' || intakeId === 'null') {
-      console.log('Skipping auto-save - invalid intake ID:', intakeId)
-      return
-    }
-
-    const timeoutId = setTimeout(() => {
-      // Double-check intakeId is still valid when timeout executes
-      if (intakeId && intakeId.trim() !== '' && intakeId !== 'undefined' && intakeId !== 'null') {
-        console.log('Auto-saving form data after delay')
-        saveToBackend(formData)
-      } else {
-        console.log('Cancelled auto-save - intake ID became invalid:', intakeId)
-      }
-    }, 1000) // Save 1 second after user stops typing
-
-    return () => clearTimeout(timeoutId)
-  }, [formData, intakeId, isDataLoaded])
-
-  // Save completed sections whenever they change
-  useEffect(() => {
-    // Only save if data has been loaded
-    if (!isDataLoaded) {
-      console.log('Skipping completed sections save - data not loaded yet')
-      return
-    }
-    
-    const saveCompletedSections = async () => {
-      if (completedSections.length > 0) {
-        try {
-          await saveFormDataOffline(patient.id.toString(), intakeId || null, formData, completedSections)
-          console.log('Saved completed sections:', completedSections)
-        } catch (error) {
-          console.error('Failed to save completed sections:', error)
-        }
-      }
-    }
-    
-    saveCompletedSections()
-  }, [completedSections, patient.id, intakeId, formData, isDataLoaded])
-
   const updateFormData = (field: string, value: string) => {
-    console.log('Updating form field:', field, 'with value:', value)
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: value }
-      console.log('Form data updated:', updated)
-      return updated
-    })
+    setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleSectionComplete = (sectionId: string) => {

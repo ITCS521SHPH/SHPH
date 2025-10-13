@@ -1,23 +1,7 @@
-"use client"
-
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { getCurrentUserFromStorage, getDefaultRoute } from "@/lib/auth"
 import { LoginForm } from "@/components/auth/login-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function HomePage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    // Check if user is already logged in
-    const user = getCurrentUserFromStorage()
-    if (user) {
-      const defaultRoute = getDefaultRoute(user.role)
-      router.push(defaultRoute)
-    }
-  }, [router])
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-primary/10 flex items-center justify-center p-4">
       <div className="w-full max-w-md">

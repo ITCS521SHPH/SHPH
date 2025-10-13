@@ -13,8 +13,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, User, Activity, Stethoscope, FileText } from "lucide-react"
-import { intakesApi, patientsApi } from "@/lib/api-client"
-import { ChronicCondition } from "@/lib/types"
 
 const formSteps = [
   { id: "patient-info", title: "Patient Information", icon: User },
@@ -136,81 +134,11 @@ export function PatientVisitForm({ onBack }: { onBack: () => void }) {
     }
   }
 
-  const handleSubmit = async () => {
-    try {
-      // First, create or find the patient
-      const patientData = {
-        firstName: formData.patientName.split(' ')[0] || '',
-        lastName: formData.patientName.split(' ').slice(1).join(' ') || '',
-        dob: new Date(Date.now() - parseInt(formData.age) * 365.25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Calculate DOB from age
-        phone: formData.contact,
-        address: formData.address,
-      };
-
-      // Create patient if needed (this would ideally check if exists first)
-      let patient;
-      try {
-        patient = await patientsApi.create(patientData);
-      } catch (error) {
-        // If patient already exists, we'll need to handle this better
-        console.error('Patient creation failed:', error);
-        throw new Error('Failed to create or find patient');
-      }
-
-      // Create intake draft
-      const intake = await intakesApi.create({ patientId: patient.id });
-
-      // Prepare intake payload according to API schema
-      const intakePayload = {
-        visitMeta: {
-          visitDateTime: new Date().toISOString(),
-          vhvId: '', // This will be set by the API from the authenticated user
-          locationText: formData.address || 'Village Health Center'
-        },
-        patientBasics: {
-          firstName: patientData.firstName,
-          lastName: patientData.lastName,
-          dob: patientData.dob,
-          contactPhone: patientData.phone
-        },
-        symptoms: {
-          chiefComplaint: formData.primaryComplaint || 'General health check',
-          checklist: Array(10).fill(false).map((_, i) => formData.selectedSymptoms.includes(i.toString())),
-          onsetDays: parseInt(formData.symptomDuration) || 0
-        },
-        vitals: {
-          temp: parseFloat(formData.temperature) || undefined,
-          systolic: parseFloat(formData.bloodPressureSystolic) || undefined,
-          diastolic: parseFloat(formData.bloodPressureDiastolic) || undefined,
-          hr: parseFloat(formData.pulse) || undefined
-        },
-        chronicConditions: {
-          list: formData.previousConditions ?
-            [{ condition: 'OTHER' as ChronicCondition, freeText: formData.previousConditions }] :
-            []
-        },
-        riskFlags: {
-          isAge60Plus: parseInt(formData.age) >= 60,
-          isPregnant: formData.gender === 'female', // Simplified for demo
-          hasChronic: !!formData.previousConditions
-        },
-        consent: {
-          consentGiven: true // Assume consent is given for submitting the form
-        }
-      };
-
-      // Update intake with payload
-      await intakesApi.update(intake.id, intakePayload);
-
-      // Submit for review
-      await intakesApi.submit(intake.id);
-
-      alert("Patient visit form submitted successfully and sent for doctor review!");
-      onBack();
-    } catch (error) {
-      console.error('Failed to submit patient visit form:', error);
-      alert("Failed to submit form. Please check your data and try again.");
-    }
+  const handleSubmit = () => {
+    console.log("[v0] Submitting patient visit form:", formData)
+    // Handle form submission
+    alert("Patient visit form submitted successfully!")
+    onBack()
   }
 
   const renderStepContent = () => {
@@ -523,12 +451,13 @@ export function PatientVisitForm({ onBack }: { onBack: () => void }) {
                 return (
                   <div key={step.id} className="flex items-center">
                     <div
-                      className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${isCompleted
+                      className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                        isCompleted
                           ? "bg-primary border-primary text-primary-foreground"
                           : isActive
                             ? "border-primary text-primary"
                             : "border-muted text-muted-foreground"
-                        }`}
+                      }`}
                     >
                       {isCompleted ? <CheckCircle className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
@@ -544,8 +473,9 @@ export function PatientVisitForm({ onBack }: { onBack: () => void }) {
               {formSteps.map((step, index) => (
                 <div key={step.id} className="text-center" style={{ width: "10rem" }}>
                   <p
-                    className={`text-xs ${index === currentStep ? "text-primary font-medium" : "text-muted-foreground"
-                      }`}
+                    className={`text-xs ${
+                      index === currentStep ? "text-primary font-medium" : "text-muted-foreground"
+                    }`}
                   >
                     {step.title}
                   </p>

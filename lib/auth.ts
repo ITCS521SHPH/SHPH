@@ -1,114 +1,83 @@
-import { UserRole } from './types';
-import { authApi } from './api';
-
-export type { UserRole };
+export type UserRole = "doctor" | "vhv" | "caregiver" | "patient"
 
 export interface User {
-  id: string;
-  email: string;
-  name?: string;
-  role: UserRole;
+  id: string
+  email: string
+  name: string
+  role: UserRole
 }
 
-// Get current user from API
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const userData = await authApi.getCurrentUser();
-    return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.email, // Use email as name for now
-      role: userData.role,
-    };
-  } catch (error) {
-    // Try to get from localStorage as fallback
-    const storedUser = getCurrentUserFromStorage();
-    return storedUser;
+// Mock authentication - in a real app, this would integrate with your auth provider
+export const mockUsers: Record<string, User> = {
+  "demo@doctor.com": {
+    id: "1",
+    email: "demo@doctor.com",
+    name: "Dr. Michael Chen",
+    role: "doctor",
+  },
+  "demo@vhv.com": {
+    id: "2",
+    email: "demo@vhv.com",
+    name: "Maria Santos",
+    role: "vhv",
+  },
+  "demo@caregiver.com": {
+    id: "3",
+    email: "demo@caregiver.com",
+    name: "Jennifer Martinez",
+    role: "caregiver",
+  },
+  "demo@patient.com": {
+    id: "4",
+    email: "demo@patient.com",
+    name: "Sarah Johnson",
+    role: "patient",
+  },
+}
+
+export function authenticateUser(email: string, password: string): User | null {
+  // Simple demo authentication
+  if (password === "password123" && mockUsers[email]) {
+    return mockUsers[email]
   }
+  return null
 }
 
-// Login function
-export async function authenticateUser(email: string, password: string): Promise<User | null> {
-  try {
-    const loginResponse = await authApi.login({ email, password });
-
-    // Create user object from login response
-    const roleString = loginResponse.role as string;
-    
-    // Get the actual user ID from the login response
-    const userId = loginResponse.userId || 
-                   (roleString === 'admin' ? 'admin_id' : 
-                    roleString === 'doctor' ? 'doctor_id' : 
-                    roleString === 'vhv' ? 'vhv_id' : 'patient_id');
-    
-    const user: User = {
-      id: userId,
-      email: email,
-      name: email.split('@')[0], // Use email prefix as name
-      role: roleString.toUpperCase() as UserRole,
-    };
-
-    // Store user in localStorage
-    setCurrentUser(user);
-    
-    return user;
-  } catch (error) {
-    console.error('Login failed:', error);
-    return null;
+export function getCurrentUser(): User | null {
+  // In a real app, this would get the user from session/token
+  if (typeof window !== "undefined") {
+    const userData = localStorage.getItem("currentUser")
+    return userData ? JSON.parse(userData) : null
   }
+  return null
 }
 
-// Set current user in storage
 export function setCurrentUser(user: User): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('currentUser', JSON.stringify(user));
+  if (typeof window !== "undefined") {
+    localStorage.setItem("currentUser", JSON.stringify(user))
   }
 }
 
-// Get current user from storage
-export function getCurrentUserFromStorage(): User | null {
-  if (typeof window !== 'undefined') {
-    const userData = localStorage.getItem('currentUser');
-    return userData ? JSON.parse(userData) : null;
-  }
-  return null;
-}
-
-// Clear current user
 export function clearCurrentUser(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-  }
-  // Use the mock API logout
-  authApi.logout();
-}
-
-// Role-based route protection
-export const roleRoutes: Record<UserRole, string[]> = {
-  [UserRole.ADMIN]: ["/admin"],
-  [UserRole.DOCTOR]: ["/doctor"],
-  [UserRole.VHV]: ["/vhv"],
-  [UserRole.PATIENT]: ["/patient"],
-};
-
-export function getDefaultRoute(role: UserRole): string {
-  switch (role) {
-    case UserRole.ADMIN:
-      return "/admin/dashboard";
-    case UserRole.DOCTOR:
-      return "/doctor/dashboard";
-    case UserRole.VHV:
-      return "/vhv/dashboard";
-    case UserRole.PATIENT:
-      return "/patient/dashboard";
-    default:
-      return "/login";
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("currentUser")
   }
 }
 
-export function canAccessRoute(userRole: UserRole, path: string): boolean {
-  const allowedRoutes = roleRoutes[userRole];
-  return allowedRoutes.some(route => path.startsWith(route));
+export function hasRole(user: User | null, allowedRoles: UserRole[]): boolean {
+  return user ? allowedRoles.includes(user.role) : false
+}
+
+export function canAccessRoute(user: User | null, route: string): boolean {
+  if (!user) return false
+
+  const roleRoutes: Record<UserRole, string[]> = {
+    doctor: ["/doctor"],
+    vhv: ["/vhv"],
+    caregiver: ["/caregiver"],
+    patient: ["/patient"],
+  }
+
+  const userRoutes = roleRoutes[user.role] || []
+  return userRoutes.some((allowedRoute) => route.startsWith(allowedRoute))
 }
