@@ -1,16 +1,13 @@
 import type { LoginRequest, LoginResponse, CreateEmergencyAlertRequest, UpdateEmergencyAlertRequest, RescheduleRequest } from "./types"
-import { mockApi } from "./mock-api"
 import * as supabaseApi from "./supabase-api"
 
-// Force use Supabase database instead of mock data
-const USE_MOCK_API = false
+// Always use Supabase database
 const USE_SUPABASE = true
 
 // Debug logging
 if (typeof window !== 'undefined') {
   console.log('API Configuration:', {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    USE_MOCK_API,
     USE_SUPABASE
   })
 }
@@ -58,15 +55,11 @@ export const authApi = {
   },
 
   logout: async () => {
-    if (USE_SUPABASE) {
-      // Clear localStorage and redirect
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('currentUser')
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-      }
-    } else {
-      mockApi.auth.logout()
+    // Clear localStorage and redirect
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentUser')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
     }
     clearTokens()
     if (typeof window !== "undefined") {
@@ -101,7 +94,6 @@ export const authApi = {
         return null
       }
     }
-    return mockApi.auth.getCurrentUser()
   },
 }
 
@@ -120,7 +112,6 @@ export const patientsApi = {
       // For now, return null since we don't have a specific API endpoint
       return null
     }
-    return mockApi.patients.getById(id)
   },
 
   create: async (patientData: any) => {
@@ -141,7 +132,6 @@ export const patientsApi = {
 
       return response.json()
     }
-    return mockApi.patients.create(patientData)
   },
 
   update: async (id: string, updateData: any) => {
@@ -149,7 +139,6 @@ export const patientsApi = {
       // Supabase update implementation would go here
       throw new Error("Update not implemented for Supabase yet")
     }
-    return mockApi.patients.update(id, updateData)
   },
 
   assignVHV: async (patientId: string, vhvId: string, doctorId: string, tasks?: any[]) => {
@@ -214,7 +203,6 @@ export const intakesApi = {
       }
       return response.json()
     }
-    return mockApi.intakes.create(patientId)
   },
 
   update: async (id: string, payload: any) => {
@@ -232,7 +220,6 @@ export const intakesApi = {
       }
       return response.json()
     }
-    return mockApi.intakes.update(id, payload)
   },
 
   submit: async (id: string) => {
@@ -250,7 +237,6 @@ export const intakesApi = {
       }
       return response.json()
     }
-    return mockApi.intakes.submit(id)
   },
 
   getById: async (id: string) => {
@@ -258,7 +244,6 @@ export const intakesApi = {
       // For now, return null
       return null
     }
-    return mockApi.intakes.getById(id)
   },
 
   updateAttachments: async (id: string, attachments: string[]) => {
@@ -266,7 +251,6 @@ export const intakesApi = {
       // For now, return mock response
       return { id, attachments, updatedAt: new Date() }
     }
-    return mockApi.intakes.updateAttachments(id, attachments)
   },
 }
 
@@ -284,7 +268,6 @@ export const reviewsApi = {
       }
       return response.json()
     }
-    return mockApi.reviews.getQueue(status, from)
   },
 
   approve: async (id: string) => {
@@ -302,7 +285,6 @@ export const reviewsApi = {
       }
       return response.json()
     }
-    return mockApi.reviews.approve(id)
   },
 
   requestChanges: async (id: string, comment: string) => {
@@ -320,7 +302,6 @@ export const reviewsApi = {
       }
       return response.json()
     }
-    return mockApi.reviews.requestChanges(id, comment)
   },
 
   reject: async (id: string, comment: string) => {
@@ -328,13 +309,11 @@ export const reviewsApi = {
       // For now, return mock response
       return { id, status: 'REJECTED', comment, updatedAt: new Date() }
     }
-    return mockApi.reviews.reject(id, comment)
   },
 }
 
 export const uploadsApi = {
   upload: async (file: File) => {
-    return mockApi.uploads.upload(file)
   },
 }
 
@@ -367,7 +346,6 @@ export const adminApi = {
 
       return await response.json()
     }
-    return mockApi.admin.createDoctor(doctorData)
   },
 
   createVHV: async (vhvData: {
@@ -398,7 +376,6 @@ export const adminApi = {
 
       return await response.json()
     }
-    return mockApi.admin.createVHV(vhvData)
   },
 
   getUsers: async () => {
@@ -406,7 +383,6 @@ export const adminApi = {
       // This is handled by the admin dashboard component directly
       return []
     }
-    return mockApi.admin.getUsers()
   },
 
   getDashboardStats: async () => {
@@ -417,7 +393,6 @@ export const adminApi = {
       }
       return response.json()
     }
-    return mockApi.admin.getDashboardStats()
   },
 
   assignDoctor: async (patientId: string, doctorId: string) => {
@@ -425,7 +400,6 @@ export const adminApi = {
       // For now, return mock response
       return { id: 'mock-assignment-id', patientId, doctorId, status: 'ACTIVE' }
     }
-    return mockApi.admin.assignDoctor(patientId, doctorId)
   },
 
   getPatientDoctorAssignments: async () => {
@@ -433,7 +407,6 @@ export const adminApi = {
       // For now, return empty array
       return []
     }
-    return mockApi.admin.getPatientDoctorAssignments()
   },
 }
 
@@ -446,7 +419,6 @@ export const tasksApi = {
       }
       return response.json()
     }
-    return mockApi.tasks.getByVHV(vhvId)
   },
 
   getByPatient: async (patientId: string) => {
@@ -457,7 +429,6 @@ export const tasksApi = {
       }
       return response.json()
     }
-    return mockApi.tasks.getByPatient(patientId)
   },
 
   create: async (taskData: any) => {
@@ -493,7 +464,6 @@ export const tasksApi = {
       }
       return response.json()
     }
-    return mockApi.tasks.update(id, updateData)
   },
 
   complete: async (id: string) => {
@@ -507,7 +477,6 @@ export const tasksApi = {
       }
       return response.json()
     }
-    return mockApi.tasks.complete(id)
   },
 
   reopen: async (id: string) => {
@@ -522,7 +491,6 @@ export const tasksApi = {
       return response.json()
     }
     // Mock API doesn't have reopen, fall back to update
-    return mockApi.tasks.update(id, { status: 'pending' })
   },
 
   delete: async (id: string) => {
@@ -536,7 +504,6 @@ export const tasksApi = {
       }
       return response.json()
     }
-    return mockApi.tasks.delete(id)
   },
 
   getByDoctor: async (doctorId: string) => {
@@ -567,7 +534,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.create(alertData)
   },
 
   // Get all emergency alerts (for admin/monitoring)
@@ -584,7 +550,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.getAll(status, priority)
   },
 
   // Get emergency alerts for a specific patient
@@ -597,7 +562,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.getByPatient(patientId)
   },
 
   // Get emergency alerts assigned to a doctor
@@ -614,7 +578,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.getByDoctor(doctorId, status)
   },
 
   // Get emergency alerts assigned to a VHV
@@ -631,7 +594,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.getByVHV(vhvId, status)
   },
 
   // Update an emergency alert (acknowledge, resolve, etc.)
@@ -648,7 +610,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.update(alertId, updateData)
   },
 
   // Acknowledge an emergency alert
@@ -669,7 +630,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.acknowledge(alertId, responderId)
   },
 
   // Resolve an emergency alert
@@ -690,7 +650,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.resolve(alertId, responderId, notes)
   },
 
   // Cancel an emergency alert
@@ -711,7 +670,6 @@ export const emergencyApi = {
       }
       return response.json()
     }
-    return mockApi.emergency.cancel(alertId, reason)
   },
 
   // Get emergency statistics
@@ -719,7 +677,6 @@ export const emergencyApi = {
     if (USE_SUPABASE) {
       return await supabaseApi.getEmergencyStats()
     }
-    return mockApi.emergency.getStats(timeframe)
   },
 
   // Get active emergency alerts count for real-time notifications
@@ -728,7 +685,6 @@ export const emergencyApi = {
       const alerts = await emergencyApi.getAll('ACTIVE')
       return alerts.length
     }
-    return mockApi.emergency.getActiveCount(userId, userRole)
   },
 }
 

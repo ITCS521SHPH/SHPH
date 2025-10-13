@@ -19,14 +19,6 @@ const appendApiSegment = (value: string) => {
 };
 
 export const resolveApiBaseUrl = (): string => {
-    // Check if we should use mock API mode
-    const useMockApi = process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_API_URL;
-
-    if (useMockApi) {
-        // Return a placeholder URL for mock mode - it won't be used
-        return 'http://mock-api';
-    }
-
     const explicitCandidates = [
         process.env.NEXT_PUBLIC_API_URL,
         process.env.API_URL,
@@ -73,9 +65,4 @@ export const resolveApiBaseUrl = (): string => {
     }
 
     return 'http://localhost:3001/api';
-};
-
-// Helper function to check if we're in mock API mode
-export const isMockApiMode = (): boolean => {
-    return process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_API_URL;
 };
