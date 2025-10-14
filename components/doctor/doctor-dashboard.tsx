@@ -43,6 +43,7 @@ import type { IntakeSubmission } from "@/lib/types"
 // Removed inline TaskManagement/PatientAssignment from dashboard; moved to separate page
 import Link from "next/link"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
+import VhvMap from "@/components/doctor/vhv-map"
 import { UserRole } from "@/lib/types"
 
 export function DoctorDashboard() {
@@ -708,7 +709,7 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="emergencies" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="emergencies" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
               Emergencies
@@ -729,6 +730,10 @@ export function DoctorDashboard() {
             <TabsTrigger value="patients" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Patient List
+            </TabsTrigger>
+            <TabsTrigger value="vhv_map" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              VHV Map
             </TabsTrigger>
           </TabsList>
 
@@ -1059,6 +1064,20 @@ export function DoctorDashboard() {
                     </CardContent>
                   </Card>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vhv_map" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>VHV Map</CardTitle>
+                <CardDescription>
+                  View VHV locations by base area. Click markers for details and filter by district.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <VhvMap vhvs={(availableVHVs || []) as any} />
               </CardContent>
             </Card>
           </TabsContent>

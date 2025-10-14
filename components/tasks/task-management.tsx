@@ -23,6 +23,7 @@ import { getCurrentUserFromStorage } from "@/lib/auth"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
+import VhvMapSelector from "@/components/tasks/vhv-map-selector"
 // Area workflow removed from UI
 
 interface TaskManagementProps {
@@ -44,6 +45,12 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   const [taskType, setTaskType] = useState<"patient" | "area">(defaultTaskType || "patient")
   const [filterType, setFilterType] = useState<"all" | "patient" | "area">("all")
   const [selectedDistrict, setSelectedDistrict] = useState<string>("")
+  const [useMapSelector, setUseMapSelector] = useState(false)
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([])
+  const chosenDistricts = useMemo(
+    () => (useMapSelector ? selectedDistricts : (selectedDistrict ? [selectedDistrict] : [])),
+    [useMapSelector, selectedDistricts, selectedDistrict]
+  )
 
   const [taskForm, setTaskForm] = useState({
     title: "",
@@ -147,6 +154,14 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     }
   }, [availableVHVs, vhvSearch])
 
+  const selectedVhvCount = vhvId ? 1 : selectedVhvIds.length
+  const areaCount = chosenDistricts.length
+  const hasSelectedVhvs = selectedVhvCount > 0
+  const hasPatientTarget = taskType === 'patient' ? (!!patientId || !!taskForm.patientId) : true
+  const createEnabled = Boolean(taskForm.title.trim()) && questions.length > 0 && hasPatientTarget && (
+    taskType === 'patient' ? hasSelectedVhvs : (areaCount > 0 || hasSelectedVhvs)
+  )
+
   // Template helpers
   const loadTemplates = useCallback(() => {
     try {
@@ -168,6 +183,24 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   useEffect(() => {
     setTemplates(loadTemplates())
   }, [loadTemplates])
+
+  useEffect(() => {
+    if (taskType === 'area') {
+      setUseMapSelector(true)
+    } else {
+      setUseMapSelector(false)
+      setSelectedDistricts([])
+    }
+  }, [taskType])
+
+  useEffect(() => {
+    if (taskType === 'area') {
+      setUseMapSelector(true)
+    } else {
+      setUseMapSelector(false)
+      setSelectedDistricts([])
+    }
+  }, [taskType])
 
   const handleSaveTemplate = () => {
     if (!taskForm.title || questions.length === 0) {
@@ -237,6 +270,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   // District selection helper (select all VHVs in district)
   const selectByDistrict = (district: string) => {
     setSelectedDistrict(district)
+    if (taskType === 'area' && !useMapSelector) {
+      setSelectedDistricts(district ? [district] : [])
+    }
     try {
       const list = (availableVHVs || []) as any[]
       const inDistrict = district ? list.filter(v => (v as any).district === district) : []
@@ -244,6 +280,10 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     } catch {
       setSelectedVhvIds([])
     }
+  }
+
+  const toggleDistrictMulti = (district: string) => {
+    setSelectedDistricts(prev => prev.includes(district) ? prev.filter(d => d !== district) : [...prev, district])
   }
 
   const handleCreateTask = async () => {
@@ -269,20 +309,54 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       const createFor = targetVhvs.length > 0 ? targetVhvs : []
 
       if (taskType === 'area') {
-        if (!selectedDistrict) {
-          alert('Please select a district for area tasks')
+        if (areaCount === 0 && createFor.length === 0) {
+          alert('Select at least one district or VHV for area tasks')
           return
         }
-        const payloadBase = {
-          title: taskForm.title,
-          description: descWithSchema,
-          district: selectedDistrict,
-          priority: taskForm.priority,
-          dueDate: taskForm.dueDate,
-          doctorId: effectiveDoctorId,
+
+        const vhvList = (availableVHVs || []) as any[]
+        const vhvById = new Map(vhvList.map(v => [v.id, v]))
+
+        if (createFor.length > 0) {
+          const byDistrict = new Map<string, string[]>()
+          for (const vid of createFor) {
+            const v = vhvById.get(vid)
+            const d = (v?.district || '').trim()
+            if (!d) continue
+            if (!byDistrict.has(d)) byDistrict.set(d, [])
+            byDistrict.get(d)!.push(vid)
+          }
+
+          for (const [district, vids] of byDistrict.entries()) {
+            const base = {
+              title: taskForm.title,
+              description: descWithSchema,
+              district,
+              priority: taskForm.priority,
+              dueDate: taskForm.dueDate,
+              doctorId: effectiveDoctorId,
+            }
+            for (const vid of vids) {
+              await areaTasksApi.create({ ...base, vhvId: vid })
+            }
+          }
         }
-        for (const vid of createFor) {
-          await areaTasksApi.create({ ...payloadBase, vhvId: vid })
+
+        if (areaCount > 0) {
+          for (const district of chosenDistricts) {
+            const base = {
+              title: taskForm.title,
+              description: descWithSchema,
+              district,
+              priority: taskForm.priority,
+              dueDate: taskForm.dueDate,
+              doctorId: effectiveDoctorId,
+            }
+            const inDistrict = vhvList.filter(v => (v as any).district === district)
+            for (const v of inDistrict) {
+              await areaTasksApi.create({ ...base, vhvId: (v as any).id })
+            }
+          }
         }
       } else {
         // Patient task
@@ -316,6 +390,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       setSelectedVhvIds(vhvId ? [vhvId] : [])
       setVhvSearch("")
       setSelectedDistrict("")
+      setSelectedDistricts([])
+      setUseMapSelector(false)
       setShowCreateDialog(false)
       refetchTasks()
     } catch (error) {
@@ -764,62 +840,83 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                         </Select>
                       </div>
                     )}
-                    <div className="space-y-2">
-                      <Label>{taskType === 'area' ? 'Target District & VHVs' : 'Assign to VHVs'}</Label>
+                    <div className={"space-y-3 " + (taskType === 'area' ? 'md:col-span-2' : '')}>
+                      <Label>{taskType === 'area' ? 'Areas & VHVs' : 'Assign to VHVs'}</Label>
                       {vhvId ? (
                         <Input value={availableVHVs?.find((v:any) => v.id === vhvId)?.email?.split('@')[0] || 'Selected VHV'} disabled />
                       ) : (
-                        <div className="border rounded p-2">
-                          <div className="grid grid-cols-2 gap-2 mb-2">
-                            <div>
-                              <Select value={selectedDistrict} onValueChange={(v) => selectByDistrict(v)}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select district" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-64 overflow-y-auto">
-                                  {BANGKOK_DISTRICTS.map(d => (
-                                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {taskType === 'patient' && (
-                              <div className="flex items-center justify-end">
-                                <Button type="button" variant="outline" onClick={() => setSelectedVhvIds(filteredVHVs.map((v:any)=>v.id))}>
-                                  <CopyPlus className="h-4 w-4 mr-2" /> Select All
-                                </Button>
+                        <div className="border rounded-lg p-4 space-y-4">
+                          {taskType === 'area' && (
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs text-muted-foreground">Use the interactive map to highlight districts or switch to the list to pick manually.</p>
+                              <div className="flex gap-2">
+                                <Button type="button" size="sm" variant={useMapSelector ? 'secondary' : 'outline'} onClick={() => setUseMapSelector(true)}>Map</Button>
+                                <Button type="button" size="sm" variant={!useMapSelector ? 'secondary' : 'outline'} onClick={() => setUseMapSelector(false)}>List</Button>
                               </div>
-                            )}
-                          </div>
-                          <div className="relative mb-2">
-                            <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
-                            <Input
-                              className="pl-8"
-                              placeholder="Search VHVs by name or district"
-                              value={vhvSearch}
-                              onChange={(e) => setVhvSearch(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between mb-2 text-xs text-muted-foreground">
-                            <span>{filteredVHVs.length} VHV(s) shown</span>
-                            <span>Selected: {selectedVhvIds.length}</span>
-                          </div>
-                          <ScrollArea className="h-40 pr-2">
-                            <div className="space-y-2">
-                              {filteredVHVs.map((v:any) => (
-                                <label key={v.id} className="flex items-center gap-2 text-sm opacity-100">
-                                  <Checkbox
-                                    checked={selectedVhvIds.includes(v.id)}
-                                    onCheckedChange={() => toggleVhvSelection(v.id)}
-                                    disabled={taskType === 'area'}
-                                  />
-                                  <span>{v.email?.split('@')[0]}{v.district ? ` Â· ${v.district}` : ''}</span>
-                                </label>
-                              ))}
                             </div>
-                          </ScrollArea>
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {taskType === 'area' ? 'Auto-assigned to all VHVs in selected district' : `Selected: ${selectedVhvIds.length}`}
+                          )}
+                          {taskType === 'area' && useMapSelector ? (
+                            <VhvMapSelector
+                              vhvs={(availableVHVs || []) as any[]}
+                              selectedDistricts={selectedDistricts}
+                              onToggleDistrict={toggleDistrictMulti}
+                              selectedVhvIds={selectedVhvIds}
+                              onToggleVhv={toggleVhvSelection}
+                              mode="area"
+                            />
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                <Select value={selectedDistrict} onValueChange={(v) => selectByDistrict(v)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={taskType === 'area' ? 'Select district' : 'Filter by district'} />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-64 overflow-y-auto">
+                                    {BANGKOK_DISTRICTS.map(d => (
+                                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {taskType === 'patient' && (
+                                  <Button type="button" variant="outline" onClick={() => setSelectedVhvIds(filteredVHVs.map((v:any)=>v.id))}>
+                                    <CopyPlus className="h-4 w-4 mr-2" /> Select All
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="relative">
+                                <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
+                                <Input
+                                  className="pl-8"
+                                  placeholder="Search VHVs by name or district"
+                                  value={vhvSearch}
+                                  onChange={(e) => setVhvSearch(e.target.value)}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{filteredVHVs.length} VHV(s) shown</span>
+                                <span>Selected: {selectedVhvIds.length}</span>
+                              </div>
+                              <ScrollArea className="h-40 pr-2">
+                                <div className="space-y-2">
+                                  {filteredVHVs.map((v:any) => (
+                                    <label key={v.id} className="flex items-center gap-2 text-sm">
+                                      <Checkbox
+                                        checked={selectedVhvIds.includes(v.id)}
+                                        onCheckedChange={() => toggleVhvSelection(v.id)}
+                                      />
+                                      <span>{v.email?.split('@')[0]}{v.district ? ' - ' + v.district : ''}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </ScrollArea>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="secondary">VHVs selected: {selectedVhvCount}</Badge>
+                            {taskType === 'area' && <Badge variant="secondary">Areas selected: {areaCount}</Badge>}
+                            {taskType === 'area' && areaCount === 0 && !hasSelectedVhvs && (
+                              <span>Pick at least one area or VHV.</span>
+                            )}
                           </div>
                         </div>
                       )}
@@ -858,7 +955,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                   <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateTask}>
+                  <Button onClick={handleCreateTask} disabled={!createEnabled}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Task
                   </Button>
@@ -1074,3 +1171,5 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     </div>
   )
 }
+
+

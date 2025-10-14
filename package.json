@@ -47,6 +47,7 @@
     "embla-carousel-react": "latest",
     "geist": "latest",
     "input-otp": "latest",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "next-themes": "latest",
@@ -54,6 +55,7 @@
     "react-day-picker": "latest",
     "react-dom": "^19",
     "react-hook-form": "latest",
+    "react-leaflet": "^5.0.0",
     "react-resizable-panels": "latest",
     "recharts": "latest",
     "sonner": "latest",
@@ -64,6 +66,7 @@
     "zod": "3.25.67"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
