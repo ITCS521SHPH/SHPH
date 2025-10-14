@@ -133,26 +133,10 @@ export function StructuredDataForm({
 
   // Save data to backend with debouncing and offline fallback
   const saveToBackend = async (updatedData: any) => {
-    // More comprehensive intakeId validation
-    if (!intakeId || intakeId.trim() === '' || intakeId === 'undefined' || intakeId === 'null') {
-      console.warn('Cannot save: Invalid intake ID. IntakeId:', intakeId, 'Type:', typeof intakeId)
-      return
-    }
-    
-    // Don't save if data hasn't been loaded yet to prevent overwriting
-    if (!isDataLoaded) {
-      console.log('Skipping save: Data not loaded yet')
-      return
-    }
-    
-    // Additional validation: check if patient exists
-    if (!patient || !patient.id) {
-      console.warn('Cannot save: No valid patient. Patient:', patient)
-      return
-    }
+    if (!intakeId) return
     
     try {
-      console.log('Saving form data for intake:', intakeId)
+      console.log('Saving form data:', updatedData)
       if (offlineStorage.isOnline()) {
         await intakesApi.update(intakeId, updatedData)
         console.log('Form data saved to backend')
@@ -222,19 +206,10 @@ export function StructuredDataForm({
       return
     }
     
-    // Comprehensive intakeId validation before setting timeout
-    if (!intakeId || intakeId.trim() === '' || intakeId === 'undefined' || intakeId === 'null') {
-      console.log('Skipping auto-save - invalid intake ID:', intakeId)
-      return
-    }
-
     const timeoutId = setTimeout(() => {
-      // Double-check intakeId is still valid when timeout executes
-      if (intakeId && intakeId.trim() !== '' && intakeId !== 'undefined' && intakeId !== 'null') {
+      if (intakeId) {
         console.log('Auto-saving form data after delay')
         saveToBackend(formData)
-      } else {
-        console.log('Cancelled auto-save - intake ID became invalid:', intakeId)
       }
     }, 1000) // Save 1 second after user stops typing
 

@@ -32,25 +32,11 @@ export async function authenticateUser(email: string, password: string): Promise
   try {
     const loginResponse = await authApi.login({ email, password });
 
-    // Create user object from login response
-    const roleString = loginResponse.role as string;
-    
-    // Get the actual user ID from the login response
-    const userId = loginResponse.userId || 
-                   (roleString === 'admin' ? 'admin_id' : 
-                    roleString === 'doctor' ? 'doctor_id' : 
-                    roleString === 'vhv' ? 'vhv_id' : 'patient_id');
-    
-    const user: User = {
-      id: userId,
-      email: email,
-      name: email.split('@')[0], // Use email prefix as name
-      role: roleString.toUpperCase() as UserRole,
-    };
-
-    // Store user in localStorage
-    setCurrentUser(user);
-    
+    // Get user details after login
+    const user = await getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+    }
     return user;
   } catch (error) {
     console.error('Login failed:', error);

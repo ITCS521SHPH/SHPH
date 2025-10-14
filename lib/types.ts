@@ -19,7 +19,6 @@ export enum HealthWorkerType {
 export enum IntakeStatus {
   DRAFT = "DRAFT",
   SUBMITTED = "SUBMITTED",
-  IN_REVIEW = "IN_REVIEW",
   APPROVED = "APPROVED",
   CHANGES_REQUESTED = "CHANGES_REQUESTED",
   REJECTED = "REJECTED",
@@ -45,20 +44,6 @@ export enum ChronicCondition {
   OTHER = "OTHER",
 }
 
-// Emergency alert types
-export enum EmergencyStatus {
-  ACTIVE = "ACTIVE",
-  ACKNOWLEDGED = "ACKNOWLEDGED",
-  RESOLVED = "RESOLVED",
-  CANCELLED = "CANCELLED",
-}
-
-export enum EmergencyPriority {
-  CRITICAL = "CRITICAL",
-  HIGH = "HIGH",
-  MEDIUM = "MEDIUM",
-}
-
 // Base entity interface
 export interface BaseEntity {
   id: string
@@ -82,8 +67,6 @@ export interface Patient extends BaseEntity {
   dob: Date
   phone?: string
   address?: string
-  medicalCondition?: string
-  lastVisit?: Date
 }
 
 // Health worker interface
@@ -101,7 +84,7 @@ export interface Task extends BaseEntity {
   vhvId: string
   doctorId: string
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
-  status: "pending" | "in_progress" | "completed" | "cancelled"
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
   dueDate?: Date
   completedAt?: Date
 }
@@ -194,43 +177,6 @@ export interface ReviewActionEntity extends BaseEntity {
   comment?: string
 }
 
-// Emergency alert interface
-export interface EmergencyAlert extends BaseEntity {
-  patientId: string
-  patientName: string
-  triggeredBy: string // patient user ID
-  priority: EmergencyPriority
-  status: EmergencyStatus
-  description?: string
-  location?: string
-  assignedDoctorId?: string
-  assignedVHVId?: string
-  acknowledgedBy?: string
-  acknowledgedAt?: Date
-  resolvedBy?: string
-  resolvedAt?: Date
-  responseTime?: number // in minutes
-}
-
-// Emergency response interface
-export interface EmergencyResponse extends BaseEntity {
-  alertId: string
-  responderId: string
-  responderRole: UserRole
-  responseType: "ACKNOWLEDGED" | "EN_ROUTE" | "ON_SCENE" | "RESOLVED"
-  notes?: string
-  estimatedArrival?: Date
-}
-
-// Emergency contact interface
-export interface EmergencyContact extends BaseEntity {
-  patientId: string
-  name: string
-  relationship: string
-  phone: string
-  isPrimary: boolean
-}
-
 // DTOs for API requests/responses
 export interface LoginRequest {
   email: string
@@ -241,7 +187,6 @@ export interface LoginResponse {
   accessToken: string
   refreshToken: string
   role: UserRole
-  userId?: string
 }
 
 export interface RefreshRequest {
@@ -255,10 +200,6 @@ export interface CreatePatient {
   dob: string
   phone?: string
   address?: string
-  email?: string
-  password?: string
-  medicalCondition?: string
-  lastVisit?: string | null
 }
 
 export interface ReviewComment {
@@ -291,7 +232,6 @@ export interface CreateTaskRequest {
   description: string
   patientId: string
   vhvId: string
-  doctorId: string
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   dueDate?: string
 }
@@ -299,145 +239,5 @@ export interface CreateTaskRequest {
 export interface AssignPatientRequest {
   patientId: string
   vhvId: string
-  doctorId?: string
   tasks?: CreateTaskRequest[]
-}
-
-// Emergency DTOs
-export interface CreateEmergencyAlertRequest {
-  patientId: string
-  priority: EmergencyPriority
-  description?: string
-  location?: string
-}
-
-export interface UpdateEmergencyAlertRequest {
-  status?: EmergencyStatus
-  priority?: EmergencyPriority
-  description?: string
-  location?: string
-  assignedDoctorId?: string
-  assignedVHVId?: string
-  acknowledgedBy?: string
-  resolvedBy?: string
-  notes?: string
-}
-
-export interface EmergencyStatsResponse {
-  totalAlerts: number
-  activeAlerts: number
-  averageResponseTime: number
-  alertsByPriority: {
-    critical: number
-    high: number
-    medium: number
-  }
-}
-
-// Patient-specific types
-export interface Appointment {
-  id: string
-  patientId: string
-  providerId: string
-  providerName: string
-  type: string
-  scheduledDate: string
-  scheduledTime: string
-  location: string
-  status: 'scheduled' | 'completed' | 'cancelled' | 'rescheduled'
-  notes?: string
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface Visit {
-  id: string
-  patientId: string
-  providerId: string
-  providerName: string
-  visitDate: string
-  diagnosis?: string
-  treatment?: string
-  notes?: string
-  status: 'completed' | 'in_progress' | 'cancelled'
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface Medication {
-  id: string
-  patientId: string
-  name: string
-  dosage: string
-  frequency: string
-  duration: string
-  prescribedBy?: string
-  prescribedDate: string
-  remainingDays: number
-  isActive: boolean
-  notes?: string
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface VitalSigns {
-  id: string
-  patientId: string
-  recordedDate: string
-  temperature?: number
-  bloodPressureSystolic?: number
-  bloodPressureDiastolic?: number
-  heartRate?: number
-  weight?: number
-  height?: number
-  notes?: string
-  recordedBy?: string
-  createdAt: Date
-}
-
-export interface RescheduleRequest {
-  id: string
-  appointmentId: string
-  patientId: string
-  requestedDate: string
-  requestedTime: string
-  reason?: string
-  preferredAlternatives?: string
-  status: 'pending' | 'approved' | 'rejected'
-  reviewedBy?: string
-  reviewedAt?: Date
-  createdAt: Date
-}
-
-// Notification interface
-export interface Notification extends BaseEntity {
-  userId: string
-  userRole: UserRole
-  title: string
-  message: string
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'
-  entityType?: 'INTAKE' | 'TASK' | 'EMERGENCY' | 'APPOINTMENT'
-  entityId?: string
-  readAt?: Date
-}
-
-// Audit log interface  
-export interface AuditLog extends BaseEntity {
-  userId: string
-  userRole: UserRole
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'APPROVE' | 'REJECT' | 'RESOLVE'
-  entityType: 'PATIENT' | 'TASK' | 'INTAKE' | 'EMERGENCY' | 'APPOINTMENT' | 'ASSIGNMENT' | 'NOTIFICATION'
-  entityId: string
-  beforeSnapshot?: any
-  afterSnapshot?: any
-  description?: string
-  ipAddress?: string
-  userAgent?: string
-}
-
-// Enhanced IntakeSubmission interface
-export interface EnhancedIntakeSubmission extends IntakeSubmission {
-  vhvValidated: boolean
-  doctorNotes?: string
-  statusChangedAt: Date
 }

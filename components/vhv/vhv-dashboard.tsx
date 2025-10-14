@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Eye } from "lucide-react"
+import { Plus } from "lucide-react"
 import {
   Users,
   CheckCircle,
@@ -31,30 +31,18 @@ import {
   Calendar,
   AlertCircle,
   Target,
-  Bell,
 } from "lucide-react"
 import { useState, useCallback, useEffect } from "react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
-import { patientsApi, intakesApi, tasksApi, emergencyApi } from "@/lib/api"
+import { patientsApi, intakesApi, tasksApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
 import { initOfflineStorage, getOfflineFormData } from "@/lib/offline-storage"
-import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
-import { UserRole } from "@/lib/types"
 
 export function VHVDashboard() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState(getCurrentUserFromStorage())
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
-
-  // Check and fix user ID if it's a hardcoded string
-  useEffect(() => {
-    if (currentUser?.id && (currentUser.id === 'doctor_id' || currentUser.id === 'admin_id' || currentUser.id === 'vhv_id' || currentUser.id === 'patient_id')) {
-      console.log('Detected hardcoded user ID, clearing localStorage and redirecting to login')
-      clearCurrentUser()
-      router.push('/login')
-    }
-  }, [currentUser?.id, router])
   const [selectedPatientForReview, setSelectedPatientForReview] = useState<any>(null)
   const [reviewFormData, setReviewFormData] = useState<any>(null)
   const [reviewIntakeId, setReviewIntakeId] = useState<string | null>(null)
@@ -64,40 +52,11 @@ export function VHVDashboard() {
   const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
   const [completedSections, setCompletedSections] = useState<string[]>([])
   const [currentIntakeId, setCurrentIntakeId] = useState<string | null>(null)
-  const [activeEmergencyCount, setActiveEmergencyCount] = useState(0)
-  const [undoableActions, setUndoableActions] = useState<{[key: string]: {type: string, data: any, timeoutId: NodeJS.Timeout}}>({})
 
   // Initialize offline storage
   useEffect(() => {
     initOfflineStorage().catch(console.error)
   }, [])
-
-  useEffect(() => {
-    const fetchEmergencyCount = async () => {
-      if (currentUser?.id) {
-        try {
-          const count = await emergencyApi.getActiveCount(currentUser.id, UserRole.VHV)
-          setActiveEmergencyCount(count)
-        } catch (error) {
-          console.error("[v0] Failed to fetch emergency count:", error)
-        }
-      }
-    }
-
-    fetchEmergencyCount()
-    const interval = setInterval(fetchEmergencyCount, 30000) // Poll every 30 seconds
-    return () => clearInterval(interval)
-  }, [currentUser?.id])
-
-  // Cleanup undo timers on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(undoableActions).forEach(action => {
-        clearTimeout(action.timeoutId)
-      })
-    }
-  }, [undoableActions])
-
   const [newPatientForm, setNewPatientForm] = useState({
     firstName: "",
     lastName: "",
@@ -111,22 +70,9 @@ export function VHVDashboard() {
     if (!currentUser?.id) return []
 
     try {
-      // Get patients assigned to this VHV from Supabase
-      const assignments = await patientsApi.getAssignmentsByVHV(currentUser.id)
-      
-      // Filter out patients who have already submitted intakes
-      return assignments.filter((assignment: any) => {
-        const patient = assignment.patient
-        if (!patient || !patient.intakeSubmissions) return true
-        
-        // Check if patient has any submitted intakes
-        const hasSubmittedIntake = patient.intakeSubmissions.some((intake: any) => 
-          intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
-        )
-        
-        // Only show patients who haven't submitted intakes yet
-        return !hasSubmittedIntake
-      })
+      // Get patients assigned to this VHV using the mock data helper
+      const { getPatientsByVHV } = await import("@/lib/mock-data")
+      return getPatientsByVHV(currentUser.id)
     } catch (error) {
       console.error("Error fetching assigned patients:", error)
       return []
@@ -139,12 +85,6 @@ export function VHVDashboard() {
     error: patientsError,
     refetch: refetchPatients,
   } = useApiData(getAssignedPatients, [])
-  
-  // Debug logging
-  console.log('VHVDashboard - currentUser:', currentUser)
-  console.log('VHVDashboard - assignedPatients:', assignedPatients)
-  console.log('VHVDashboard - patientsLoading:', patientsLoading)
-  console.log('VHVDashboard - patientsError:', patientsError)
 
   const getTasks = useCallback(async () => {
     if (!currentUser?.id) return []
@@ -178,10 +118,6 @@ export function VHVDashboard() {
         refetchPatients()
       } catch (error) {
         console.error("Error adding patient:", error)
-        // Show user-friendly error message
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-        alert(`Failed to create patient: ${errorMessage}. Please try again.`)
-        // Don't reset form or close dialog on error so user can retry
       }
     }
   }, [newPatientForm, refetchPatients])
@@ -197,55 +133,22 @@ export function VHVDashboard() {
 
   const handleOpenDataForm = async (patient: any) => {
     try {
-      // Additional validation: ensure patient has a valid ID
-      if (!patient || !patient.id) {
-        console.error('Cannot open data form: Invalid patient object', patient)
-        alert('Error: Invalid patient data. Please refresh and try again.')
-        return
-      }
-
-      console.log('Creating new intake for patient:', patient.id)
       // Create a new intake submission when starting data collection
-      const newIntake = await intakesApi.create(patient.id, currentUser?.id)
-      console.log('New intake created:', newIntake)
-
-      // Validate that intake was created properly
-      if (!newIntake || !newIntake.id) {
-        throw new Error('Intake creation returned invalid data')
-      }
+      const newIntake = await intakesApi.create(patient.id)
 
       setCurrentIntakeId(newIntake.id)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      
-      // Refresh assigned patients data to show updated intake status
-      refetchPatients()
     } catch (error) {
       console.error("Failed to create intake:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to create intake submission: ${errorMessage}. Please try again.`)
-      // Don't open form if intake creation fails
-      setCurrentIntakeId(null)
-      setSelectedPatientForForm(null)
+      // Still allow form to open even if API fails
+      setSelectedPatientForForm(patient)
+      setShowDataForm(true)
     }
   }
 
   const handleContinueDataForm = async (patient: any, intakeId: string) => {
     try {
-      // Validate inputs
-      if (!patient || !patient.id) {
-        console.error('Cannot continue data form: Invalid patient object', patient)
-        alert('Error: Invalid patient data. Please refresh and try again.')
-        return
-      }
-
-      if (!intakeId || intakeId.trim() === '') {
-        console.error('Cannot continue data form: Invalid intake ID', intakeId)
-        alert('Error: Invalid intake ID. Please refresh and try again.')
-        return
-      }
-
-      console.log('Continuing intake:', intakeId, 'for patient:', patient.id)
       // Load offline data to get completed sections
       const offlineData = await getOfflineFormData(patient.id.toString())
       if (offlineData && offlineData.completedSections) {
@@ -256,16 +159,12 @@ export function VHVDashboard() {
       setCurrentIntakeId(intakeId)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      
-      // Refresh assigned patients data
-      refetchPatients()
     } catch (error) {
       console.error("Failed to load offline data:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to continue data form: ${errorMessage}. Please try again.`)
-      // Reset state on error
-      setCurrentIntakeId(null)
-      setSelectedPatientForForm(null)
+      // Still allow form to open even if offline data fails
+      setCurrentIntakeId(intakeId)
+      setSelectedPatientForForm(patient)
+      setShowDataForm(true)
     }
   }
 
@@ -274,19 +173,6 @@ export function VHVDashboard() {
     setSelectedPatientForForm(null)
     setCompletedSections([])
     setCurrentIntakeId(null)
-  }
-
-  const handleOpenPatientReview = async (patient: any, intake: any) => {
-    try {
-      setSelectedPatientForReview(patient)
-      setReviewIntakeId(intake.id)
-      setShowReviewPage(true)
-      
-      // Refresh assigned patients data
-      refetchPatients()
-    } catch (error) {
-      console.error("Failed to open patient review:", error)
-    }
   }
 
   const handleFormComplete = async () => {
@@ -368,83 +254,21 @@ export function VHVDashboard() {
 
   const handleCompleteTask = async (taskId: string) => {
     try {
-      const task = tasks?.find((t: any) => t.id === taskId)
-      if (!task) return
-
-      // Complete the task
       await tasksApi.complete(taskId)
-      
-      // Create an undo action with 10-second timeout
-      const timeoutId = setTimeout(() => {
-        setUndoableActions(prev => {
-          const newActions = { ...prev }
-          delete newActions[taskId]
-          return newActions
-        })
-      }, 10000)
-
-      setUndoableActions(prev => ({
-        ...prev,
-        [taskId]: {
-          type: 'COMPLETE_TASK',
-          data: task,
-          timeoutId
-        }
-      }))
-
       refetchTasks()
-      
-      // Show success message
-      console.log(`Task "${task.title}" completed. Undo available for 10 seconds.`)
     } catch (error) {
       console.error("Failed to complete task:", error)
-      alert("Failed to complete task. Please try again.")
-    }
-  }
-
-  const handleUndoCompleteTask = async (taskId: string) => {
-    const undoAction = undoableActions[taskId]
-    if (!undoAction) return
-
-    try {
-      // Clear the timeout
-      clearTimeout(undoAction.timeoutId)
-      
-      // Undo the task completion
-      await tasksApi.reopen(taskId)
-      
-      // Remove from undo actions
-      setUndoableActions(prev => {
-        const newActions = { ...prev }
-        delete newActions[taskId]
-        return newActions
-      })
-
-      refetchTasks()
-      console.log(`Task "${undoAction.data.title}" completion undone.`)
-    } catch (error) {
-      console.error("Failed to undo task completion:", error)
-      alert("Failed to undo task completion. Please try again.")
     }
   }
 
   // Calculate statistics from real data
-  const activePatients = assignedPatients?.filter((assignment: any) => assignment.status === "active") || []
-  const completedVisits = assignedPatients?.filter((assignment: any) => assignment.patient?.lastVisit).length || 0
-  const pendingReviews = assignedPatients?.filter((assignment: any) => assignment.patient?.status === "pending_review").length || 0
+  const activePatients = assignedPatients?.filter((p: any) => p.assignment?.status === "ACTIVE") || []
+  const completedVisits = assignedPatients?.filter((p: any) => p.lastVisit).length || 0
+  const pendingReviews = assignedPatients?.filter((p: any) => p.status === "pending_review").length || 0
 
-  const pendingTasks = tasks?.filter((t: any) => t.status === "pending").length || 0
-  const inProgressTasks = tasks?.filter((t: any) => t.status === "in_progress").length || 0
-  const completedTasks = tasks?.filter((t: any) => t.status === "completed").length || 0
-
-  // Debug logging for statistics
-  console.log('VHVDashboard - Statistics:')
-  console.log('  activePatients:', activePatients.length)
-  console.log('  completedVisits:', completedVisits)
-  console.log('  pendingReviews:', pendingReviews)
-  console.log('  pendingTasks:', pendingTasks)
-  console.log('  inProgressTasks:', inProgressTasks)
-  console.log('  completedTasks:', completedTasks)
+  const pendingTasks = tasks?.filter((t: any) => t.status === "PENDING").length || 0
+  const inProgressTasks = tasks?.filter((t: any) => t.status === "IN_PROGRESS").length || 0
+  const completedTasks = tasks?.filter((t: any) => t.status === "COMPLETED").length || 0
 
   if (showReviewPage && selectedPatientForReview) {
     return (
@@ -610,7 +434,7 @@ export function VHVDashboard() {
 
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Assigned Patients</CardTitle>
@@ -667,41 +491,13 @@ export function VHVDashboard() {
               <p className="text-xs text-muted-foreground">Task completion rate</p>
             </CardContent>
           </Card>
-
-          <Card className={activeEmergencyCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Emergency Alerts</CardTitle>
-              <Bell
-                className={`h-4 w-4 ${activeEmergencyCount > 0 ? "text-red-500 animate-pulse" : "text-gray-500"}`}
-              />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
-                {activeEmergencyCount}
-              </div>
-              <p className="text-xs text-muted-foreground">Active emergencies</p>
-            </CardContent>
-          </Card>
         </div>
 
-        <Tabs defaultValue="emergencies" className="space-y-4">
+        <Tabs defaultValue="patients" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="emergencies" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Emergencies
-              {activeEmergencyCount > 0 && (
-                <Badge className="bg-red-500 text-white text-xs px-1 py-0 min-w-[16px] h-4">
-                  {activeEmergencyCount}
-                </Badge>
-              )}
-            </TabsTrigger>
             <TabsTrigger value="patients">Assigned Patients</TabsTrigger>
             <TabsTrigger value="tasks">My Tasks</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="emergencies" className="space-y-4">
-            <EmergencyAlerts userId={currentUser?.id || "3"} userRole={UserRole.VHV} />
-          </TabsContent>
 
           <TabsContent value="patients" className="space-y-4">
             <Card>
@@ -717,19 +513,15 @@ export function VHVDashboard() {
                 ) : !assignedPatients || assignedPatients.length === 0 ? (
                   <div className="text-center py-4 text-muted-foreground">No patients assigned</div>
                 ) : (
-                  assignedPatients.map((assignment: any) => {
-                    const patient = assignment.patient
-                    if (!patient) return null
-                    
-                    return (
-                    <Card key={assignment.id} className="border-l-4 border-l-blue-500">
+                  assignedPatients.map((patient: any) => (
+                    <Card key={patient.id} className="border-l-4 border-l-blue-500">
                       <CardContent className="pt-4">
                         <div
                           className="flex items-center justify-between cursor-pointer"
-                          onClick={() => togglePatientExpansion(assignment.id)}
+                          onClick={() => togglePatientExpansion(patient.id)}
                         >
                           <div className="flex items-center gap-3">
-                            {expandedPatient === assignment.id ? (
+                            {expandedPatient === patient.id ? (
                               <ChevronDown className="h-4 w-4" />
                             ) : (
                               <ChevronRight className="h-4 w-4" />
@@ -739,19 +531,19 @@ export function VHVDashboard() {
                                 <h3 className="font-semibold">
                                   {patient.firstName} {patient.lastName}
                                 </h3>
-                                <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
-                                  {assignment.status || "active"}
+                                <Badge variant={patient.assignment?.status === "ACTIVE" ? "default" : "secondary"}>
+                                  {patient.assignment?.status || "ACTIVE"}
                                 </Badge>
-                                {assignment.tasks && assignment.tasks.length > 0 && (
+                                {patient.tasks && patient.tasks.length > 0 && (
                                   <Badge variant="outline">
-                                    {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
+                                    {patient.tasks.length} task{patient.tasks.length !== 1 ? "s" : ""}
                                   </Badge>
                                 )}
                               </div>
                               <p className="text-sm text-muted-foreground">
                                 Assigned:{" "}
-                                {assignment.assignedAt
-                                  ? new Date(assignment.assignedAt).toLocaleDateString()
+                                {patient.assignment?.assignedAt
+                                  ? new Date(patient.assignment.assignedAt).toLocaleDateString()
                                   : "Unknown"}
                               </p>
                             </div>
@@ -814,19 +606,11 @@ export function VHVDashboard() {
                                   </>
                                 )
                               } else {
-                                // Intake already submitted - show View Visit button
+                                // Intake already submitted - show status
                                 return (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleOpenPatientReview(patient, latestIntake)
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Visit
-                                  </Button>
+                                  <Badge variant="secondary" className="text-xs">
+                                    Submitted for Review
+                                  </Badge>
                                 )
                               }
                             })()}
@@ -860,11 +644,11 @@ export function VHVDashboard() {
                               </div>
                             </div>
 
-                            {assignment.tasks && assignment.tasks.length > 0 && (
+                            {patient.tasks && patient.tasks.length > 0 && (
                               <div className="mt-4 pt-4 border-t">
                                 <h5 className="font-medium text-sm mb-2">Patient Tasks</h5>
                                 <div className="space-y-2">
-                                  {assignment.tasks.map((task: any) => (
+                                  {patient.tasks.map((task: any) => (
                                     <div
                                       key={task.id}
                                       className="flex items-center justify-between p-2 bg-muted rounded"
@@ -876,18 +660,18 @@ export function VHVDashboard() {
                                       <div className="flex items-center gap-2">
                                         <Badge
                                           variant={
-                                            task.status === "completed"
+                                            task.status === "COMPLETED"
                                               ? "default"
-                                              : task.status === "in_progress"
+                                              : task.status === "IN_PROGRESS"
                                                 ? "secondary"
-                                                : task.priority === "high" || task.priority === "urgent"
+                                                : task.priority === "HIGH" || task.priority === "URGENT"
                                                   ? "destructive"
                                                   : "outline"
                                           }
                                         >
                                           {task.status}
                                         </Badge>
-                                        {task.status !== "completed" && (
+                                        {task.status !== "COMPLETED" && (
                                           <Button
                                             size="sm"
                                             variant="outline"
@@ -906,8 +690,7 @@ export function VHVDashboard() {
                         )}
                       </CardContent>
                     </Card>
-                    )
-                  })
+                  ))
                 )}
               </CardContent>
             </Card>
@@ -919,146 +702,84 @@ export function VHVDashboard() {
                 <CardTitle>My Tasks</CardTitle>
                 <CardDescription>Tasks assigned to you by doctors</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="active" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="active">
-                      Active ({tasks?.filter((t: any) => t.status !== "completed").length || 0})
-                    </TabsTrigger>
-                    <TabsTrigger value="completed">
-                      Completed ({tasks?.filter((t: any) => t.status === "completed").length || 0})
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="active" className="space-y-4 mt-4">
-                    {tasksLoading ? (
-                      <div className="text-center py-4">Loading tasks...</div>
-                    ) : !tasks || tasks.filter((t: any) => t.status !== "completed").length === 0 ? (
-                      <div className="text-center py-4 text-muted-foreground">No active tasks</div>
-                    ) : (
-                      tasks
-                        .filter((task: any) => task.status !== "completed")
-                        .map((task: any) => {
-                          const patient = assignedPatients?.find((p: any) => p.id === task.patientId)
-                          return (
-                            <Card
-                              key={task.id}
-                              className={`border-l-4 ${
-                                task.status === "in_progress"
-                                  ? "border-l-yellow-500"
-                                  : task.priority === "HIGH" || task.priority === "URGENT"
-                                    ? "border-l-red-500"
-                                    : "border-l-blue-500"
-                              }`}
-                            >
-                              <CardContent className="pt-4">
-                                <div className="flex items-center justify-between">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <h3 className="font-semibold">{task.title}</h3>
-                                      <Badge
-                                        variant={
-                                          task.priority === "URGENT"
-                                            ? "destructive"
-                                            : task.priority === "HIGH"
-                                              ? "destructive"
-                                              : task.priority === "MEDIUM"
-                                                ? "secondary"
-                                                : "outline"
-                                        }
-                                      >
-                                        {task.priority}
-                                      </Badge>
-                                      <Badge
-                                        variant={
-                                          task.status === "in_progress"
-                                            ? "secondary"
-                                            : "outline"
-                                        }
-                                      >
-                                        {task.status}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                    {patient && (
-                                      <p className="text-sm text-muted-foreground">
-                                        Patient: {patient.firstName} {patient.lastName}
-                                      </p>
-                                    )}
-                                    {task.dueDate && (
-                                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        Due: {new Date(task.dueDate).toLocaleDateString()}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => handleCompleteTask(task.id)}>
-                                      <CheckCircle className="h-4 w-4 mr-2" />
-                                      Complete
-                                    </Button>
-                                  </div>
+              <CardContent className="space-y-4">
+                {tasksLoading ? (
+                  <div className="text-center py-4">Loading tasks...</div>
+                ) : !tasks || tasks.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">No tasks assigned</div>
+                ) : (
+                  tasks.map((task: any) => {
+                    const patient = assignedPatients?.find((p: any) => p.id === task.patientId)
+                    return (
+                      <Card
+                        key={task.id}
+                        className={`border-l-4 ${
+                          task.status === "COMPLETED"
+                            ? "border-l-green-500"
+                            : task.status === "IN_PROGRESS"
+                              ? "border-l-yellow-500"
+                              : task.priority === "HIGH" || task.priority === "URGENT"
+                                ? "border-l-red-500"
+                                : "border-l-blue-500"
+                        }`}
+                      >
+                        <CardContent className="pt-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold">{task.title}</h3>
+                                <Badge
+                                  variant={
+                                    task.priority === "URGENT"
+                                      ? "destructive"
+                                      : task.priority === "HIGH"
+                                        ? "destructive"
+                                        : task.priority === "MEDIUM"
+                                          ? "secondary"
+                                          : "outline"
+                                  }
+                                >
+                                  {task.priority}
+                                </Badge>
+                                <Badge
+                                  variant={
+                                    task.status === "COMPLETED"
+                                      ? "default"
+                                      : task.status === "IN_PROGRESS"
+                                        ? "secondary"
+                                        : "outline"
+                                  }
+                                >
+                                  {task.status}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                              {patient && (
+                                <p className="text-sm text-muted-foreground">
+                                  Patient: {patient.firstName} {patient.lastName}
+                                </p>
+                              )}
+                              {task.dueDate && (
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  Due: {new Date(task.dueDate).toLocaleDateString()}
                                 </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        })
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="completed" className="space-y-4 mt-4">
-                    {tasksLoading ? (
-                      <div className="text-center py-4">Loading tasks...</div>
-                    ) : !tasks || tasks.filter((t: any) => t.status === "completed").length === 0 ? (
-                      <div className="text-center py-4 text-muted-foreground">No completed tasks</div>
-                    ) : (
-                      tasks
-                        .filter((task: any) => task.status === "completed")
-                        .map((task: any) => {
-                          const patient = assignedPatients?.find((p: any) => p.id === task.patientId)
-                          return (
-                            <Card key={task.id} className="border-l-4 border-l-green-500">
-                              <CardContent className="pt-4">
-                                <div className="flex items-center justify-between">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <h3 className="font-semibold">{task.title}</h3>
-                                      <Badge variant="outline">{task.priority}</Badge>
-                                      <Badge variant="default">completed</Badge>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                    {patient && (
-                                      <p className="text-sm text-muted-foreground">
-                                        Patient: {patient.firstName} {patient.lastName}
-                                      </p>
-                                    )}
-                                    {task.completedAt && (
-                                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                        <CheckCircle className="h-3 w-3" />
-                                        Completed: {new Date(task.completedAt).toLocaleDateString()}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {undoableActions[task.id] && (
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        onClick={() => handleUndoCompleteTask(task.id)}
-                                        className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
-                                      >
-                                        Undo
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        })
-                    )}
-                  </TabsContent>
-                </Tabs>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {task.status !== "COMPLETED" && (
+                                <Button variant="outline" size="sm" onClick={() => handleCompleteTask(task.id)}>
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Complete
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+                )}
               </CardContent>
             </Card>
           </TabsContent>
