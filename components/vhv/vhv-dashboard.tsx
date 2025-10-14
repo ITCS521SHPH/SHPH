@@ -115,20 +115,10 @@ export function VHVDashboard() {
     try {
       // Get patients assigned to this VHV from Supabase
       const assignments = await patientsApi.getAssignmentsByVHV(currentUser.id)
-      
-      // Filter out patients who have already submitted intakes
-      return assignments.filter((assignment: any) => {
-        const patient = assignment.patient
-        if (!patient || !patient.intakeSubmissions) return true
-        
-        // Check if patient has any submitted intakes
-        const hasSubmittedIntake = patient.intakeSubmissions.some((intake: any) => 
-          intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
-        )
-        
-        // Only show patients who haven't submitted intakes yet
-        return !hasSubmittedIntake
-      })
+
+      // Do not hide patients after submission; keep them visible.
+      // The UI already shows appropriate actions (e.g., View Visit) based on intake status.
+      return assignments
     } catch (error) {
       console.error("Error fetching assigned patients:", error)
       return []
@@ -181,6 +171,48 @@ export function VHVDashboard() {
     loading: profileLoading,
     error: profileError,
   } = useApiData(getVHVProfile, [currentUser?.id])
+
+  // Helper to determine if a patient has any submitted/approved/rejected intake
+  const hasSubmittedIntake = useCallback((patient: any) => {
+    return !!patient?.intakeSubmissions?.some(
+      (intake: any) => intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
+    )
+  }, [])
+
+  // Visible assignments (exclude area placeholders) – defined early so other hooks can depend on it
+  const isAreaPlaceholder = (patient: any) => {
+    if (!patient) return false
+    const fn = (patient.firstName || (patient as any).first_name || '').toString().trim()
+    return fn === 'Area Task' || fn === 'Area'
+  }
+  const visibleAssignments = (assignedPatients ?? []).filter((a: any) => !isAreaPlaceholder(a.patient))
+
+  // Assigned Patients filter (All/Active/Completed)
+  const [assignedFilter, setAssignedFilter] = useState<'all' | 'active' | 'completed'>('all')
+  // Load saved filter on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vhvAssignedFilter')
+      if (saved === 'all' || saved === 'active' || saved === 'completed') {
+        setAssignedFilter(saved)
+      }
+    }
+  }, [])
+  // Persist filter changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vhvAssignedFilter', assignedFilter)
+    }
+  }, [assignedFilter])
+  const filteredAssignments = useMemo(() => {
+    if (assignedFilter === 'active') {
+      return (visibleAssignments ?? []).filter((assignment: any) => !hasSubmittedIntake(assignment.patient))
+    }
+    if (assignedFilter === 'completed') {
+      return (visibleAssignments ?? []).filter((assignment: any) => hasSubmittedIntake(assignment.patient))
+    }
+    return visibleAssignments ?? []
+  }, [visibleAssignments, assignedFilter, hasSubmittedIntake])
 
   // Add new patient functionality
   const handleAddPatient = useCallback(async () => {
@@ -473,12 +505,7 @@ export function VHVDashboard() {
     }
   }
 
-  const isAreaPlaceholder = (patient: any) => {
-    if (!patient) return false
-    const fn = (patient.firstName || patient.first_name || '').toString().trim()
-    return fn === 'Area Task' || fn === 'Area'
-  }
-  const visibleAssignments = (assignedPatients ?? []).filter((a: any) => !isAreaPlaceholder(a.patient))
+  // (moved earlier)
 
   const visibleTasks = useMemo(() => {
     const taskList = tasks ?? []
@@ -855,12 +882,26 @@ export function VHVDashboard() {
 
           <TabsContent value="patients" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Assigned Patients</CardTitle>
-                <CardDescription>
-                  Patients assigned to your care by doctors
-                  
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+                <div>
+                  <CardTitle>Assigned Patients</CardTitle>
+                  <CardDescription>
+                    Patients assigned to your care by doctors
+                    
+                  </CardDescription>
+                </div>
+                <div className="w-40">
+                  <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v as 'all' | 'active' | 'completed')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {patientsLoading ? (
@@ -869,10 +910,10 @@ export function VHVDashboard() {
                   <div className="text-center py-4 text-red-500">Error loading patients</div>
                 ) : !assignedPatients || assignedPatients.length === 0 ? (
                   <div className="text-center py-4 text-muted-foreground">No patients assigned</div>
-                ) : visibleAssignments.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">No patients assigned</div>
+                ) : filteredAssignments.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">No patients for this filter</div>
                 ) : (
-                  visibleAssignments.map((assignment: any) => {
+                  filteredAssignments.map((assignment: any) => {
                     const patient = assignment.patient
                     if (!patient) return null
                     
@@ -897,6 +938,12 @@ export function VHVDashboard() {
                                 <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
                                   {assignment.status || "active"}
                                 </Badge>
+                                {patient.intakeSubmissions && patient.intakeSubmissions.length > 0 &&
+                                  patient.intakeSubmissions.some((intake: any) =>
+                                    intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
+                                  ) && (
+                                    <Badge variant="default">complete</Badge>
+                                  )}
                                 {assignment.tasks && assignment.tasks.length > 0 && (
                                   <Badge variant="outline">
                                     {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}

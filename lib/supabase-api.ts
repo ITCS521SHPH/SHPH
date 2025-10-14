@@ -114,24 +114,29 @@ const convertAssignmentRow = (row: AssignmentRow): Assignment => ({
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
 })
 
-const convertTaskRow = (row: TaskRow): Task => ({
-  id: row.id,
-  title: row.title,
-  description: row.description || '',
-  patientId: row.patient_id,
-  vhvId: row.vhv_id,
-  doctorId: row.doctor_id,
-  priority: row.priority,
-  status: row.status === 'pending' ? 'PENDING' :
-          row.status === 'in_progress' ? 'IN_PROGRESS' :
-          row.status === 'completed' ? 'COMPLETED' :
-          row.status === 'cancelled' ? 'CANCELLED' :
-          row.status as any,
-  dueDate: row.due_date ? new Date(row.due_date) : undefined,
-  completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-  createdAt: new Date(row.created_at),
-  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined
-})
+const convertTaskRow = (row: TaskRow): Task => {
+  const priorityMap: Record<string, Task['priority']> = {
+    low: 'LOW',
+    medium: 'MEDIUM',
+    high: 'HIGH',
+    urgent: 'URGENT',
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    patientId: row.patient_id,
+    vhvId: row.vhv_id,
+    doctorId: row.doctor_id,
+    priority: priorityMap[(row as any).priority] ?? 'MEDIUM',
+    status: (row.status as Task['status']),
+    dueDate: row.due_date ? new Date(row.due_date) : undefined,
+    completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+    createdAt: new Date(row.created_at),
+    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  }
+}
 
 const convertDoctorRow = (row: DoctorRow): DoctorProfile => ({
   id: row.id,
