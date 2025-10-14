@@ -32,10 +32,12 @@ import {
   ChevronDown,
   ChevronRight,
   UserPlus,
+  Map,
 } from "lucide-react"
 import { clearCurrentUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { PatientMapView } from "./patient-map-view" // Import map view component
 
 const initialPatients = [
   {
@@ -452,7 +454,7 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="pending" className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               Pending Validations
@@ -468,6 +470,10 @@ export function DoctorDashboard() {
             <TabsTrigger value="vhvs" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               VHV Management
+            </TabsTrigger>
+            <TabsTrigger value="map" className="flex items-center gap-2">
+              <Map className="h-4 w-4" />
+              Map View
             </TabsTrigger>
           </TabsList>
 
@@ -897,6 +903,10 @@ export function DoctorDashboard() {
                 ))}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="map" className="space-y-4">
+            <PatientMapView />
           </TabsContent>
         </Tabs>
 
