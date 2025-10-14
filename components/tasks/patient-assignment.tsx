@@ -50,9 +50,8 @@ export function PatientAssignment({ doctorId, onAssignmentComplete }: PatientAss
 
   // Get current assignments
   const getAssignments = useCallback(async () => {
-    const effectiveDoctorId = doctorId || currentUser?.id
-    if (effectiveDoctorId) {
-      return patientsApi.getAssignments(effectiveDoctorId)
+    if (doctorId || currentUser?.id) {
+      return patientsApi.getAssignments(doctorId || currentUser?.id)
     }
     return []
   }, [doctorId, currentUser?.id])
@@ -101,7 +100,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete }: PatientAss
     }
 
     try {
-      await patientsApi.assignVHV(selectedPatient.id, assignmentForm.vhvId, doctorId || currentUser?.id || '', assignmentForm.tasks)
+      await patientsApi.assignVHV(selectedPatient.id, assignmentForm.vhvId, assignmentForm.tasks)
 
       setShowAssignDialog(false)
       setSelectedPatient(null)
