@@ -116,53 +116,6 @@ export interface Database {
           updated_at?: string
         }
       }
-      vhvs: {
-        Row: {
-          id: string
-          email: string
-          password_hash: string | null
-          first_name: string
-          last_name: string
-          phone: string | null
-          district: string | null
-          license_number: string
-          specialization: string | null
-          experience_years: number | null
-          is_active: boolean | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          email: string
-          password_hash?: string | null
-          first_name: string
-          last_name: string
-          phone?: string | null
-          district?: string | null
-          license_number: string
-          specialization?: string | null
-          experience_years?: number | null
-          is_active?: boolean | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          email?: string
-          password_hash?: string | null
-          first_name?: string
-          last_name?: string
-          phone?: string | null
-          district?: string | null
-          license_number?: string
-          specialization?: string | null
-          experience_years?: number | null
-          is_active?: boolean | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
       patients: {
         Row: {
           id: string

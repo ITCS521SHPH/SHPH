@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS "public"."doctors" (
     "first_name" "text" NOT NULL,
     "last_name" "text" NOT NULL,
     "phone" "text",
+    "district" "text",
     "license_number" "text" NOT NULL,
     "specialization" "text",
     "experience_years" integer DEFAULT 0,
@@ -227,6 +228,7 @@ CREATE TABLE IF NOT EXISTS "public"."patients" (
     "national_id" "text",
     "dob" "date",
     "address" "text",
+    "district" "text",
     "emergency_contact_name" "text",
     "emergency_contact_phone" "text",
     "medical_history" "text",
@@ -736,6 +738,72 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+-- Add district column to VHV profiles (if not already present)
+ALTER TABLE public.vhvs
+  ADD COLUMN IF NOT EXISTS district text;
+
+COMMENT ON COLUMN public.vhvs.district IS
+  'Primary district assignment for the VHV (e.g. Bangkok district name)';
+
+-- Ensure updated_at refreshes automatically when district changes
+CREATE OR REPLACE FUNCTION public.set_vhv_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_vhv_updated_at ON public.vhvs;
+
+CREATE TRIGGER set_vhv_updated_at
+BEFORE UPDATE ON public.vhvs
+FOR EACH ROW
+EXECUTE FUNCTION public.set_vhv_updated_at();
+
+-- Add district column to patient profiles
+ALTER TABLE public.patients
+  ADD COLUMN IF NOT EXISTS district text;
+
+COMMENT ON COLUMN public.patients.district IS
+  'Primary district for the patient (e.g. Bangkok district name)';
+
+-- Create area_tasks table (district-based tasks decoupled from patients)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'area_tasks'
+  ) THEN
+    CREATE TABLE public.area_tasks (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      title text NOT NULL,
+      description text,
+      doctor_id uuid NOT NULL,
+      vhv_id uuid NOT NULL,
+      district text,
+      priority text DEFAULT 'medium',
+      status text DEFAULT 'pending',
+      due_date timestamptz,
+      completed_at timestamptz,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now(),
+      CONSTRAINT area_tasks_priority_check CHECK (priority IN ('low','medium','high','urgent')),
+      CONSTRAINT area_tasks_status_check CHECK (status IN ('pending','in_progress','completed','cancelled'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_area_tasks_doctor ON public.area_tasks(doctor_id);
+    CREATE INDEX IF NOT EXISTS idx_area_tasks_vhv ON public.area_tasks(vhv_id);
+    CREATE INDEX IF NOT EXISTS idx_area_tasks_district ON public.area_tasks(district);
+    CREATE INDEX IF NOT EXISTS idx_area_tasks_status ON public.area_tasks(status);
+
+    -- Add foreign key references
+    ALTER TABLE public.area_tasks
+      ADD CONSTRAINT area_tasks_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.doctors(id);
+    ALTER TABLE public.area_tasks
+      ADD CONSTRAINT area_tasks_vhv_id_fkey FOREIGN KEY (vhv_id) REFERENCES public.vhvs(id);
+  END IF;
+END $$;
 
 
 

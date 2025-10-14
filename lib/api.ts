@@ -214,6 +214,43 @@ export const patientsApi = {
   },
 }
 
+export const vhvApi = {
+  getProfile: async (vhvId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/vhv/profile?vhvId=${vhvId}`)
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null
+        }
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to fetch VHV profile')
+      }
+      return response.json()
+    }
+    throw new Error('VHV profile API not implemented for mock data')
+  },
+
+  updateProfile: async (vhvId: string, updates: any) => {
+    if (USE_SUPABASE) {
+      const response = await fetch('/api/vhv/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ vhvId, ...updates }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to update VHV profile')
+      }
+
+      return response.json()
+    }
+    throw new Error('VHV profile API not implemented for mock data')
+  },
+}
+
 export const intakesApi = {
   create: async (patientId: string, vhvId?: string) => {
     if (USE_SUPABASE) {
@@ -353,6 +390,8 @@ export const adminApi = {
     licenseNumber: string
     specialization: string
     hospitalAffiliation: string
+    district: string
+    phoneNumber: string
   }) => {
     if (USE_SUPABASE) {
       const response = await fetch("/api/admin/create-user", {
@@ -362,8 +401,9 @@ export const adminApi = {
         },
         body: JSON.stringify({
           ...doctorData,
-          role: "DOCTOR",
-        }),
+          phoneNumber: doctorData.phoneNumber,
+          role: 'DOCTOR'
+        })
       })
 
       if (!response.ok) {
@@ -807,3 +847,47 @@ export const patientDataApi = {
 }
 
 export default apiClient
+
+export const areaTasksApi = {
+  getByVHV: async (vhvId: string) => {
+    const resp = await fetch(`/api/area-tasks?vhvId=${vhvId}`)
+    if (!resp.ok) throw new Error('Failed to fetch area tasks')
+    return resp.json()
+  },
+  getByDoctor: async (doctorId: string) => {
+    const resp = await fetch(`/api/area-tasks?doctorId=${doctorId}`)
+    if (!resp.ok) throw new Error('Failed to fetch area tasks')
+    return resp.json()
+  },
+  create: async (payload: any) => {
+    const resp = await fetch('/api/area-tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!resp.ok) {
+      const e = await resp.json().catch(()=>({}))
+      throw new Error(e.error || 'Failed to create area task')
+    }
+    return resp.json()
+  },
+  update: async (id: string, data: any) => {
+    const resp = await fetch('/api/area-tasks', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...data }),
+    })
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to update area task')
+    return resp.json()
+  },
+  complete: async (id: string) => {
+    const resp = await fetch(`/api/area-tasks?id=${id}&action=complete`, { method: 'PATCH' })
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to complete area task')
+    return resp.json()
+  },
+  delete: async (id: string) => {
+    const resp = await fetch(`/api/area-tasks?id=${id}`, { method: 'DELETE' })
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to delete area task')
+    return resp.json()
+  }
+}

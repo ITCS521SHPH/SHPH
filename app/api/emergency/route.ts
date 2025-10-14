@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
     const emergencyAlert = await supabaseApi.createEmergencyAlert({
       patientId,
       priority,
-      description,
+      description: typeof description === "string" && description.trim().length > 0
+        ? description.trim()
+        : "No description provided.",
       location
     })
 
