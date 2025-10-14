@@ -1,114 +1,113 @@
-import { UserRole } from './types';
-import { authApi } from './api';
-
-export type { UserRole };
+export type UserRole = "admin" | "doctor" | "patient" | "caregiver" | "vhv"
 
 export interface User {
-  id: string;
-  email: string;
-  name?: string;
-  role: UserRole;
+  id: string
+  email: string
+  name: string
+  role: UserRole
+  avatar?: string
+  department?: string
+  specialization?: string
+  licenseNumber?: string
+  phoneNumber?: string
+  address?: string
+  emergencyContact?: string
+  assignedPatients?: string[]
+  district?: string
 }
 
-// Get current user from API
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const userData = await authApi.getCurrentUser();
-    return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.email, // Use email as name for now
-      role: userData.role,
-    };
-  } catch (error) {
-    // Try to get from localStorage as fallback
-    const storedUser = getCurrentUserFromStorage();
-    return storedUser;
+export interface AuthState {
+  user: User | null
+  isAuthenticated: boolean
+  isLoading: boolean
+}
+
+// Mock authentication - in real app, this would connect to your auth provider
+export const mockUsers: User[] = [
+  {
+    id: "1",
+    email: "admin@healthcare.com",
+    name: "System Administrator",
+    role: "admin",
+    avatar: "/admin-avatar.png",
+  },
+  {
+    id: "2",
+    email: "dr.smith@healthcare.com",
+    name: "Dr. Sarah Smith",
+    role: "doctor",
+    avatar: "/doctor-avatar.png",
+    department: "Internal Medicine",
+    specialization: "Cardiology",
+    licenseNumber: "MD-12345",
+    phoneNumber: "+1-555-0123",
+  },
+  {
+    id: "3",
+    email: "patient@example.com",
+    name: "John Doe",
+    role: "patient",
+    avatar: "/patient-avatar.png",
+    phoneNumber: "+1-555-0456",
+    address: "123 Main St, City, State",
+    emergencyContact: "Jane Doe - +1-555-0789",
+  },
+  {
+    id: "4",
+    email: "caregiver@healthcare.com",
+    name: "Maria Garcia",
+    role: "caregiver",
+    avatar: "/caregiver-avatar.jpg",
+    phoneNumber: "+1-555-0321",
+    assignedPatients: ["3", "5", "6"],
+  },
+  {
+    id: "5",
+    email: "vhv@community.com",
+    name: "David Chen",
+    role: "vhv",
+    avatar: "/volunteer-avatar.png",
+    phoneNumber: "+1-555-0654",
+    district: "District A",
+    assignedPatients: ["3", "7", "8"],
+  },
+]
+
+export const authenticateUser = async (email: string, password: string): Promise<User | null> => {
+  // Mock authentication - replace with real auth logic
+  await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
+
+  const user = mockUsers.find((u) => u.email === email)
+  if (user && password === "password123") {
+    return user
+  }
+  return null
+}
+
+export const getCurrentUser = (): User | null => {
+  // In a real app, this would check JWT token, session, etc.
+  if (typeof window !== "undefined") {
+    const userData = localStorage.getItem("currentUser")
+    return userData ? JSON.parse(userData) : null
+  }
+  return null
+}
+
+export const setCurrentUser = (user: User | null) => {
+  if (typeof window !== "undefined") {
+    if (user) {
+      localStorage.setItem("currentUser", JSON.stringify(user))
+    } else {
+      localStorage.removeItem("currentUser")
+    }
   }
 }
 
-// Login function
-export async function authenticateUser(email: string, password: string): Promise<User | null> {
-  try {
-    const loginResponse = await authApi.login({ email, password });
-
-    // Create user object from login response
-    const roleString = loginResponse.role as string;
-    
-    // Get the actual user ID from the login response
-    const userId = loginResponse.userId || 
-                   (roleString === 'admin' ? 'admin_id' : 
-                    roleString === 'doctor' ? 'doctor_id' : 
-                    roleString === 'vhv' ? 'vhv_id' : 'patient_id');
-    
-    const user: User = {
-      id: userId,
-      email: email,
-      name: email.split('@')[0], // Use email prefix as name
-      role: roleString.toUpperCase() as UserRole,
-    };
-
-    // Store user in localStorage
-    setCurrentUser(user);
-    
-    return user;
-  } catch (error) {
-    console.error('Login failed:', error);
-    return null;
-  }
+export const logout = () => {
+  setCurrentUser(null)
 }
 
-// Set current user in storage
-export function setCurrentUser(user: User): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('currentUser', JSON.stringify(user));
-  }
-}
-
-// Get current user from storage
-export function getCurrentUserFromStorage(): User | null {
-  if (typeof window !== 'undefined') {
-    const userData = localStorage.getItem('currentUser');
-    return userData ? JSON.parse(userData) : null;
-  }
-  return null;
-}
-
-// Clear current user
-export function clearCurrentUser(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-  }
-  // Use the mock API logout
-  authApi.logout();
-}
-
-// Role-based route protection
-export const roleRoutes: Record<UserRole, string[]> = {
-  [UserRole.ADMIN]: ["/admin"],
-  [UserRole.DOCTOR]: ["/doctor"],
-  [UserRole.VHV]: ["/vhv"],
-  [UserRole.PATIENT]: ["/patient"],
-};
-
-export function getDefaultRoute(role: UserRole): string {
-  switch (role) {
-    case UserRole.ADMIN:
-      return "/admin/dashboard";
-    case UserRole.DOCTOR:
-      return "/doctor/dashboard";
-    case UserRole.VHV:
-      return "/vhv/dashboard";
-    case UserRole.PATIENT:
-      return "/patient/dashboard";
-    default:
-      return "/login";
-  }
-}
-
-export function canAccessRoute(userRole: UserRole, path: string): boolean {
-  const allowedRoutes = roleRoutes[userRole];
-  return allowedRoutes.some(route => path.startsWith(route));
+export const hasPermission = (user: User | null, requiredRoles: UserRole[]): boolean => {
+  if (!user) return false
+  return requiredRoles.includes(user.role)
 }

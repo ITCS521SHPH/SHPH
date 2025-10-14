@@ -7,8 +7,8 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "HealthFlow - Healthcare Management System",
-  description: "Comprehensive healthcare management platform for doctors, VHVs, caregivers, and patients",
+  title: "HealthCare EMR Systems",
+  description: "Electronic Medical Records System for Healthcare Providers",
   generator: "v0.app",
 }
 
@@ -18,9 +18,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
-        <Suspense fallback={null}>{children}</Suspense>
+    <html lang="en" className="dark">
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+        <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
         <Analytics />
       </body>
     </html>

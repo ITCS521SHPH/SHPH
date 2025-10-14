@@ -1,1128 +1,575 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Stethoscope,
   Users,
-  User,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  FileText,
-  Activity,
-  Plus,
-  MapPin,
-  Phone,
   Calendar,
-  ChevronDown,
-  ChevronRight,
-  UserPlus,
-  UserCheck,
-  ClipboardList,
-  Bell,
+  AlertTriangle,
+  Activity,
+  Heart,
+  Clock,
+  MapPin,
+  TrendingUp,
+  FileText,
+  Stethoscope,
+  Plus,
+  Eye,
+  Edit,
 } from "lucide-react"
-import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
-import { useRouter } from "next/navigation"
-import { useState, useCallback, useEffect } from "react"
-import { reviewsApi, patientsApi, emergencyApi } from "../../lib/api"
-import { useApiData } from "../../lib/useApiData"
-import type { IntakeSubmission } from "@/lib/types"
-import { TaskManagement } from "@/components/tasks/task-management"
-import { PatientAssignment } from "@/components/tasks/patient-assignment"
-import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
-import { UserRole } from "@/lib/types"
+import { mockPatients, mockAppointments, mockTreatments, mockMedicalHistory } from "@/lib/data"
 
 export function DoctorDashboard() {
-  const router = useRouter()
-  const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState(getCurrentUserFromStorage())
-  const [activeEmergencyCount, setActiveEmergencyCount] = useState(0)
+  const [selectedTab, setSelectedTab] = useState("overview")
 
-  // Check and fix user ID if it's a hardcoded string
-  useEffect(() => {
-    if (currentUser?.id && (currentUser.id === 'doctor_id' || currentUser.id === 'admin_id' || currentUser.id === 'vhv_id' || currentUser.id === 'patient_id')) {
-      console.log('Detected hardcoded user ID, clearing localStorage and redirecting to login')
-      clearCurrentUser()
-      router.push('/login')
-    }
-  }, [currentUser?.id, router])
+  // Filter data for doctor's patients
+  const doctorPatients = mockPatients.filter((p) => p.assignedDoctor === "2")
+  const todayAppointments = mockAppointments.filter((apt) => apt.doctorId === "2" && apt.date === "2025-01-15")
+  const highRiskPatients = doctorPatients.filter((p) => p.riskLevel === "high")
+  const priorityPatients = doctorPatients.filter((p) => p.priority)
+  const activeTreatments = mockTreatments.filter((t) => t.doctorId === "2" && t.status === "active")
 
-  // Memoize API call functions to prevent infinite re-renders
-  const getReviewQueue = useCallback(() => reviewsApi.getQueue(), [])
-  const getApprovedReviews = useCallback(() => reviewsApi.getQueue("APPROVED"), [])
-  const getAllPatients = useCallback(() => patientsApi.getAll(), [])
-  const getAvailableVHVs = useCallback(() => patientsApi.getAvailableVHVs(), [])
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase()
+  }
 
-  // API data hooks for pending reviews
-  const {
-    data: reviewQueue,
-    loading: reviewsLoading,
-    error: reviewsError,
-    refetch: refetchReviews,
-  } = useApiData(getReviewQueue, [])
-
-  // API data hooks for approved reviews
-  const {
-    data: approvedReviews,
-    loading: approvedLoading,
-    error: approvedError,
-    refetch: refetchApproved,
-  } = useApiData(getApprovedReviews, [])
-
-  const {
-    data: patients,
-    loading: patientsLoading,
-    error: patientsError,
-    refetch: refetchPatients,
-  } = useApiData(getAllPatients, [])
-
-  const {
-    data: availableVHVs,
-    loading: vhvsLoading,
-    error: vhvsError,
-    refetch: refetchVHVs,
-  } = useApiData(getAvailableVHVs, [])
-
-  // Local state for forms and UI
-  const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
-  const [showNewVisitDialog, setShowNewVisitDialog] = useState(false)
-  const [showAssignPatientDialog, setShowAssignPatientDialog] = useState(false)
-  const [showTaskManagementDialog, setShowTaskManagementDialog] = useState(false)
-
-  const [newPatientForm, setNewPatientForm] = useState({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    address: "",
-    phone: "",
-    nationalId: "",
-    email: "",
-    password: "",
-    medicalCondition: "",
-    lastVisit: "",
-  })
-
-  const [newVisitForm, setNewVisitForm] = useState({
-    patientId: "",
-    visitType: "",
-    vhvId: "",
-    notes: "",
-  })
-
-  useEffect(() => {
-    const fetchEmergencyCount = async () => {
-      if (currentUser?.id) {
-        try {
-          const count = await emergencyApi.getActiveCount(currentUser.id, UserRole.DOCTOR)
-          setActiveEmergencyCount(count)
-        } catch (error) {
-          console.error("[v0] Failed to fetch emergency count:", error)
-        }
-      }
-    }
-
-    fetchEmergencyCount()
-    const interval = setInterval(fetchEmergencyCount, 30000) // Poll every 30 seconds
-    return () => clearInterval(interval)
-  }, [currentUser?.id])
-
-  const handleValidateData = async (submissionId: string, action: "approve" | "request_more" | "in_review") => {
-    console.log("[v0] Validating patient data:", { submissionId, action })
-
-    try {
-      if (action === "approve") {
-        await reviewsApi.approve(submissionId)
-        alert("✅ Submission approved successfully!")
-        console.log("[v0] Approval successful")
-      } else if (action === "request_more") {
-        // For now, use a default comment - in a real app this would come from a form
-        const comment = "Please provide additional information"
-        await reviewsApi.requestChanges(submissionId, comment)
-        alert("📝 Changes requested - VHV has been notified")
-        console.log("[v0] Changes requested")
-      } else if (action === "in_review") {
-        // Mark as in review - this will use the new API endpoint
-        const response = await fetch('/api/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: submissionId, action: 'in_review' })
-        })
-        if (!response.ok) throw new Error('Failed to start review')
-        alert("🔍 Review started - status updated to 'Under Review'")
-        console.log("[v0] Marked as in review")
-      }
-
-      // Refresh both the review queue and approved reviews after action
-      refetchReviews()
-      refetchApproved()
-    } catch (error) {
-      console.error("[v0] Validation action failed:", error)
-      alert("❌ Action failed. Please try again.")
+  const getRiskBadgeVariant = (risk: string) => {
+    switch (risk) {
+      case "high":
+        return "destructive"
+      case "medium":
+        return "default"
+      case "low":
+        return "secondary"
+      default:
+        return "outline"
     }
   }
 
-  const handleAddPatient = useCallback(async () => {
-    if (newPatientForm.firstName && newPatientForm.lastName && newPatientForm.dob && newPatientForm.email && newPatientForm.password && newPatientForm.medicalCondition) {
-      try {
-        const newPatient = await patientsApi.create({
-          firstName: newPatientForm.firstName,
-          lastName: newPatientForm.lastName,
-          dob: newPatientForm.dob,
-          address: newPatientForm.address,
-          phone: newPatientForm.phone,
-          nationalId: newPatientForm.nationalId,
-          email: newPatientForm.email,
-          password: newPatientForm.password,
-          medicalCondition: newPatientForm.medicalCondition,
-          lastVisit: newPatientForm.lastVisit || null,
-        })
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date()
+    const birthDate = new Date(dateOfBirth)
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
 
-        setNewPatientForm({
-          firstName: "",
-          lastName: "",
-          dob: "",
-          address: "",
-          phone: "",
-          nationalId: "",
-          email: "",
-          password: "",
-          medicalCondition: "",
-          lastVisit: "",
-        })
-        setShowAddPatientDialog(false)
-        refetchPatients() // Refresh the patients list
-        console.log("[API] Added new patient:", newPatient)
-        alert("Patient created successfully! They can now log in with their email and password.")
-      } catch (error) {
-        console.error("[API] Failed to add patient:", error)
-        alert("Failed to create patient. Please try again.")
-      }
-    } else {
-      alert("Please fill in all required fields including email, password, and medical condition.")
-    }
-  }, [newPatientForm, refetchPatients])
-
-  const handleAssignVisit = useCallback(async () => {
-    if (!newVisitForm.patientId || !newVisitForm.vhvId || !newVisitForm.visitType) {
-      alert("Please fill in all required fields")
-      return
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--
     }
 
-    try {
-      console.log("[API] Assigning visit:", newVisitForm)
-      
-      // Create a new assignment between patient and VHV
-      const assignment = await patientsApi.assignVHV(
-        newVisitForm.patientId,
-        newVisitForm.vhvId,
-        currentUser?.id || '', // Current doctor's ID
-        [] // No tasks for now
-      )
-
-      // Reset form and close dialog
-      setNewVisitForm({
-        patientId: "",
-        visitType: "",
-        vhvId: "",
-        notes: "",
-      })
-      setShowNewVisitDialog(false)
-      
-      // Refresh data
-      refetchPatients()
-      
-      console.log("[API] Visit assigned successfully:", assignment)
-      alert("Visit assigned successfully!")
-    } catch (error) {
-      console.error("[API] Failed to assign visit:", error)
-      alert("Failed to assign visit. Please try again.")
-    }
-  }, [newVisitForm, refetchPatients])
-
-  const handleSignOut = () => {
-    clearCurrentUser()
-    router.push("/")
-  }
-
-  const togglePatientExpansion = (patientId: string) => {
-    setExpandedPatient(expandedPatient === patientId ? null : patientId)
-  }
-
-  // Helper function to render submissions list
-  const renderSubmissionsList = (submissions: (IntakeSubmission & {
-    patient?: { firstName: string; lastName: string }
-    vhv?: { user?: { email: string } }
-  })[]) => {
-    if (submissions.length === 0) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No submissions found for this filter</p>
-        </div>
-      )
-    }
-
-    return submissions.map((submission) => (
-      <Card key={submission.id} className="border-l-4 border-l-orange-500">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">
-                {submission.patient
-                  ? `${submission.patient.firstName} ${submission.patient.lastName}`
-                  : submission.payload?.patientBasics
-                    ? `${submission.payload.patientBasics.firstName} ${submission.payload.patientBasics.lastName}`
-                    : "Unknown Patient"}
-              </CardTitle>
-              <CardDescription>
-                Collected by {submission.vhv?.user?.email || "Unknown VHV"} on{" "}
-                {submission.createdAt
-                  ? new Date(submission.createdAt).toLocaleDateString()
-                  : "Unknown date"}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant={
-                  submission.status === 'SUBMITTED' ? 'default' : 
-                  submission.status === 'IN_REVIEW' ? 'secondary' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'destructive' : 
-                  'secondary'
-                }
-                className={
-                  submission.status === 'SUBMITTED' ? 'bg-orange-500' : 
-                  submission.status === 'IN_REVIEW' ? 'bg-blue-500' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'bg-red-500' : 
-                  ''
-                }
-              >
-                {submission.status === 'SUBMITTED' ? 'Pending Review' : 
-                 submission.status === 'IN_REVIEW' ? 'Under Review' :
-                 submission.status === 'CHANGES_REQUESTED' ? 'Changes Requested' : 
-                 submission.status}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Patient Information */}
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Patient Information
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Name</label>
-                <p className="text-sm">
-                  {submission.payload?.patientBasics?.firstName} {submission.payload?.patientBasics?.lastName}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
-                <p className="text-sm">
-                  {submission.payload?.patientBasics?.dob 
-                    ? new Date(submission.payload.patientBasics.dob).toLocaleDateString()
-                    : "Not provided"}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Contact Phone</label>
-                <p className="text-sm">
-                  {submission.payload?.patientBasics?.contactPhone || "Not provided"}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Visit Date</label>
-                <p className="text-sm">
-                  {submission.payload?.visitMeta?.visitDateTime 
-                    ? new Date(submission.payload.visitMeta.visitDateTime).toLocaleDateString()
-                    : "Not recorded"}
-                </p>
-              </div>
-            </div>
-            {submission.payload?.visitMeta?.locationText && (
-              <div className="mt-3">
-                <label className="text-sm font-medium text-muted-foreground">Visit Location</label>
-                <p className="text-sm">{submission.payload.visitMeta.locationText}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Symptoms & Chief Complaint */}
-          <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg">
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Symptoms & Chief Complaint
-            </h4>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Chief Complaint</label>
-                <p className="text-sm">
-                  {submission.payload?.symptoms?.chiefComplaint || "No chief complaint recorded"}
-                </p>
-              </div>
-              {submission.payload?.symptoms?.onsetDays && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Symptom Onset</label>
-                  <p className="text-sm">{submission.payload.symptoms.onsetDays} days ago</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Vital Signs */}
-          <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Vital Signs
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Temperature</label>
-                <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.temp
-                    ? `${submission.payload.vitals.temp}°C`
-                    : "Not recorded"}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Blood Pressure</label>
-                <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.systolic && submission.payload?.vitals?.diastolic
-                    ? `${submission.payload.vitals.systolic}/${submission.payload.vitals.diastolic} mmHg`
-                    : "Not recorded"}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Heart Rate</label>
-                <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.hr
-                    ? `${submission.payload.vitals.hr} bpm`
-                    : "Not recorded"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Chronic Conditions */}
-          {submission.payload?.chronicConditions?.list && submission.payload.chronicConditions.list.length > 0 && (
-            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Chronic Conditions
-              </h4>
-              <div className="space-y-2">
-                {submission.payload.chronicConditions.list.map((condition, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {condition.condition.replace('_', ' ')}
-                    </Badge>
-                    {condition.freeText && (
-                      <span className="text-sm text-muted-foreground">
-                        - {condition.freeText}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Risk Flags */}
-          {submission.payload?.riskFlags && (
-            <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
-              <h4 className="font-medium mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Risk Factors
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {submission.payload.riskFlags.isAge60Plus && (
-                  <Badge variant="outline" className="text-xs bg-orange-100 dark:bg-orange-900/20">
-                    Age 60+
-                  </Badge>
-                )}
-                {submission.payload.riskFlags.isPregnant && (
-                  <Badge variant="outline" className="text-xs bg-pink-100 dark:bg-pink-900/20">
-                    Pregnant
-                  </Badge>
-                )}
-                {submission.payload.riskFlags.hasChronic && (
-                  <Badge variant="outline" className="text-xs bg-red-100 dark:bg-red-900/20">
-                    Has Chronic Conditions
-                  </Badge>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Consent Status */}
-          <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
-            <h4 className="font-medium mb-2 flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Patient Consent
-            </h4>
-            <p className="text-sm">
-              {submission.payload?.consent?.consentGiven 
-                ? "✅ Patient has provided consent for data collection and sharing"
-                : "❌ Consent status unclear - please verify"}
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2 pt-4 border-t">
-            {submission.status === 'SUBMITTED' && (
-              <Button 
-                variant="outline" 
-                onClick={() => handleValidateData(submission.id, "in_review")}
-                className="flex-1"
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Start Review
-              </Button>
-            )}
-            {submission.status === 'CHANGES_REQUESTED' && (
-              <div className="flex-1 text-center p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  Waiting for VHV to provide additional information
-                </p>
-              </div>
-            )}
-            {(submission.status === 'SUBMITTED' || submission.status === 'IN_REVIEW') && (
-              <>
-                <Button onClick={() => handleValidateData(submission.id, "approve")} className="flex-1">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve & Diagnose
-                </Button>
-                <Button variant="outline" onClick={() => handleValidateData(submission.id, "request_more")}>
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Request More Data
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    ))
+    return age
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Stethoscope className="h-8 w-8 text-primary" />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <h2 className="text-3xl font-bold text-balance">Doctor Dashboard</h2>
+        <p className="text-muted-foreground">Monitor patients, manage treatments, and track health outcomes</p>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold">Doctor Dashboard</h1>
-                <p className="text-muted-foreground">{currentUser?.name || currentUser?.email || "Doctor"}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Patients</p>
+                <p className="text-2xl font-bold">{doctorPatients.length}</p>
               </div>
+              <Users className="w-8 h-8 text-primary" />
             </div>
-            <div className="flex items-center gap-2">
-              <Dialog open={showAssignPatientDialog} onOpenChange={setShowAssignPatientDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    Assign Patient
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Assign Patient to VHV</DialogTitle>
-                    <DialogDescription>
-                      Assign a patient to a Village Health Volunteer with specific tasks.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <PatientAssignment 
-                    doctorId={currentUser?.id}
-                    onAssignmentComplete={() => setShowAssignPatientDialog(false)}
-                  />
-                </DialogContent>
-              </Dialog>
+          </CardContent>
+        </Card>
 
-              <Dialog open={showTaskManagementDialog} onOpenChange={setShowTaskManagementDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Manage Tasks
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Task Management</DialogTitle>
-                    <DialogDescription>Create and manage tasks for Village Health Volunteers.</DialogDescription>
-                  </DialogHeader>
-                  <TaskManagement doctorId={currentUser?.id} />
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={showNewVisitDialog} onOpenChange={setShowNewVisitDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="default">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Start New Patient Visit
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Start New Patient Visit</DialogTitle>
-                    <DialogDescription>
-                      Assign a VHV to conduct a new patient visit and data collection.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="patient-select" className="text-right">
-                        Patient *
-                      </Label>
-                      <Select 
-                        value={newVisitForm.patientId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, patientId: value }))}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select patient" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(patients || []).map((patient: any) => (
-                            <SelectItem key={patient.id} value={patient.id.toString()}>
-                              {patient.firstName} {patient.lastName} - {patient.address}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="visit-type" className="text-right">
-                        Visit Type *
-                      </Label>
-                      <Select 
-                        value={newVisitForm.visitType} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, visitType: value }))}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select visit type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="routine">Routine Check-up</SelectItem>
-                          <SelectItem value="followup">Follow-up Visit</SelectItem>
-                          <SelectItem value="emergency">Emergency Assessment</SelectItem>
-                          <SelectItem value="screening">Health Screening</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="vhv-select" className="text-right">
-                        VHV *
-                      </Label>
-                      <Select 
-                        value={newVisitForm.vhvId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, vhvId: value }))}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select VHV" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(availableVHVs || []).map((vhv: any) => (
-                            <SelectItem key={vhv.id} value={vhv.id.toString()}>
-                              {vhv.email} - {vhv.role}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="instructions" className="text-right">
-                        Instructions
-                      </Label>
-                      <Textarea
-                        id="instructions"
-                        placeholder="Special instructions for the VHV..."
-                        className="col-span-3"
-                        value={newVisitForm.notes}
-                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, notes: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setShowNewVisitDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAssignVisit}>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Assign Visit
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Button variant="outline" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Validations</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{reviewQueue?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Require your review</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Validated Today</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{approvedReviews?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Cases reviewed</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Patients</CardTitle>
-              <Users className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{patients?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">Under your care</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-              <Clock className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">2.4h</div>
-              <p className="text-xs text-muted-foreground">For validations</p>
-            </CardContent>
-          </Card>
-
-          <Card className={activeEmergencyCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Emergency Alerts</CardTitle>
-              <Bell
-                className={`h-4 w-4 ${activeEmergencyCount > 0 ? "text-red-500 animate-pulse" : "text-gray-500"}`}
-              />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
-                {activeEmergencyCount}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Today's Appointments</p>
+                <p className="text-2xl font-bold">{todayAppointments.length}</p>
               </div>
-              <p className="text-xs text-muted-foreground">Active emergencies</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="emergencies" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="emergencies" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Emergencies
-              {activeEmergencyCount > 0 && (
-                <Badge className="bg-red-500 text-white text-xs px-1 py-0 min-w-[16px] h-4">
-                  {activeEmergencyCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Pending Validations
-            </TabsTrigger>
-            <TabsTrigger value="validated" className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Validated
-            </TabsTrigger>
-            <TabsTrigger value="assignments" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Assignments
-            </TabsTrigger>
-            <TabsTrigger value="patients" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Patient List
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="emergencies" className="space-y-4">
-            <EmergencyAlerts userId={currentUser?.id || "2"} userRole={UserRole.DOCTOR} />
-          </TabsContent>
-
-          <TabsContent value="assignments" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Patient Assignments</CardTitle>
-                  <CardDescription>Assign patients to VHVs with specific care tasks</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PatientAssignment />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Task Management</CardTitle>
-                  <CardDescription>Create and manage tasks for Village Health Volunteers</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <TaskManagement />
-                </CardContent>
-              </Card>
+              <Calendar className="w-8 h-8 text-accent" />
             </div>
-          </TabsContent>
+          </CardContent>
+        </Card>
 
-          <TabsContent value="pending" className="space-y-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">High Risk Patients</p>
+                <p className="text-2xl font-bold">{highRiskPatients.length}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-destructive" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active Treatments</p>
+                <p className="text-2xl font-bold">{activeTreatments.length}</p>
+              </div>
+              <Activity className="w-8 h-8 text-success" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Tabs */}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="patients">Patients</TabsTrigger>
+          <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          <TabsTrigger value="treatments">Treatments</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Priority Patients */}
             <Card>
               <CardHeader>
-                <CardTitle>Data Requiring Validation</CardTitle>
-                <CardDescription>Review patient data collected by VHVs and provide diagnostic guidance</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  Priority Patients
+                </CardTitle>
+                <CardDescription>Patients requiring immediate attention</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Status Filter Tabs */}
-                <Tabs defaultValue="all" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="all">
-                      All ({reviewQueue?.length || 0})
-                    </TabsTrigger>
-                    <TabsTrigger value="submitted">
-                      New ({reviewQueue?.filter((r: any) => r.status === 'SUBMITTED').length || 0})
-                    </TabsTrigger>
-                    <TabsTrigger value="in_review">
-                      In Review ({reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW').length || 0})
-                    </TabsTrigger>
-                    <TabsTrigger value="changes_requested">
-                      Needs Changes ({reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED').length || 0})
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="all" className="mt-4">
-                    {reviewsLoading ? (
-                      <div className="text-center py-8">
-                        <p>Loading review queue...</p>
-                      </div>
-                    ) : reviewsError ? (
-                      <div className="text-center py-8 text-red-500">
-                        <p>Error loading reviews: {reviewsError}</p>
-                      </div>
-                    ) : (
-                      renderSubmissionsList(reviewQueue || [])
-                    )}
-                  </TabsContent>
-                  
-                  <TabsContent value="submitted" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'SUBMITTED') || [])}
-                  </TabsContent>
-                  
-                  <TabsContent value="in_review" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW') || [])}
-                  </TabsContent>
-                  
-                  <TabsContent value="changes_requested" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED') || [])}
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="validated" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recently Validated Cases</CardTitle>
-                <CardDescription>Cases you have reviewed and provided treatment plans for</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {approvedLoading ? (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground">Loading approved reviews...</p>
-                  </div>
-                ) : approvedReviews && approvedReviews.length > 0 ? (
-                  approvedReviews.map((review: any) => (
-                    <Card key={review.id} className="border-l-4 border-l-green-500">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle className="text-lg">
-                              {review.patient?.firstName} {review.patient?.lastName}
-                            </CardTitle>
-                            <CardDescription>
-                              Validated on {new Date(review.updatedAt).toLocaleDateString()} • Collected by{" "}
-                              {review.vhv?.user?.email}
-                            </CardDescription>
-                          </div>
-                          <Badge variant="default" className="bg-green-500">
-                            Validated
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="font-medium mb-2">Status</h4>
-                            <p className="text-sm text-muted-foreground">Approved by doctor</p>
-                          </div>
-                          <div>
-                            <h4 className="font-medium mb-2">Notes</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {review.reviewActions?.[0]?.comment || "No additional notes"}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                {priorityPatients.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No priority patients at this time</p>
                 ) : (
-                  <div className="text-center py-8">
-                    <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-muted-foreground mb-2">No Validated Cases</h3>
-                    <p className="text-sm text-muted-foreground">Approved patient reviews will appear here</p>
-                  </div>
+                  priorityPatients.map((patient) => (
+                    <div key={patient.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback>{getInitials(patient.firstName, patient.lastName)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {patient.firstName} {patient.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{patient.patientId}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getRiskBadgeVariant(patient.riskLevel)}>{patient.riskLevel} risk</Badge>
+                        <Button size="sm" variant="outline">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="patients" className="space-y-4">
+            {/* Today's Appointments */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Patient List</CardTitle>
-                    <CardDescription>Manage your patients and view their details</CardDescription>
-                  </div>
-                  <Dialog open={showAddPatientDialog} onOpenChange={setShowAddPatientDialog}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Patient
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Add New Patient</DialogTitle>
-                        <DialogDescription>
-                          Enter the patient's information to add them to your care list.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="firstName" className="text-right">
-                            First Name
-                          </Label>
-                          <Input
-                            id="firstName"
-                            className="col-span-3"
-                            value={newPatientForm.firstName}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="lastName" className="text-right">
-                            Last Name
-                          </Label>
-                          <Input
-                            id="lastName"
-                            className="col-span-3"
-                            value={newPatientForm.lastName}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, lastName: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="dob" className="text-right">
-                            Date of Birth
-                          </Label>
-                          <Input
-                            id="dob"
-                            type="date"
-                            className="col-span-3"
-                            value={newPatientForm.dob}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, dob: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="nationalId" className="text-right">
-                            National ID
-                          </Label>
-                          <Input
-                            id="nationalId"
-                            className="col-span-3"
-                            value={newPatientForm.nationalId}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, nationalId: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="address" className="text-right">
-                            Address
-                          </Label>
-                          <Textarea
-                            id="address"
-                            className="col-span-3"
-                            value={newPatientForm.address}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, address: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="phone" className="text-right">
-                            Phone
-                          </Label>
-                          <Input
-                            id="phone"
-                            className="col-span-3"
-                            value={newPatientForm.phone}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, phone: e.target.value }))}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="email" className="text-right">
-                            Email *
-                          </Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            className="col-span-3"
-                            value={newPatientForm.email}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, email: e.target.value }))}
-                            placeholder="patient@example.com"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="password" className="text-right">
-                            Password *
-                          </Label>
-                          <Input
-                            id="password"
-                            type="password"
-                            className="col-span-3"
-                            value={newPatientForm.password}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, password: e.target.value }))}
-                            placeholder="Enter password for login"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="medicalCondition" className="text-right">
-                            Medical Condition *
-                          </Label>
-                          <Input
-                            id="medicalCondition"
-                            className="col-span-3"
-                            value={newPatientForm.medicalCondition}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))}
-                            placeholder="e.g., Diabetes, Hypertension"
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="lastVisit" className="text-right">
-                            Last Visit
-                          </Label>
-                          <Input
-                            id="lastVisit"
-                            type="date"
-                            className="col-span-3"
-                            value={newPatientForm.lastVisit}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, lastVisit: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowAddPatientDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddPatient}>Add Patient</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-accent" />
+                  Today's Schedule
+                </CardTitle>
+                <CardDescription>Upcoming appointments for today</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {(patients || []).map((patient: any) => (
-                  <Card key={patient.id} className="border-l-4 border-l-blue-500">
-                    <CardContent className="pt-4">
-                      <div
-                        className="flex items-center justify-between cursor-pointer"
-                        onClick={() => togglePatientExpansion(patient.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          {expandedPatient === patient.id ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <div>
-                            <h4 className="font-medium">
-                              {patient.firstName} {patient.lastName}
-                            </h4>
-                            <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
-                              <span>DOB: {new Date(patient.dob).toLocaleDateString()}</span>
-                              <span>Condition: {patient.medicalCondition || 'Not specified'}</span>
-                              <span>Last Visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
-                            </div>
-                          </div>
+                {todayAppointments.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No appointments scheduled for today</p>
+                ) : (
+                  todayAppointments.map((appointment) => (
+                    <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
+                          <Clock className="w-4 h-4 text-accent" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">Active</Badge>
+                        <div>
+                          <p className="font-medium">{appointment.patientName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {appointment.time} - {appointment.type}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={appointment.priority === "high" ? "destructive" : "outline"}>
+                        {appointment.priority}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+                <Button className="w-full bg-transparent" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Schedule New Appointment
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Recent Medical Activity
+              </CardTitle>
+              <CardDescription>Latest patient interactions and treatments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {mockMedicalHistory.slice(0, 5).map((record) => {
+                  const patient = mockPatients.find((p) => p.id === record.patientId)
+                  return (
+                    <div key={record.id} className="flex items-start gap-4 p-3 border rounded-lg">
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{record.title}</p>
+                          <p className="text-sm text-muted-foreground">{new Date(record.date).toLocaleDateString()}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {patient?.firstName} {patient?.lastName} - {record.type}
+                        </p>
+                        <p className="text-sm mt-1">{record.description}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Patients Tab */}
+        <TabsContent value="patients" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold">My Patients</h3>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Patient
+            </Button>
+          </div>
+
+          <div className="grid gap-4">
+            {doctorPatients.map((patient) => (
+              <Card key={patient.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4 flex-1">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback>{getInitials(patient.firstName, patient.lastName)}</AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-lg">
+                            {patient.firstName} {patient.lastName}
+                          </h4>
+                          {patient.priority && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              Priority
+                            </Badge>
+                          )}
+                          <Badge variant={getRiskBadgeVariant(patient.riskLevel)}>{patient.riskLevel} risk</Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-muted-foreground">
+                          <div>ID: {patient.patientId}</div>
+                          <div>Age: {calculateAge(patient.dateOfBirth)}</div>
+                          <div>Blood Type: {patient.bloodType || "Unknown"}</div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {patient.chronicConditions.map((condition, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {condition}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        {patient.lastVisit && (
+                          <div className="text-xs text-muted-foreground">
+                            Last visit: {new Date(patient.lastVisit).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Stethoscope className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Appointments Tab */}
+        <TabsContent value="appointments" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold">Appointment Management</h3>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Schedule Appointment
+            </Button>
+          </div>
+
+          <div className="grid gap-4">
+            {mockAppointments
+              .filter((apt) => apt.doctorId === "2")
+              .map((appointment) => (
+                <Card key={appointment.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center">
+                          <Calendar className="w-6 h-6 text-accent" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">{appointment.patientName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(appointment.date).toLocaleDateString()} at {appointment.time}
+                          </p>
+                          <p className="text-sm text-muted-foreground capitalize">
+                            {appointment.type.replace("_", " ")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={appointment.priority === "high" ? "destructive" : "outline"}>
+                          {appointment.priority} priority
+                        </Badge>
+                        <Badge variant={appointment.status === "scheduled" ? "default" : "secondary"}>
+                          {appointment.status}
+                        </Badge>
+                        <Button variant="outline" size="sm">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        </TabsContent>
+
+        {/* Treatments Tab */}
+        <TabsContent value="treatments" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold">Active Treatments</h3>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              New Treatment Plan
+            </Button>
+          </div>
+
+          <div className="grid gap-4">
+            {activeTreatments.map((treatment) => {
+              const patient = mockPatients.find((p) => p.id === treatment.patientId)
+              return (
+                <Card key={treatment.id}>
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-semibold">
+                            {patient?.firstName} {patient?.lastName}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">{treatment.diagnosis}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Started: {new Date(treatment.date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge variant={treatment.status === "active" ? "default" : "secondary"}>
+                          {treatment.status}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h5 className="font-medium">Treatment Plan:</h5>
+                        <p className="text-sm">{treatment.treatment}</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h5 className="font-medium">Medications:</h5>
+                        <div className="grid gap-2">
+                          {treatment.medications.map((med, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <span className="text-sm font-medium">{med.name}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {med.dosage} - {med.frequency}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
-                      {expandedPatient === patient.id && (
-                        <div className="mt-4 pt-4 border-t space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{patient.address}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{patient.phone}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">Last visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div>
-                                <h5 className="font-medium text-sm">Medical Condition</h5>
-                                <p className="text-sm text-muted-foreground">{patient.medicalCondition || 'Not specified'}</p>
-                              </div>
-                            </div>
-                          </div>
+                      {treatment.followUpRequired && treatment.followUpDate && (
+                        <div className="flex items-center gap-2 p-2 bg-accent/10 rounded">
+                          <Calendar className="w-4 h-4 text-accent" />
+                          <span className="text-sm">
+                            Follow-up scheduled: {new Date(treatment.followUpDate).toLocaleDateString()}
+                          </span>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
-                ))}
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <Edit className="w-4 h-4 mr-2" />
+                          Update Treatment
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <FileText className="w-4 h-4 mr-2" />
+                          View History
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6">
+          <h3 className="text-xl font-semibold">Health Analytics & Insights</h3>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Patient Risk Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Patient Risk Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">High Risk</span>
+                    <span className="text-sm font-medium">{highRiskPatients.length}</span>
+                  </div>
+                  <Progress value={(highRiskPatients.length / doctorPatients.length) * 100} className="h-2" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Medium Risk</span>
+                    <span className="text-sm font-medium">
+                      {doctorPatients.filter((p) => p.riskLevel === "medium").length}
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      (doctorPatients.filter((p) => p.riskLevel === "medium").length / doctorPatients.length) * 100
+                    }
+                    className="h-2"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Low Risk</span>
+                    <span className="text-sm font-medium">
+                      {doctorPatients.filter((p) => p.riskLevel === "low").length}
+                    </span>
+                  </div>
+                  <Progress
+                    value={(doctorPatients.filter((p) => p.riskLevel === "low").length / doctorPatients.length) * 100}
+                    className="h-2"
+                  />
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+
+            {/* Geographic Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Geographic Distribution
+                </CardTitle>
+                <CardDescription>Patient distribution by district for cluster analysis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Array.from(new Set(doctorPatients.map((p) => p.district).filter(Boolean))).map((district) => {
+                    const districtPatients = doctorPatients.filter((p) => p.district === district)
+                    const highRiskInDistrict = districtPatients.filter((p) => p.riskLevel === "high").length
+
+                    return (
+                      <div key={district} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{district}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{districtPatients.length} patients</span>
+                            {highRiskInDistrict > 0 && (
+                              <Badge variant="destructive" className="text-xs">
+                                {highRiskInDistrict} high risk
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Progress value={(districtPatients.length / doctorPatients.length) * 100} className="h-2" />
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Treatment Outcomes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="w-5 h-5" />
+                Treatment Outcomes
+              </CardTitle>
+              <CardDescription>Overview of treatment effectiveness and patient progress</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-success">{activeTreatments.length}</div>
+                  <div className="text-sm text-muted-foreground">Active Treatments</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {mockTreatments.filter((t) => t.status === "completed").length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Completed Treatments</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-accent">
+                    {activeTreatments.filter((t) => t.followUpRequired).length}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Pending Follow-ups</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

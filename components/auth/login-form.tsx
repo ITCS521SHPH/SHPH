@@ -3,19 +3,41 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
-import { authenticateUser, getDefaultRoute } from "@/lib/auth"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Heart, Shield, User, Users, Stethoscope } from "lucide-react"
+import { authenticateUser, setCurrentUser, type UserRole } from "@/lib/auth"
 
-export function LoginForm() {
+interface LoginFormProps {
+  onLogin: (success: boolean) => void
+}
+
+const roleIcons = {
+  admin: Shield,
+  doctor: Stethoscope,
+  patient: User,
+  caregiver: Heart,
+  vhv: Users,
+}
+
+const roleLabels = {
+  admin: "Administrator",
+  doctor: "Doctor",
+  patient: "Patient",
+  caregiver: "Caregiver",
+  vhv: "Village Health Volunteer",
+}
+
+export function LoginForm({ onLogin }: LoginFormProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [selectedRole, setSelectedRole] = useState<UserRole>("doctor")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,103 +46,135 @@ export function LoginForm() {
 
     try {
       const user = await authenticateUser(email, password)
-
-      if (!user) {
-        setError("Invalid email or password")
-        setIsLoading(false)
-        return
+      if (user && user.role === selectedRole) {
+        setCurrentUser(user)
+        onLogin(true)
+      } else {
+        setError("Invalid credentials or role mismatch")
+        onLogin(false)
       }
-
-      // Automatically redirect based on user's role from API
-      const defaultRoute = getDefaultRoute(user.role)
-      console.log("[v0] Login successful:", { email: user.email, role: user.role })
-      router.push(defaultRoute)
-    } catch (error) {
-      console.error("[v0] Login error:", error)
-      setError("An error occurred during login")
+    } catch (err) {
+      setError("Login failed. Please try again.")
+      onLogin(false)
+    } finally {
       setIsLoading(false)
     }
   }
 
-  const fillCredentials = (email: string, password: string) => {
-    setEmail(email)
-    setPassword(password)
-    setError("")
+  const quickLogin = (role: UserRole) => {
+    const roleEmails = {
+      admin: "admin@healthcare.com",
+      doctor: "dr.smith@healthcare.com",
+      patient: "patient@example.com",
+      caregiver: "caregiver@healthcare.com",
+      vhv: "vhv@community.com",
+    }
+
+    setEmail(roleEmails[role])
+    setPassword("password123")
+    setSelectedRole(role)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-          <span className="text-red-500 font-bold">⚠</span>
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+      <Card className="w-full max-w-md shadow-2xl border-0 bg-card/80 backdrop-blur-sm">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <Heart className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl font-bold text-balance">HealthCare EMR</CardTitle>
+            <CardDescription className="text-muted-foreground">Electronic Medical Records System</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="role">Login as</Label>
+              <Select value={selectedRole} onValueChange={(value: UserRole) => setSelectedRole(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(roleLabels).map(([role, label]) => {
+                    const Icon = roleIcons[role as UserRole]
+                    return (
+                      <SelectItem key={role} value={role}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-4 h-4" />
+                          {label}
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading || !email || !password}>
-        {isLoading ? "Signing in..." : "Sign In"}
-      </Button>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-      <div className="text-center text-sm text-muted-foreground">
-        <p className="mb-3">Demo credentials for testing:</p>
-        <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
-          <Card className="p-3 cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => fillCredentials("admin@demo.com", "admin123")}>
-            <CardContent className="p-0">
-              <p className="font-medium text-blue-600">Admin</p>
-              <p className="font-mono">admin@demo.com</p>
-              <p className="font-mono">admin123</p>
-            </CardContent>
-          </Card>
-          <Card className="p-3 cursor-pointer hover:bg-green-50 transition-colors" onClick={() => fillCredentials("doctor@demo.com", "doctor123")}>
-            <CardContent className="p-0">
-              <p className="font-medium text-green-600">Doctor</p>
-              <p className="font-mono">doctor@demo.com</p>
-              <p className="font-mono">doctor123</p>
-            </CardContent>
-          </Card>
-          <Card className="p-3 cursor-pointer hover:bg-purple-50 transition-colors" onClick={() => fillCredentials("vhv@demo.com", "vhv123")}>
-            <CardContent className="p-0">
-              <p className="font-medium text-purple-600">VHV</p>
-              <p className="font-mono">vhv@demo.com</p>
-              <p className="font-mono">vhv123</p>
-            </CardContent>
-          </Card>
-          <Card className="p-3 cursor-pointer hover:bg-orange-50 transition-colors" onClick={() => fillCredentials("patient@demo.com", "patient123")}>
-            <CardContent className="p-0">
-              <p className="font-medium text-orange-600">Patient</p>
-              <p className="font-mono">patient@demo.com</p>
-              <p className="font-mono">patient123</p>
-            </CardContent>
-          </Card>
-        </div>
-        <p className="mt-3 text-xs text-gray-500">
-          Click on any card to auto-fill the login form
-        </p>
-      </div>
-    </form>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground text-center">Quick login for demo:</div>
+            <div className="grid grid-cols-2 gap-2 rounded-xl">
+              {Object.entries(roleLabels).map(([role, label]) => {
+                const Icon = roleIcons[role as UserRole]
+                return (
+                  <Button
+                    key={role}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => quickLogin(role as UserRole)}
+                    className="text-xs"
+                  >
+                    <Icon className="w-3 h-3 mr-1" />
+                    {label}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
