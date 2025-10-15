@@ -112,6 +112,9 @@ export function EmergencyButton({
       setLocation("")
       // Close dialog after successful submission
       setIsOpen(false)
+
+      // Show success feedback
+      alert("Emergency alert sent! Help is on the way.")
     } catch (error) {
       console.error("[v0] Failed to trigger emergency alert:", error)
       alert("Failed to send emergency alert. Please try again or call emergency services directly.")

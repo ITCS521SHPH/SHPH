@@ -179,7 +179,6 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
     const extras: DistrictMarker[] = []
 
     filteredGroups.forEach((group, key) => {
-      // group is { displayName: string; rawDistrict?: string; items: VhvLite[] }
       if (known.has(key)) return
       const items = group.items
       if (items.length === 0) return

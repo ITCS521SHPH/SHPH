@@ -43,6 +43,19 @@ type Props = {
   vhvs: VHV[]
 }
 
+function getVhvLabel(v: VHV) {
+  if (v.name && v.name.trim().length > 0) {
+    return v.name
+  }
+  const combined = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim()
+  if (combined) {
+    return combined
+  }
+  if (v.email) return v.email
+  if (v.phone) return v.phone
+  return "VHV"
+}
+
 export function VhvMap({ vhvs }: Props) {
   const mapRef = useRef<any>(null)
   const [search, setSearch] = useState("")
@@ -62,12 +75,47 @@ export function VhvMap({ vhvs }: Props) {
     })
   }, [vhvs, search, districtFilter])
 
+  const districtGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        displayName: string
+        rawDistrict: string | undefined
+        items: VHV[]
+      }
+    >()
+
+    filtered.forEach((vhv) => {
+      const rawDistrict = vhv.district?.trim()
+      const displayName = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "Unknown district"
+      const key = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "__UNKNOWN__"
+      const existing = map.get(key)
+      if (existing) {
+        existing.items.push(vhv)
+      } else {
+        map.set(key, { displayName, rawDistrict, items: [vhv] })
+      }
+    })
+
+    return Array.from(map.entries()).map(([key, value]) => {
+      const anchor = getDistrictAnchor(value.rawDistrict ?? "")
+      const colorSource = value.rawDistrict && value.rawDistrict.length > 0 ? value.rawDistrict : value.displayName
+      return {
+        key,
+        displayName: value.displayName,
+        color: colorForDistrict(colorSource),
+        anchor,
+        items: value.items,
+      }
+    })
+  }, [filtered])
+
   // Fit bounds to filtered markers
   useEffect(() => {
     const m = mapRef.current
     if (!m) return
-    if (filtered.length === 0) return
-    const latlngs = filtered.map((v) => getDistrictAnchor(v.district || ""))
+    if (districtGroups.length === 0) return
+    const latlngs = districtGroups.map((group) => group.anchor)
     try {
       const L = (window as any).L
       if (L && Array.isArray(latlngs) && latlngs.length > 0) {
@@ -77,7 +125,7 @@ export function VhvMap({ vhvs }: Props) {
         }
       }
     } catch {}
-  }, [filtered])
+  }, [districtGroups])
 
   return (
     <div className="space-y-3">
@@ -129,24 +177,41 @@ export function VhvMap({ vhvs }: Props) {
                 />
               )}
 
-              {filtered.map((v) => {
-                const pos = getDistrictAnchor(v.district || "")
-                const color = colorForDistrict(v.district || "")
-                const label = v.name || `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim() || v.email || "VHV"
+              {districtGroups.map((group) => {
+                const tooltipLabel = `${group.displayName} (${group.items.length})`
                 return (
-                  <CircleMarker key={v.id} center={pos} radius={8} pathOptions={{ color, fillColor: color, fillOpacity: 0.9 }}>
+                  <CircleMarker
+                    key={group.key}
+                    center={group.anchor}
+                    radius={10}
+                    pathOptions={{ color: group.color, fillColor: group.color, fillOpacity: 0.85 }}
+                  >
                     <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
-                      <span>{label}</span>
+                      <span>{tooltipLabel}</span>
                     </Tooltip>
                     <Popup>
-                      <div className="space-y-1">
-                        <div className="font-medium">{label}</div>
-                        {v.phone && <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>}
-                        {v.email && <div className="text-sm text-muted-foreground">Email: {v.email}</div>}
-                        {v.district && (
-                          <div className="text-sm">Base area: <span className="font-medium">{v.district}</span></div>
-                        )}
-                        {v.status && <div className="text-xs">Status: {v.status}</div>}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold leading-tight">{group.displayName}</div>
+                          <Badge variant="outline">{group.items.length} VHV{group.items.length > 1 ? "s" : ""}</Badge>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto pr-1">
+                          <div className="space-y-2">
+                            {group.items.map((v) => (
+                              <div key={v.id} className="rounded border border-border bg-background/60 p-2">
+                                <div className="font-medium leading-tight">{getVhvLabel(v)}</div>
+                                {v.phone && <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>}
+                                {v.email && <div className="text-sm text-muted-foreground">Email: {v.email}</div>}
+                                {(v.district || group.displayName) && (
+                                  <div className="text-sm">
+                                    Base area: <span className="font-medium">{v.district || group.displayName}</span>
+                                  </div>
+                                )}
+                                {v.status && <div className="text-xs text-muted-foreground">Status: {v.status}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </Popup>
                   </CircleMarker>
