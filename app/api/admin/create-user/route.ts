@@ -16,7 +16,20 @@ const supabaseAdmin = createClient(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password, role, firstName, lastName, licenseNumber, specialization, hospitalAffiliation, region, phoneNumber, trainingLevel } = body
+    const {
+      email,
+      password,
+      role,
+      firstName,
+      lastName,
+      licenseNumber,
+      specialization,
+      hospitalAffiliation,
+      region,
+      phoneNumber,
+      trainingLevel,
+      district,
+    } = body
 
     console.log('Creating user with role:', role, 'email:', email)
 
@@ -81,6 +94,7 @@ export async function POST(request: NextRequest) {
             first_name: firstName,
             last_name: lastName,
             phone: phoneNumber || null,
+            district: district || null,
             license_number: licenseNumber || `DOC-${Date.now()}`,
             specialization: specialization || null,
             experience_years: 0,
@@ -178,6 +192,8 @@ export async function POST(request: NextRequest) {
       lastName: userData.last_name,
       name: `${userData.first_name} ${userData.last_name}`,
       status: userData.is_active ? 'active' : 'inactive',
+      phone: userData.phone ?? null,
+      district: userData.district ?? null,
       createdAt: userData.created_at,
       updatedAt: userData.updated_at
     })

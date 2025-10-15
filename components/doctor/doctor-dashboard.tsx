@@ -31,9 +31,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
-  UserPlus,
-  UserCheck,
-  ClipboardList,
+  UserPlus, ClipboardList,
   Bell,
 } from "lucide-react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
@@ -42,9 +40,10 @@ import { useState, useCallback, useEffect } from "react"
 import { reviewsApi, patientsApi, emergencyApi } from "../../lib/api"
 import { useApiData } from "../../lib/useApiData"
 import type { IntakeSubmission } from "@/lib/types"
-import { TaskManagement } from "@/components/tasks/task-management"
-import { PatientAssignment } from "@/components/tasks/patient-assignment"
+// Removed inline TaskManagement/PatientAssignment from dashboard; moved to separate page
+import Link from "next/link"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
+import VhvMap from "@/components/doctor/vhv-map"
 import { UserRole } from "@/lib/types"
 
 export function DoctorDashboard() {
@@ -101,8 +100,7 @@ export function DoctorDashboard() {
   // Local state for forms and UI
   const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
   const [showNewVisitDialog, setShowNewVisitDialog] = useState(false)
-  const [showAssignPatientDialog, setShowAssignPatientDialog] = useState(false)
-  const [showTaskManagementDialog, setShowTaskManagementDialog] = useState(false)
+  // Removed inline dialogs for Assign Patient and Manage Tasks
 
   const [newPatientForm, setNewPatientForm] = useState({
     firstName: "",
@@ -533,42 +531,12 @@ export function DoctorDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={showAssignPatientDialog} onOpenChange={setShowAssignPatientDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    Assign Patient
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Assign Patient to VHV</DialogTitle>
-                    <DialogDescription>
-                      Assign a patient to a Village Health Volunteer with specific tasks.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <PatientAssignment 
-                    doctorId={currentUser?.id}
-                    onAssignmentComplete={() => setShowAssignPatientDialog(false)}
-                  />
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={showTaskManagementDialog} onOpenChange={setShowTaskManagementDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Manage Tasks
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Task Management</DialogTitle>
-                    <DialogDescription>Create and manage tasks for Village Health Volunteers.</DialogDescription>
-                  </DialogHeader>
-                  <TaskManagement doctorId={currentUser?.id} />
-                </DialogContent>
-              </Dialog>
+              <Button variant="outline" asChild>
+                <Link href="/doctor/assignments">
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  Assignments & Tasks
+                </Link>
+              </Button>
 
               <Dialog open={showNewVisitDialog} onOpenChange={setShowNewVisitDialog}>
                 <DialogTrigger asChild>
@@ -759,13 +727,13 @@ export function DoctorDashboard() {
               <CheckCircle className="h-4 w-4" />
               Validated
             </TabsTrigger>
-            <TabsTrigger value="assignments" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Assignments
-            </TabsTrigger>
             <TabsTrigger value="patients" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Patient List
+            </TabsTrigger>
+            <TabsTrigger value="vhv_map" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              VHV Map
             </TabsTrigger>
           </TabsList>
 
@@ -773,29 +741,7 @@ export function DoctorDashboard() {
             <EmergencyAlerts userId={currentUser?.id || "2"} userRole={UserRole.DOCTOR} />
           </TabsContent>
 
-          <TabsContent value="assignments" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Patient Assignments</CardTitle>
-                  <CardDescription>Assign patients to VHVs with specific care tasks</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PatientAssignment />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Task Management</CardTitle>
-                  <CardDescription>Create and manage tasks for Village Health Volunteers</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <TaskManagement />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+          {/* Assignments tab moved to its own page (/doctor/assignments) */}
 
           <TabsContent value="pending" className="space-y-4">
             <Card>
@@ -1118,6 +1064,20 @@ export function DoctorDashboard() {
                     </CardContent>
                   </Card>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vhv_map" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>VHV Map</CardTitle>
+                <CardDescription>
+                  View VHV locations by base area. Click markers for details and filter by district.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <VhvMap vhvs={(availableVHVs || []) as any} />
               </CardContent>
             </Card>
           </TabsContent>
