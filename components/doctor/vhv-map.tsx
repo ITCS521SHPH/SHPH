@@ -9,7 +9,7 @@ import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 
-import "leaflet/dist/leaflet.css"
+
 
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
 const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
