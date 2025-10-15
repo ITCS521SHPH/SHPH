@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
+import * as L from "leaflet"
 import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -104,42 +105,33 @@ export function VhvMap({ vhvs }: Props) {
   }, [filtered])
 
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (typeof window !== "undefined") {
-        const L = await import("leaflet")
-        // Fix default marker icon issue with Leaflet in Next.js
-        delete (L.Icon.Default.prototype as any)._getIconUrl
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-        })
-        setLeafletLoaded(true)
-      }
+    if (typeof window !== "undefined") {
+      // Fix default marker icon issue with Leaflet in Next.js
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+      })
+      setLeafletLoaded(true)
     }
-    loadLeaflet()
   }, [])
 
   // Fit bounds to filtered markers
   useEffect(() => {
     if (!leafletLoaded) return
 
-    const fitBounds = async () => {
-      const m = mapRef.current
-      if (!m) return
-      if (districtGroups.length === 0) return
+    const m = mapRef.current
+    if (!m) return
+    if (districtGroups.length === 0) return
 
-      const L = await import("leaflet")
-      const latlngs = districtGroups.map((group) => group.anchor)
-      if (Array.isArray(latlngs) && latlngs.length > 0) {
-        const bounds = new L.LatLngBounds(latlngs)
-        if (bounds && m.fitBounds) {
-          m.fitBounds(bounds.pad(0.2), { animate: true })
-        }
+    const latlngs = districtGroups.map((group) => group.anchor)
+    if (Array.isArray(latlngs) && latlngs.length > 0) {
+      const bounds = new L.LatLngBounds(latlngs)
+      if (bounds && m.fitBounds) {
+        m.fitBounds(bounds.pad(0.2), { animate: true })
       }
     }
-
-    fitBounds()
   }, [districtGroups, leafletLoaded])
 
   if (!leafletLoaded) {

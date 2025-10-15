@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
+import * as L from "leaflet"
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
@@ -116,53 +117,44 @@ export function VhvMapSelector({
   }, [displayVHVs])
 
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (typeof window !== "undefined") {
-        const L = await import("leaflet")
-        delete (L.Icon.Default.prototype as any)._getIconUrl
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-        })
-        setLeafletLoaded(true)
-      }
+    if (typeof window !== "undefined") {
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+      })
+      setLeafletLoaded(true)
     }
-    loadLeaflet()
   }, [])
 
   useEffect(() => {
     if (!leafletLoaded) return
 
-    const fitBounds = async () => {
-      const m = mapRef.current
-      if (!m) return
+    const m = mapRef.current
+    if (!m) return
 
-      const latlngs: [number, number][] = []
-      if (selectedDistricts.length > 0) {
-        selectedDistricts.forEach((d) => latlngs.push(getDistrictAnchor(d)))
-      } else {
-        filteredGroups.forEach((group) => {
-          if (group.items.length > 0) {
-            latlngs.push(getDistrictAnchor(group.rawDistrict ?? ""))
-          }
-        })
-      }
-
-      if (latlngs.length > 0) {
-        try {
-          const L = await import("leaflet")
-          const b = new L.LatLngBounds(latlngs)
-          if (m.fitBounds) {
-            m.fitBounds(b.pad(0.2), { animate: true })
-          }
-        } catch (error) {
-          console.error("[v0] Error fitting bounds:", error)
+    const latlngs: [number, number][] = []
+    if (selectedDistricts.length > 0) {
+      selectedDistricts.forEach((d) => latlngs.push(getDistrictAnchor(d)))
+    } else {
+      filteredGroups.forEach((group) => {
+        if (group.items.length > 0) {
+          latlngs.push(getDistrictAnchor(group.rawDistrict ?? ""))
         }
-      }
+      })
     }
 
-    fitBounds()
+    if (latlngs.length > 0) {
+      try {
+        const b = new L.LatLngBounds(latlngs)
+        if (m.fitBounds) {
+          m.fitBounds(b.pad(0.2), { animate: true })
+        }
+      } catch (error) {
+        console.error("[v0] Error fitting bounds:", error)
+      }
+    }
   }, [filteredGroups, selectedDistricts, leafletLoaded])
 
   const districts = BANGKOK_DISTRICTS
