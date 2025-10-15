@@ -33,20 +33,20 @@ The GitHub repository was moved:
 When pushing code, GitHub redirects the push but Vercel might not be receiving the webhook notification from the new repo location.
 
 ### Evidence
-```bash
+\`\`\`bash
 $ git push
 remote: This repository moved. Please use the new location:
 remote:   https://github.com/ITCS521SHPH/SHPH.git
-```
+\`\`\`
 
 ## Solutions
 
 ### Option 1: Update Git Remote (RECOMMENDED)
-```bash
+\`\`\`bash
 cd /home/miru4090s/clones/SHPH
 git remote set-url origin https://github.com/ITCS521SHPH/SHPH.git
 git push origin TRASF
-```
+\`\`\`
 
 Then update Vercel integration:
 1. Go to Vercel dashboard
@@ -62,7 +62,7 @@ Then update Vercel integration:
 
 ### Option 3: Use Vercel CLI with Correct Project
 Need to link to the correct Vercel project first:
-```bash
+\`\`\`bash
 cd /home/miru4090s/clones/SHPH
 # Remove existing .vercel directory
 rm -rf .vercel
@@ -70,7 +70,7 @@ rm -rf .vercel
 vercel link --project=v0-shph --scope=team_VxD1TzQuZ1dIp5dhDmR0A6AL
 # Then deploy
 vercel --prod
-```
+\`\`\`
 
 ## Code Changes Pending Deployment
 
@@ -80,7 +80,7 @@ vercel --prod
 
 **Changes**:
 1. Updated patient field selection in Supabase query:
-   ```typescript
+   \`\`\`typescript
    // OLD (WRONG - fields don't exist in patients table)
    patients:patient_id (
      id, first_name, last_name, email, phone, 
@@ -92,56 +92,56 @@ vercel --prod
      id, user_id, patient_id, date_of_birth,
      gender, address, emergency_contact, emergency_phone
    )
-   ```
+   \`\`\`
 
 2. Added logic to fetch user details from `auth.users`:
-   ```typescript
+   \`\`\`typescript
    const { data: userData } = await supabase!
      .from('users')
      .select('full_name, email, phone')
      .eq('id', assignment.patients.user_id)
      .single()
-   ```
+   \`\`\`
 
 3. Added name parsing:
-   ```typescript
+   \`\`\`typescript
    const fullName = userData?.full_name || ''
    const nameParts = fullName.split(' ')
    const firstName = nameParts[0] || ''
    const lastName = nameParts.slice(1).join(' ') || ''
-   ```
+   \`\`\`
 
 4. Updated field mappings:
-   ```typescript
+   \`\`\`typescript
    firstName: firstName,  // from full_name split
    lastName: lastName,    // from full_name split
    email: userData?.email || '',  // from users table
    phone: userData?.phone || '',  // from users table
    nationalId: assignment.patients.patient_id,  // mapped
    dob: assignment.patients.date_of_birth,      // mapped
-   ```
+   \`\`\`
 
 **Impact**: This fix will allow VHV dashboard to display assigned patients correctly.
 
 ## Database State (Ready for Deployment)
 
 ### ✅ Assignments Created
-```sql
+\`\`\`sql
 SELECT COUNT(*) FROM assignments WHERE vhv_id = '33333333-3333-3333-3333-333333333333';
 -- Result: 4 assignments
-```
+\`\`\`
 
 ### ✅ Patients Ready
-```sql
+\`\`\`sql
 SELECT patient_id FROM patients WHERE patient_id IN ('P001', 'P002', 'P003', 'P004');
 -- Result: All 4 patients exist
-```
+\`\`\`
 
 ### ✅ Tasks Ready
-```sql
+\`\`\`sql
 SELECT COUNT(*) FROM tasks WHERE vhv_id = '33333333-3333-3333-3333-333333333333';
 -- Result: 3 tasks
-```
+\`\`\`
 
 ## Expected Behavior After Deployment
 
@@ -167,11 +167,11 @@ Will display 3 tasks assigned to VHV with patient information
 Once the new code is deployed:
 
 1. **Login as VHV**:
-   ```javascript
+   \`\`\`javascript
    // Navigate to login page
    // Fill credentials: vhv@demo.com / vhv123
    // Execute: document.querySelector('form').requestSubmit()
-   ```
+   \`\`\`
 
 2. **Verify Dashboard Statistics**:
    - Assigned Patients should show: 4

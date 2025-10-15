@@ -49,28 +49,28 @@ I've created a complete SQL schema file that will:
 
 After applying the schema, run:
 
-```bash
+\`\`\`bash
 cd /home/miru4090s/clones/SHPH
 node test-auth.js
-```
+\`\`\`
 
 You should see:
-```
+\`\`\`
 ✅ All tables exist!
 ✅ authenticate_user function exists
 ✅ ADMIN (admin@shph.com): Login successful!
 ✅ DOCTOR (dr.smith@shph.com): Login successful!
 ✅ VHV (vhv.mary@shph.com): Login successful!
 ✅ PATIENT (patient@shph.com): Login successful!
-```
+\`\`\`
 
 ### Step 3: Test the Application
 
 Start the dev server:
 
-```bash
+\`\`\`bash
 npm run dev
-```
+\`\`\`
 
 Then login with any demo user:
 
