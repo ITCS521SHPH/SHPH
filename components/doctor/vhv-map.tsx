@@ -108,17 +108,16 @@ export function VhvMap({ vhvs }: Props) {
     const m = mapRef.current
     if (!m) return
     if (districtGroups.length === 0) return
+
     const latlngs = districtGroups.map((group) => group.anchor)
-    try {
-      const L = (window as any).L
-      if (L && Array.isArray(latlngs) && latlngs.length > 0) {
-        const bounds = new L.LatLngBounds(latlngs)
-        if (bounds && m.fitBounds) {
-          m.fitBounds(bounds.pad(0.2), { animate: true })
-        }
+    if (Array.isArray(latlngs) && latlngs.length > 0) {
+      const bounds = new L.LatLngBounds(latlngs)
+      if (bounds && m.fitBounds) {
+        m.fitBounds(bounds.pad(0.2), { animate: true })
       }
-    } catch {}
+    }
   }, [districtGroups])
+
 
   return (
     <div className="space-y-3">
