@@ -9,7 +9,8 @@ import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 
-
+// Leaflet CSS is imported in the app root layout to ensure it's treated as global CSS
+// and served with the correct MIME type by the Next.js dev/preview server.
 
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
 const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
