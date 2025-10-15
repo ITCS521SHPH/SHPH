@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
-import * as L from "leaflet"
+// Avoid top-level import of 'leaflet' to prevent preview environments
+// from rewriting it into a blob URL. Prefer CDN window.L and fall back to require.
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
@@ -118,13 +119,18 @@ export function VhvMapSelector({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-      })
-      setLeafletLoaded(true)
+      try {
+        // prefer CDN global
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
+        delete (L.Icon.Default.prototype as any)._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        })
+        setLeafletLoaded(true)
+      } catch {}
     }
   }, [])
 
@@ -147,6 +153,9 @@ export function VhvMapSelector({
 
     if (latlngs.length > 0) {
       try {
+        // prefer global L
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
         const b = new L.LatLngBounds(latlngs)
         if (m.fitBounds) {
           m.fitBounds(b.pad(0.2), { animate: true })
@@ -197,7 +206,9 @@ export function VhvMapSelector({
     const extras: DistrictMarker[] = []
 
     filteredGroups.forEach((group, key) => {
-      if (known.has(key)) return
+      // `key` is string here but `known` is a Set of district literal types;
+      // cast to any to satisfy TypeScript in this dynamic case.
+      if (known.has(key as any)) return
       const items = group.items
       if (items.length === 0) return
       const anchor = getDistrictAnchor(group.rawDistrict ?? "")

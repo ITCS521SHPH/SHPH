@@ -2,7 +2,10 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
-import * as L from "leaflet"
+// Don't import 'leaflet' at module top-level to avoid preview environments
+// rewriting it into a blob URL with an incorrect MIME type. Prefer the
+// global `window.L` loaded from CDN (app/layout.tsx). Fall back to
+// requiring it at runtime in client-only code paths.
 import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -106,14 +109,21 @@ export function VhvMap({ vhvs }: Props) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // Fix default marker icon issue with Leaflet in Next.js
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-      })
-      setLeafletLoaded(true)
+      try {
+        // prefer CDN global
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
+        // Fix default marker icon issue with Leaflet in Next.js
+        delete (L.Icon.Default.prototype as any)._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        })
+        setLeafletLoaded(true)
+      } catch (err) {
+        // ignore
+      }
     }
   }, [])
 
@@ -127,9 +137,16 @@ export function VhvMap({ vhvs }: Props) {
 
     const latlngs = districtGroups.map((group) => group.anchor)
     if (Array.isArray(latlngs) && latlngs.length > 0) {
-      const bounds = new L.LatLngBounds(latlngs)
-      if (bounds && m.fitBounds) {
-        m.fitBounds(bounds.pad(0.2), { animate: true })
+      try {
+        // prefer global L
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
+        const bounds = new L.LatLngBounds(latlngs)
+        if (bounds && m.fitBounds) {
+          m.fitBounds(bounds.pad(0.2), { animate: true })
+        }
+      } catch (err) {
+        // ignore
       }
     }
   }, [districtGroups, leafletLoaded])
