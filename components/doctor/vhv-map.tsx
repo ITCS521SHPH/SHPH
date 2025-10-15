@@ -1,4 +1,6 @@
 "use client"
+import "leaflet/dist/leaflet.css"
+
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
