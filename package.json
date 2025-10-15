@@ -48,7 +48,7 @@
     "fs": "latest",
     "geist": "latest",
     "input-otp": "latest",
-    "leaflet": "latest",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "next-themes": "latest",
