@@ -1,5 +1,6 @@
 "use client"
 import "leaflet/dist/leaflet.css"
+import * as L from "leaflet"
 
 
 import dynamic from "next/dynamic"
