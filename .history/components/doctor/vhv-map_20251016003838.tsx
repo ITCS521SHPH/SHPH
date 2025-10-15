@@ -9,24 +9,14 @@ import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 
-// React Leaflet components via dynamic import to avoid SSR issues
+
+
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
 const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
 const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
 const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
 const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
 const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
-
-// Import Leaflet styles only on client
-if (typeof window !== "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require("leaflet/dist/leaflet.css")
-  try {
-    // Ensure Leaflet is available on window for bounds calculations
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ;(window as any).L = require("leaflet")
-  } catch {}
-}
 
 type VHV = {
   id: string
@@ -61,6 +51,7 @@ export function VhvMap({ vhvs }: Props) {
   const [search, setSearch] = useState("")
   const ALL_DISTRICTS = "__ALL__"
   const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS)
+  const [leafletLoaded, setLeafletLoaded] = useState(false)
 
   const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), [])
 
@@ -70,7 +61,8 @@ export function VhvMap({ vhvs }: Props) {
       const inDistrict = districtFilter === ALL_DISTRICTS ? true : (v.district || "") === districtFilter
       if (!inDistrict) return false
       if (!term) return true
-      const full = `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${v.email ?? ""} ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase()
+      const full =
+        `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${v.email ?? ""} ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase()
       return full.includes(term)
     })
   }, [vhvs, search, districtFilter])
@@ -110,28 +102,64 @@ export function VhvMap({ vhvs }: Props) {
     })
   }, [filtered])
 
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      if (typeof window !== "undefined") {
+        const L = await import("leaflet")
+        // Fix default marker icon issue with Leaflet in Next.js
+        delete (L.Icon.Default.prototype as any)._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        })
+        setLeafletLoaded(true)
+      }
+    }
+    loadLeaflet()
+  }, [])
+
   // Fit bounds to filtered markers
   useEffect(() => {
-    const m = mapRef.current
-    if (!m) return
-    if (districtGroups.length === 0) return
-    const latlngs = districtGroups.map((group) => group.anchor)
-    try {
-      const L = (window as any).L
-      if (L && Array.isArray(latlngs) && latlngs.length > 0) {
+    if (!leafletLoaded) return
+
+    const fitBounds = async () => {
+      const m = mapRef.current
+      if (!m) return
+      if (districtGroups.length === 0) return
+
+      const L = await import("leaflet")
+      const latlngs = districtGroups.map((group) => group.anchor)
+      if (Array.isArray(latlngs) && latlngs.length > 0) {
         const bounds = new L.LatLngBounds(latlngs)
         if (bounds && m.fitBounds) {
           m.fitBounds(bounds.pad(0.2), { animate: true })
         }
       }
-    } catch {}
-  }, [districtGroups])
+    }
+
+    fitBounds()
+  }, [districtGroups, leafletLoaded])
+
+  if (!leafletLoaded) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-center h-[65vh] w-full bg-muted rounded-lg">
+          <p className="text-muted-foreground">Loading map...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
         <div className="flex-1">
-          <Input placeholder="Search by name, email or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search by name, email or phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className="w-full md:w-64">
           <Select value={districtFilter} onValueChange={setDistrictFilter}>
@@ -139,10 +167,11 @@ export function VhvMap({ vhvs }: Props) {
               <SelectValue placeholder="Filter by district" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_DISTRICTS}>All districts
-              </SelectItem>
+              <SelectItem value={ALL_DISTRICTS}>All districts</SelectItem>
               {BANGKOK_DISTRICTS.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -193,7 +222,9 @@ export function VhvMap({ vhvs }: Props) {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-semibold leading-tight">{group.displayName}</div>
-                          <Badge variant="outline">{group.items.length} VHV{group.items.length > 1 ? "s" : ""}</Badge>
+                          <Badge variant="outline">
+                            {group.items.length} VHV{group.items.length > 1 ? "s" : ""}
+                          </Badge>
                         </div>
                         <div className="max-h-64 overflow-y-auto pr-1">
                           <div className="space-y-2">

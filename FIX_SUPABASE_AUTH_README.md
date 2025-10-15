@@ -38,7 +38,7 @@ Navigate to: **https://supabase.com/dashboard/project/cmprakkctummmforgkyy**
 
 After running the SQL, you should see a message like:
 
-\`\`\`
+```
 DATABASE SETUP COMPLETE!
 ========================================
 
@@ -53,22 +53,22 @@ Demo users created:
   Email: dr.smith@shph.com | Password: password123
   Email: vhv.mary@shph.com | Password: password123
   Email: patient@shph.com | Password: password123
-\`\`\`
+```
 
 ## Test Authentication
 
 After applying the schema, test the login:
 
-\`\`\`bash
+```bash
 cd /home/miru4090s/clones/SHPH
 node test-auth.js
-\`\`\`
+```
 
 Or start the dev server and try logging in:
 
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
 ## Demo Users
 
@@ -127,23 +127,23 @@ This is normal for the `users` and `patients` tables that already exist. The scr
 
 1. Verify the tables were created:
 
-   \`\`\`sql
+   ```sql
    SELECT * FROM admins LIMIT 1;
    SELECT * FROM doctors LIMIT 1;
    SELECT * FROM vhvs LIMIT 1;
-   \`\`\`
+   ```
 
 2. Verify the functions exist:
 
-   \`\`\`sql
+   ```sql
    SELECT public.hash_password('test123');
    SELECT public.verify_password('test123', public.hash_password('test123'));
-   \`\`\`
+   ```
 
 3. Test authentication directly:
-   \`\`\`sql
+   ```sql
    SELECT * FROM public.authenticate_user('admin@shph.com', 'password123');
-   \`\`\`
+   ```
 
 ### If you get permission errors
 

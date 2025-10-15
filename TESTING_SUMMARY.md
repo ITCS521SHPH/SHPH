@@ -53,43 +53,43 @@ The dev server is running on:
 #### Test Steps:
 
 1. **Admin Login Test:**
-   \`\`\`
+   ```
    Navigate to: http://localhost:3001/login
    Click "Admin" demo card or enter:
    - Email: admin@demo.com
    - Password: admin123
    Expected: Redirect to /admin/dashboard
-   \`\`\`
+   ```
 
 2. **Doctor Login Test:**
-   \`\`\`
+   ```
    Navigate to: http://localhost:3001/login
    Click "Doctor" demo card or enter:
    - Email: doctor@demo.com
    - Password: doctor123
    Expected: Redirect to /doctor/dashboard
    Should see: List of 4 patients
-   \`\`\`
+   ```
 
 3. **VHV Login Test:**
-   \`\`\`
+   ```
    Navigate to: http://localhost:3001/login
    Click "VHV" demo card or enter:
    - Email: vhv@demo.com
    - Password: vhv123
    Expected: Redirect to /vhv/dashboard
    Should see: 3 active tasks (Check Blood Pressure, Medication Compliance, Monthly Assessment)
-   \`\`\`
+   ```
 
 4. **Patient Login Test:**
-   \`\`\`
+   ```
    Navigate to: http://localhost:3001/login
    Click "Patient" demo card or enter:
    - Email: patient@demo.com
    - Password: patient123
    Expected: Redirect to /patient/dashboard
    Should see: Personal health information
-   \`\`\`
+   ```
 
 ### Production Testing (Vercel Deployment)
 
@@ -167,7 +167,7 @@ Test all 4 login scenarios on the production site to verify deployment works cor
 
 You can run these queries in Supabase SQL Editor to verify data:
 
-\`\`\`sql
+```sql
 -- Check all demo users authenticate correctly
 SELECT 'ADMIN' as role, * FROM public.authenticate_user('admin@demo.com', 'admin123')
 UNION ALL
@@ -198,7 +198,7 @@ JOIN public.patients p ON p.id = t.patient_id
 JOIN public.users u ON u.id = p.user_id
 WHERE t.status = 'pending'
 ORDER BY t.due_date;
-\`\`\`
+```
 
 ## 🚀 Next Steps
 

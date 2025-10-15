@@ -17,14 +17,22 @@ const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).Ci
 const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
 const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
 
-// Leaflet CSS + global L for simple bounds
+// Ensure Leaflet's CSS and global `L` are available on the client only.
+// Importing CSS at runtime (require) can cause the dev/preview server to
+// serve it as a blob with an incorrect MIME type in some environments.
+// The CSS is imported via `app/globals.css` (see @import) so here we only
+// dynamically import the Leaflet JS and attach it to window for code that
+// expects a global `L` (used for fitBounds in this component).
 if (typeof window !== "undefined") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require("leaflet/dist/leaflet.css")
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ;(window as any).L = require("leaflet")
-  } catch {}
+  // Defer loading to client runtime
+  ;(async () => {
+    try {
+      const L = await import("leaflet")
+      ;(window as any).L = L
+    } catch (e) {
+      // ignore
+    }
+  })()
 }
 
 export type VhvLite = {

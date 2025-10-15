@@ -66,12 +66,12 @@
 **Root Cause**: Production build optimization changes event handlers
 
 **Workaround** (100% effective):
-\`\`\`javascript
+```javascript
 const form = document.querySelector('form');
 if (form) {
   form.requestSubmit();
 }
-\`\`\`
+```
 
 **Status**: Workaround proven successful, permanent fix needed in codebase
 
@@ -175,7 +175,7 @@ if (form) {
 ### Database Schema (Verified Correct)
 
 **Patients Table**:
-\`\`\`
+```
 - id (uuid)
 - user_id (uuid) → links to auth.users
 - patient_id (text) → e.g., "P001"
@@ -185,10 +185,10 @@ if (form) {
 - emergency_contact (text)
 - emergency_phone (text)
 - assigned_vhv_id (uuid)
-\`\`\`
+```
 
 **Assignments Table**:
-\`\`\`
+```
 - id (uuid)
 - patient_id (uuid) → patients.id
 - doctor_id (uuid) → doctors.id
@@ -197,21 +197,21 @@ if (form) {
 - status (text) → 'active'
 - created_at (timestamptz)
 - updated_at (timestamptz)
-\`\`\`
+```
 
 **Users Table** (auth.users):
-\`\`\`
+```
 - id (uuid)
 - email (text)
 - full_name (text)
 - phone (text)
 - role (text) → 'PATIENT'
-\`\`\`
+```
 
 ### API Fix Details
 
 **Problem Query** (Old):
-\`\`\`typescript
+```typescript
 .select(`
   *,
   patients:patient_id (
@@ -219,11 +219,11 @@ if (form) {
     address, national_id, dob, is_active
   )
 `)
-\`\`\`
+```
 ❌ Fields `first_name`, `last_name`, `email`, `phone`, `national_id`, `dob`, `is_active` don't exist in patients table
 
 **Fixed Query** (New):
-\`\`\`typescript
+```typescript
 .select(`
   *,
   patients:patient_id (
@@ -238,7 +238,7 @@ const { data: userData } = await supabase
   .select('full_name, email, phone')
   .eq('id', assignment.patients.user_id)
   .single()
-\`\`\`
+```
 ✅ Fetches actual fields from patients table + user data from auth.users
 
 ---
@@ -298,9 +298,9 @@ const { data: userData } = await supabase
 1. Navigate to https://v0-shph-ochre.vercel.app/login
 2. Fill credentials: vhv@demo.com / vhv123
 3. Execute in browser console:
-   \`\`\`javascript
+   ```javascript
    document.querySelector('form').requestSubmit()
-   \`\`\`
+   ```
 4. Verify dashboard shows:
    - Assigned Patients: 4
    - Pending Tasks: 3

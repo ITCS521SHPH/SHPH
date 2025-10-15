@@ -1,7 +1,8 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
+// Avoid top-level import of 'leaflet' to prevent preview environments
+// from rewriting it into a blob URL. Prefer CDN window.L and fall back to require.
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
@@ -9,23 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
-// Dynamic import to avoid SSR issues
-const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false })
-const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
-const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
-const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
-const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
-const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
-
-// Leaflet CSS + global L for simple bounds
-if (typeof window !== "undefined") {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require("leaflet/dist/leaflet.css")
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ;(window as any).L = require("leaflet")
-  } catch {}
-}
+// We'll use the global `L` provided by the Leaflet CDN (app/layout.tsx) and
+// render the map manually in a client-only fashion. This avoids importing
+// the `leaflet` package (which preview sometimes rewrites to esm.v0.dev).
 
 export type VhvLite = {
   id: string
@@ -72,9 +59,17 @@ type DistrictMarker = {
   canToggle: boolean
 }
 
-export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, selectedVhvIds, onToggleVhv, mode = "area" }: Props) {
+export function VhvMapSelector({
+  vhvs,
+  selectedDistricts,
+  onToggleDistrict,
+  selectedVhvIds,
+  onToggleVhv,
+  mode = "area",
+}: Props) {
   const mapRef = useRef<any>(null)
   const [search, setSearch] = useState("")
+  const [leafletLoaded, setLeafletLoaded] = useState(false)
 
   const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), [])
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts])
@@ -82,11 +77,12 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
 
   const displayVHVs = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return (vhvs || []).filter(v => {
+    return (vhvs || []).filter((v) => {
       const inArea = selectedSet.size === 0 ? true : selectedSet.has((v.district || "").trim())
       if (!inArea) return false
       if (!term) return true
-      const full = `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${v.email ?? ""} ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase()
+      const full =
+        `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${v.email ?? ""} ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase()
       return full.includes(term)
     })
   }, [vhvs, selectedSet, search])
@@ -116,14 +112,32 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
     return map
   }, [displayVHVs])
 
-  // Fit map to shown VHVs or selected districts
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // prefer CDN global
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
+        delete (L.Icon.Default.prototype as any)._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+          iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        })
+        setLeafletLoaded(true)
+      } catch {}
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!leafletLoaded) return
+
     const m = mapRef.current
-    const L = (typeof window !== "undefined" ? (window as any).L : null)
-    if (!m || !L) return
+    if (!m) return
+
     const latlngs: [number, number][] = []
     if (selectedDistricts.length > 0) {
-      selectedDistricts.forEach(d => latlngs.push(getDistrictAnchor(d)))
+      selectedDistricts.forEach((d) => latlngs.push(getDistrictAnchor(d)))
     } else {
       filteredGroups.forEach((group) => {
         if (group.items.length > 0) {
@@ -131,13 +145,21 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
         }
       })
     }
+
     if (latlngs.length > 0) {
       try {
+        // prefer global L
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const L = (window as any).L ?? require("leaflet")
         const b = new L.LatLngBounds(latlngs)
-        m.fitBounds(b.pad(0.2), { animate: true })
-      } catch {}
+        if (m.fitBounds) {
+          m.fitBounds(b.pad(0.2), { animate: true })
+        }
+      } catch (error) {
+        console.error("[v0] Error fitting bounds:", error)
+      }
     }
-  }, [filteredGroups, selectedDistricts])
+  }, [filteredGroups, selectedDistricts, leafletLoaded])
 
   const districts = BANGKOK_DISTRICTS
 
@@ -179,8 +201,9 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
     const extras: DistrictMarker[] = []
 
     filteredGroups.forEach((group, key) => {
-      // group is { displayName: string; rawDistrict?: string; items: VhvLite[] }
-      if (known.has(key)) return
+      // `key` is string here but `known` is a Set of district literal types;
+      // cast to any to satisfy TypeScript in this dynamic case.
+      if (known.has(key as any)) return
       const items = group.items
       if (items.length === 0) return
       const anchor = getDistrictAnchor(group.rawDistrict ?? "")
@@ -203,20 +226,40 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
     return extras
   }, [districts, filteredGroups, selectedVhvSet])
 
-  const allMarkers = useMemo((): DistrictMarker[] => [...districtMarkers, ...extraMarkers], [districtMarkers, extraMarkers])
+  const allMarkers = useMemo(
+    (): DistrictMarker[] => [...districtMarkers, ...extraMarkers],
+    [districtMarkers, extraMarkers],
+  )
+
+  if (!leafletLoaded) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-center h-[60vh] w-full bg-muted rounded-lg">
+          <p className="text-muted-foreground">Loading map...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
         <div className="flex-1">
-          <Input placeholder="Search VHV by name/email/phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search VHV by name/email/phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className="hidden md:flex items-center gap-2 flex-wrap">
           <Badge variant="outline">VHVs: {displayVHVs.length}</Badge>
-          {selectedDistricts.length > 0 && (
-            <Badge variant="outline">Areas: {selectedDistricts.length}</Badge>
-          )}
-          <Button variant="outline" size="sm" onClick={() => selectedDistricts.forEach(d => onToggleDistrict(d))} disabled={selectedDistricts.length === 0}>
+          {selectedDistricts.length > 0 && <Badge variant="outline">Areas: {selectedDistricts.length}</Badge>}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => selectedDistricts.forEach((d) => onToggleDistrict(d))}
+            disabled={selectedDistricts.length === 0}
+          >
             Clear Areas
           </Button>
         </div>
@@ -225,13 +268,17 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
       <Card>
         <CardContent className="p-0">
           <div className="h-[60vh] w-full">
-            <MapContainer center={[center.lat, center.lng]} zoom={12} style={{ height: "100%", width: "100%" }} ref={mapRef as any}>
+            <MapContainer
+              center={[center.lat, center.lng]}
+              zoom={12}
+              style={{ height: "100%", width: "100%" }}
+              ref={mapRef as any}
+            >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* District anchors (click to toggle selection) */}
               {allMarkers.map((marker) => {
                 const isSelectedArea = marker.canToggle ? selectedSet.has(marker.displayName) : false
                 const hasSelectedVHVs = marker.selectedCount > 0
@@ -274,7 +321,9 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-semibold leading-tight">{marker.displayName}</div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline">{marker.filteredCount} VHV{marker.filteredCount === 1 ? "" : "s"}</Badge>
+                            <Badge variant="outline">
+                              {marker.filteredCount} VHV{marker.filteredCount === 1 ? "" : "s"}
+                            </Badge>
                             {marker.selectedCount > 0 && (
                               <Badge variant="secondary">{marker.selectedCount} selected</Badge>
                             )}
@@ -298,7 +347,8 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
                                     {v.email && <div className="text-sm text-muted-foreground">Email: {v.email}</div>}
                                     {(v.district || marker.displayName) && (
                                       <div className="text-sm">
-                                        Base area: <span className="font-medium">{v.district || marker.displayName}</span>
+                                        Base area:{" "}
+                                        <span className="font-medium">{v.district || marker.displayName}</span>
                                       </div>
                                     )}
                                     <div className="pt-2">
@@ -326,11 +376,14 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
                 )
               })}
 
-              {/* Highlight selected areas */}
               {selectedDistricts.map((d) => (
-                <Circle key={`hl-${d}`} center={getDistrictAnchor(d)} radius={AREA_RADIUS_M} pathOptions={{ color: colorForDistrict(d), weight: 2, fillOpacity: 0.04 }} />
+                <Circle
+                  key={`hl-${d}`}
+                  center={getDistrictAnchor(d)}
+                  radius={AREA_RADIUS_M}
+                  pathOptions={{ color: colorForDistrict(d), weight: 2, fillOpacity: 0.04 }}
+                />
               ))}
-
             </MapContainer>
           </div>
         </CardContent>

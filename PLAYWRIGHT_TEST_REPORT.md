@@ -143,7 +143,7 @@
 ## Local vs Production Comparison
 
 ### Local Testing (Port 3001) ✅ ALL PASS
-\`\`\`
+```
 ✅ Admin login SUCCESS - User ID: 11111111-1111-1111-1111-111111111111
 ✅ Doctor login SUCCESS - User ID: 22222222-2222-2222-2222-222222222222
 ✅ VHV login SUCCESS - User ID: 33333333-3333-3333-3333-333333333333
@@ -151,10 +151,10 @@
 
 📊 Results: 4/4 tests passed
 🎉 All authentication tests PASSED!
-\`\`\`
+```
 
 ### Production Testing (Vercel) ⚠️ PARTIAL PASS
-\`\`\`
+```
 ✅ Admin login SUCCESS - Redirected to /admin/dashboard
 ✅ Doctor login SUCCESS - Redirected to /doctor/dashboard
 ❌ VHV login FAIL - Button click not registering
@@ -162,7 +162,7 @@
 
 📊 Results: 2/4 tests passed
 ⚠️ VHV and Patient logins not working on deployed site
-\`\`\`
+```
 
 ---
 
@@ -241,7 +241,7 @@ Based on your original requirements:
 
 ### Immediate Actions Required
 1. **Fix VHV/Patient Login Issue:**
-   \`\`\`bash
+   ```bash
    # Check these files for potential issues:
    - components/auth/login-form.tsx (form submission handler)
    - lib/auth.ts (authenticateUser function)
@@ -251,14 +251,14 @@ Based on your original requirements:
    - Form validation preventing submission for certain roles
    - Event handler not attached properly in production build
    - State management issue with form inputs
-   \`\`\`
+   ```
 
 2. **Fix Patient Name Display:**
-   \`\`\`typescript
+   ```typescript
    // In components/admin/admin-dashboard.tsx
    // Check user data mapping for patients
    // Ensure first_name and last_name fields are properly fetched
-   \`\`\`
+   ```
 
 3. **Verify Build Configuration:**
    - Check if there are any build-time optimizations removing event handlers
@@ -277,7 +277,7 @@ Once VHV/Patient login is fixed:
 ## Technical Details
 
 ### Network Requests (Admin Login)
-\`\`\`
+```
 POST /api/auth/login
 Response: {
   "accessToken": "custom_auth_11111111-1111-1111-1111-111111111111_...",
@@ -285,15 +285,15 @@ Response: {
   "role": "admin",
   "userId": "11111111-1111-1111-1111-111111111111"
 }
-\`\`\`
+```
 
 ### Console Logs Captured
-\`\`\`
+```
 [LOG] Supabase API initialization: {supabaseUrl: Set, supabaseServiceKey: Not set}
 [LOG] API Configuration: {NEXT_PUBLIC_SUPABASE_URL: https://cmprakkctummmforgkyy.supabase.co, USE_MOCK_API: false, USE_SUPABASE: true}
 [LOG] [v0] Login successful: {email: admin@demo.com, role: ADMIN}
 [LOG] Admin Dashboard: Data loaded: {admins: 1, doctors: 2, vhvs: 2, patients: 4, totalUsers: 9}
-\`\`\`
+```
 
 ---
 

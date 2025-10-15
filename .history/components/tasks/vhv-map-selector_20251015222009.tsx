@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
 // Dynamic import to avoid SSR issues
-const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false })
+const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
 const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
 const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
 const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
@@ -179,7 +179,6 @@ export function VhvMapSelector({ vhvs, selectedDistricts, onToggleDistrict, sele
     const extras: DistrictMarker[] = []
 
     filteredGroups.forEach((group, key) => {
-      // group is { displayName: string; rawDistrict?: string; items: VhvLite[] }
       if (known.has(key)) return
       const items = group.items
       if (items.length === 0) return

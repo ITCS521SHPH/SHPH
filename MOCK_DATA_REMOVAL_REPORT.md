@@ -23,20 +23,20 @@
 - All API functions now exclusively use Supabase or throw appropriate errors
 
 **Before** (example):
-\`\`\`typescript
+```typescript
 if (USE_SUPABASE) {
   // Supabase code
 } else {
   return mockApi.patients.getById(id)
 }
-\`\`\`
+```
 
 **After**:
-\`\`\`typescript
+```typescript
 // Only Supabase code, no else block
 const response = await fetch(`/api/patients/${id}`)
 return response.json()
-\`\`\`
+```
 
 ### 2. lib/api-config.ts
 **Changes**:
@@ -45,12 +45,12 @@ return response.json()
 - Simplified URL resolution logic
 
 **Removed**:
-\`\`\`typescript
+```typescript
 const useMockApi = process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_API_URL;
 if (useMockApi) {
   return 'http://mock-api';
 }
-\`\`\`
+```
 
 ### 3. components/patient/patient-dashboard.tsx
 **Changes**:
@@ -77,12 +77,12 @@ if (useMockApi) {
 **Total: ~1,800 lines of mock code removed** ✅
 
 ### Build Status
-\`\`\`bash
+```bash
 $ npm run build
 ✓ Compiled successfully
 ✓ Generating static pages (32/32)
 Build completed successfully
-\`\`\`
+```
 
 ---
 
@@ -119,13 +119,13 @@ Build completed successfully
 
 ### Git Repository
 ✅ **Pushed to GitHub**:
-\`\`\`bash
+```bash
 commit 0358dae
 Author: miru4090s
 Date:   Current
 Message: Remove all mock data and use only Supabase
 Branch: TRASF → ITCS521SHPH/SHPH
-\`\`\`
+```
 
 ### Vercel Deployment Options
 
@@ -174,25 +174,25 @@ GitHub may eventually trigger webhook to Vercel, but timing uncertain
 ## Verification Steps (After Deployment)
 
 ### 1. Check Build Logs
-\`\`\`bash
+```bash
 # Should see no mock-related imports
 # Should compile successfully
-\`\`\`
+```
 
 ### 2. Test VHV Login
-\`\`\`javascript
+```javascript
 // Login as vhv@demo.com / vhv123
 document.querySelector('form').requestSubmit()
 // Should redirect to /vhv/dashboard
-\`\`\`
+```
 
 ### 3. Check Console
-\`\`\`javascript
+```javascript
 // Should NOT see:
 // "USE_MOCK_API: ..."
 // Should ONLY see:
 // "USE_SUPABASE: true"
-\`\`\`
+```
 
 ### 4. Verify API Calls
 - All `/api/*` endpoints should work
@@ -227,7 +227,7 @@ document.querySelector('form').requestSubmit()
 ## Database Schema (For Reference)
 
 ### Patients Table (Correct Schema)
-\`\`\`sql
+```sql
 patients (
   id uuid PRIMARY KEY,
   user_id uuid → auth.users(id),
@@ -239,7 +239,7 @@ patients (
   emergency_phone text,
   assigned_vhv_id uuid → vhvs(id)
 )
-\`\`\`
+```
 
 ### User Data Location
 - **Basic Info**: auth.users (email, full_name, phone)

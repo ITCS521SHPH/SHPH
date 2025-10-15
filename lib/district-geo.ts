@@ -46,3 +46,4 @@ export function colorForDistrict(district: string): string {
 
 // Circle radius (meters) to illustrate "area" when filtered
 export const AREA_RADIUS_M = 4000
+
