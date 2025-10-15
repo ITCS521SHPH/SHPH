@@ -1,6 +1,5 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
 // Avoid top-level import of 'leaflet' to prevent preview environments
 // from rewriting it into a blob URL. Prefer CDN window.L and fall back to require.
@@ -11,13 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
-// Dynamic import to avoid SSR issues
-const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false })
-const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
-const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
-const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
-const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
-const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
+// We'll use the global `L` provided by the Leaflet CDN (app/layout.tsx) and
+// render the map manually in a client-only fashion. This avoids importing
+// the `leaflet` package (which preview sometimes rewrites to esm.v0.dev).
 
 export type VhvLite = {
   id: string
@@ -73,6 +68,9 @@ export function VhvMapSelector({
   mode = "area",
 }: Props) {
   const mapRef = useRef<any>(null)
+  const mapElRef = useRef<HTMLDivElement | null>(null)
+  const layerGroupRef = useRef<any>(null)
+  const highlightLayerRef = useRef<any>(null)
   const [search, setSearch] = useState("")
   const [leafletLoaded, setLeafletLoaded] = useState(false)
 
@@ -165,6 +163,43 @@ export function VhvMapSelector({
       }
     }
   }, [filteredGroups, selectedDistricts, leafletLoaded])
+
+  // Initialize Leaflet map when CDN-provided L becomes available
+  useEffect(() => {
+    if (!leafletLoaded) return
+    if (!mapElRef.current) return
+    const L = (window as any).L
+    if (!L) return
+
+    if (!mapRef.current) {
+      const map = L.map(mapElRef.current, {
+        center: [center.lat, center.lng],
+        zoom: 12,
+        preferCanvas: true,
+      })
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map)
+      const lg = L.layerGroup().addTo(map)
+      const hl = L.layerGroup().addTo(map)
+      mapRef.current = map
+      layerGroupRef.current = lg
+      highlightLayerRef.current = hl
+    }
+
+    return () => {
+      try {
+        if (mapRef.current) {
+          mapRef.current.remove()
+          mapRef.current = null
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }, [leafletLoaded, center.lat, center.lng])
+
+  
 
   const districts = BANGKOK_DISTRICTS
 
@@ -273,123 +308,7 @@ export function VhvMapSelector({
       <Card>
         <CardContent className="p-0">
           <div className="h-[60vh] w-full">
-            <MapContainer
-              center={[center.lat, center.lng]}
-              zoom={12}
-              style={{ height: "100%", width: "100%" }}
-              ref={mapRef as any}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-
-              {allMarkers.map((marker) => {
-                const isSelectedArea = marker.canToggle ? selectedSet.has(marker.displayName) : false
-                const hasSelectedVHVs = marker.selectedCount > 0
-                const radius = isSelectedArea ? 10 : hasSelectedVHVs ? 8 : 6
-                const tooltipCount =
-                  marker.filteredCount !== marker.totalCount
-                    ? `${marker.filteredCount}/${marker.totalCount}`
-                    : `${marker.totalCount}`
-                const tooltipAction =
-                  marker.canToggle && marker.totalCount > 0 ? ` (click to ${isSelectedArea ? "remove" : "select"})` : ""
-                const pathOptions = {
-                  color: hasSelectedVHVs ? "#000" : marker.color,
-                  fillColor: marker.color,
-                  fillOpacity: isSelectedArea ? 0.9 : marker.filteredCount > 0 ? 0.6 : 0.3,
-                  weight: isSelectedArea || hasSelectedVHVs ? 2 : 1,
-                }
-
-                return (
-                  <CircleMarker
-                    key={`area-${marker.key}`}
-                    center={marker.anchor}
-                    radius={radius}
-                    pathOptions={pathOptions}
-                    eventHandlers={
-                      marker.canToggle
-                        ? {
-                            click: () => onToggleDistrict(marker.displayName),
-                          }
-                        : undefined
-                    }
-                  >
-                    <Tooltip direction="right" offset={[10, 0]} opacity={1} permanent={false}>
-                      <span>
-                        {marker.displayName} • {tooltipCount} VHV{marker.totalCount === 1 ? "" : "s"}
-                        {tooltipAction}
-                      </span>
-                    </Tooltip>
-                    <Popup>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-semibold leading-tight">{marker.displayName}</div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">
-                              {marker.filteredCount} VHV{marker.filteredCount === 1 ? "" : "s"}
-                            </Badge>
-                            {marker.selectedCount > 0 && (
-                              <Badge variant="secondary">{marker.selectedCount} selected</Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="max-h-64 overflow-y-auto pr-1">
-                          {marker.items.length === 0 ? (
-                            <div className="text-sm text-muted-foreground">No VHVs match the current filters.</div>
-                          ) : (
-                            <div className="space-y-2">
-                              {marker.items.map((v) => {
-                                const label = getVhvLabel(v)
-                                const isSelected = selectedVhvSet.has(v.id)
-                                return (
-                                  <div
-                                    key={v.id}
-                                    className={`rounded border p-2 ${isSelected ? "border-primary bg-primary/5" : "border-border bg-background/60"}`}
-                                  >
-                                    <div className="font-medium leading-tight">{label}</div>
-                                    {v.phone && <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>}
-                                    {v.email && <div className="text-sm text-muted-foreground">Email: {v.email}</div>}
-                                    {(v.district || marker.displayName) && (
-                                      <div className="text-sm">
-                                        Base area:{" "}
-                                        <span className="font-medium">{v.district || marker.displayName}</span>
-                                      </div>
-                                    )}
-                                    <div className="pt-2">
-                                      <Button
-                                        size="sm"
-                                        variant={isSelected ? "secondary" : "default"}
-                                        onClick={(event) => {
-                                          event.preventDefault()
-                                          event.stopPropagation()
-                                          onToggleVhv(v.id)
-                                        }}
-                                      >
-                                        {isSelected ? "Unselect" : "Select"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                )
-              })}
-
-              {selectedDistricts.map((d) => (
-                <Circle
-                  key={`hl-${d}`}
-                  center={getDistrictAnchor(d)}
-                  radius={AREA_RADIUS_M}
-                  pathOptions={{ color: colorForDistrict(d), weight: 2, fillOpacity: 0.04 }}
-                />
-              ))}
-            </MapContainer>
+            <div ref={mapElRef} style={{ height: "100%", width: "100%" }} />
           </div>
         </CardContent>
       </Card>
