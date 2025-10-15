@@ -11,16 +11,15 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { User, Calendar, FileText, Heart, Bell, MapPin, Clock } from "lucide-react"
-import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
+import { clearCurrentUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
-import { patientDataApi } from "@/lib/api"
-import type { Appointment, Visit, Medication, VitalSigns } from "@/lib/types"
+import { emergencyApi, patientDataApi } from "@/lib/api"
+import type { CreateEmergencyAlertRequest, Appointment, Visit, Medication, VitalSigns } from "@/lib/types"
 import { useApiData } from "@/lib/useApiData"
 
 export function PatientDashboard() {
   const router = useRouter()
-  const currentUser = getCurrentUserFromStorage()
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
   const [rescheduleForm, setRescheduleForm] = useState({
@@ -31,28 +30,26 @@ export function PatientDashboard() {
   })
 
   // 獲取當前患者 ID（這裡需要從認證系統獲取）
-  const isPlaceholderId = currentUser?.id && ["admin_id", "doctor_id", "vhv_id", "patient_id"].includes(currentUser.id)
-  const currentPatientId = !isPlaceholderId ? currentUser?.id || "" : ""
-  const hasValidPatientId = Boolean(currentPatientId)
+  const currentPatientId = "b3c45364-d9ae-4c79-9fc2-dc74bac8dd00" // 使用存在的患者 ID
 
   // 從數據庫獲取數據
   const { data: appointments, loading: appointmentsLoading, error: appointmentsError, refetch: refetchAppointments } = useApiData(
-    () => currentPatientId ? patientDataApi.getAppointments(currentPatientId) : Promise.resolve([]),
+    () => patientDataApi.getAppointments(currentPatientId),
     [currentPatientId]
   )
 
   const { data: visits, loading: visitsLoading, error: visitsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVisits(currentPatientId) : Promise.resolve([]),
+    () => patientDataApi.getVisits(currentPatientId),
     [currentPatientId]
   )
 
   const { data: medications, loading: medicationsLoading, error: medicationsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getMedications(currentPatientId) : Promise.resolve([]),
+    () => patientDataApi.getMedications(currentPatientId),
     [currentPatientId]
   )
 
   const { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVitalSigns(currentPatientId) : Promise.resolve([]),
+    () => patientDataApi.getVitalSigns(currentPatientId),
     [currentPatientId]
   )
 
@@ -82,6 +79,15 @@ export function PatientDashboard() {
     router.push("/")
   }
 
+  const handleEmergencyTriggered = async (alertData: CreateEmergencyAlertRequest) => {
+    try {
+      await emergencyApi.create(alertData)
+      console.log("[v0] Emergency alert successfully sent to healthcare providers")
+    } catch (error) {
+      console.error("[v0] Failed to send emergency alert:", error)
+      throw error // Re-throw to let the button component handle the error display
+    }
+  }
 
   const handleJoinCall = (appointmentId: string) => {
     // TODO: Implement video call functionality
@@ -111,21 +117,16 @@ export function PatientDashboard() {
       return
     }
 
-  console.log("Reschedule request data:", {
-    appointmentId: selectedAppointment.id,
-    patientId: currentPatientId,
-    requestedDate: rescheduleForm.newDate,
-    requestedTime: rescheduleForm.newTime,
-    reason: rescheduleForm.reason,
-    preferredAlternatives: rescheduleForm.preferredTime
-  })
+    console.log("Reschedule request data:", {
+      appointmentId: selectedAppointment.id,
+      patientId: currentPatientId,
+      requestedDate: rescheduleForm.newDate,
+      requestedTime: rescheduleForm.newTime,
+      reason: rescheduleForm.reason,
+      preferredAlternatives: rescheduleForm.preferredTime
+    })
 
-  if (!currentPatientId) {
-    alert("Unable to submit request because no patient record is linked to this account.")
-    return
-  }
-
-  try {
+    try {
       await patientDataApi.createRescheduleRequest({
         appointmentId: selectedAppointment.id,
         patientId: currentPatientId,
@@ -174,17 +175,11 @@ export function PatientDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {!hasValidPatientId && (
-          <p className="mb-2 text-sm text-red-600">
-            Patient record not found. Please contact support before using emergency services.
-          </p>
-        )}
         <div className="mb-8">
           <EmergencyButton
             patientId={currentPatientId}
             patientName="Sarah Johnson"
-
-            disabled={!hasValidPatientId}
+            onEmergencyTriggered={handleEmergencyTriggered}
           />
         </div>
 

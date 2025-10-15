@@ -37,46 +37,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, description, patientId, vhvId, doctorId, priority, dueDate, areaTask, areaDistrict } = body
+    const { title, description, patientId, vhvId, doctorId, priority, dueDate } = body
 
-    if (!title || !vhvId || !doctorId) {
+    if (!title || !patientId || !vhvId || !doctorId) {
       return NextResponse.json(
-        { error: 'title, vhvId, and doctorId are required' },
+        { error: 'title, patientId, vhvId, and doctorId are required' },
         { status: 400 }
       )
-    }
-
-    if (!areaTask && !patientId) {
-      return NextResponse.json(
-        { error: 'patientId is required for patient tasks' },
-        { status: 400 }
-      )
-    }
-
-    // For patient tasks, ensure assignment exists; for area tasks, skip
-    if (!areaTask && patientId) {
-      try {
-        await supabaseApi.assignPatient({
-          patientId,
-          vhvId,
-          doctorId,
-        } as any)
-      } catch (e) {
-        console.warn('POST /api/tasks: assignment upsert warning', e)
-      }
     }
 
     const result = await supabaseApi.createTask({
       title,
       description,
-      patientId: areaTask ? undefined : patientId,
+      patientId,
       vhvId,
       doctorId,
       priority,
-      dueDate: dueDate && `${dueDate}`.trim() !== '' ? dueDate : undefined,
-      areaTask: !!areaTask,
-      areaDistrict
-    } as any)
+      dueDate: dueDate && dueDate.trim() !== '' ? dueDate : undefined
+    })
 
     return NextResponse.json(result)
 

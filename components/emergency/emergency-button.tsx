@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, Phone, Zap, CheckCircle, Clock } from "lucide-react"
 import { EmergencyPriority, EmergencyStatus, type CreateEmergencyAlertRequest, type EmergencyAlert } from "@/lib/types"
 import { emergencyApi } from "@/lib/api"
@@ -33,6 +34,7 @@ export function EmergencyButton({
   disabled = false,
 }: EmergencyButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [priority, setPriority] = useState<EmergencyPriority>(EmergencyPriority.HIGH)
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -82,16 +84,12 @@ export function EmergencyButton({
 
   const handleEmergencyTrigger = async () => {
     if (isSubmitting || activeEmergency) return
-    if (!patientId) {
-      alert("Unable to send an emergency alert because no patient record is linked to this account.")
-      return
-    }
 
     setIsSubmitting(true)
 
     const emergencyAlert: CreateEmergencyAlertRequest = {
       patientId,
-      priority: EmergencyPriority.HIGH,
+      priority,
       description: description.trim() || undefined,
       location: location.trim() || undefined,
     }
@@ -110,8 +108,13 @@ export function EmergencyButton({
       // Reset form
       setDescription("")
       setLocation("")
+      setPriority(EmergencyPriority.HIGH)
+      
       // Close dialog after successful submission
       setIsOpen(false)
+
+      // Show success feedback
+      alert("Emergency alert sent! Help is on the way.")
     } catch (error) {
       console.error("[v0] Failed to trigger emergency alert:", error)
       alert("Failed to send emergency alert. Please try again or call emergency services directly.")
@@ -119,6 +122,7 @@ export function EmergencyButton({
       setIsSubmitting(false)
     }
   }
+
   const handleCancelEmergency = async () => {
     if (!activeEmergency) return
 
@@ -132,6 +136,7 @@ export function EmergencyButton({
       // Reset form state
       setDescription("")
       setLocation("")
+      setPriority(EmergencyPriority.HIGH)
       
       console.log("[v0] Emergency alert cancelled successfully")
       
@@ -309,6 +314,20 @@ export function EmergencyButton({
 
                 <div className="space-y-4 py-4">
                   <div>
+                    <label className="text-sm font-medium mb-2 block">Emergency Priority</label>
+                    <Select value={priority} onValueChange={(value) => setPriority(value as EmergencyPriority)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EmergencyPriority.CRITICAL}>Critical - Life threatening</SelectItem>
+                        <SelectItem value={EmergencyPriority.HIGH}>High - Urgent medical attention needed</SelectItem>
+                        <SelectItem value={EmergencyPriority.MEDIUM}>Medium - Medical assistance needed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <label className="text-sm font-medium mb-2 block">What's happening? (Optional)</label>
                     <Textarea
                       placeholder="Describe your symptoms or situation..."
@@ -330,10 +349,10 @@ export function EmergencyButton({
                 </div>
 
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isSubmitting || !patientId || disabled}>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleEmergencyTrigger}
-                    disabled={isSubmitting || !patientId || disabled}
+                    disabled={isSubmitting}
                     className="bg-red-600 hover:bg-red-700"
                   >
                     {isSubmitting ? "Sending Alert..." : "Send Emergency Alert"}

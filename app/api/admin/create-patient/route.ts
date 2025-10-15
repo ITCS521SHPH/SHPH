@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
       phone, 
       nationalId, 
       email, 
-      password,
-      district,
+      password 
     } = body
 
     // Validate required fields
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
         dob,
         address,
         phone,
-        district: district || null,
         national_id: nationalId,
         is_active: true
       })
@@ -94,7 +92,6 @@ export async function POST(request: NextRequest) {
         address: patientData.address,
         phone: patientData.phone,
         nationalId: patientData.national_id,
-        district: patientData.district,
         email
       }
     })

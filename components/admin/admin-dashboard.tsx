@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -21,7 +20,6 @@ import { adminApi } from "@/lib/api"
 import { clearCurrentUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyAlertManagement } from "@/components/emergency/emergency-alert-management"
-import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 
 export function AdminDashboard() {
   const router = useRouter()
@@ -39,8 +37,6 @@ export function AdminDashboard() {
     licenseNumber: "",
     specialization: "",
     hospitalAffiliation: "",
-    phoneNumber: "",
-    district: "",
   })
 
   const [vhvForm, setVhvForm] = useState({
@@ -188,14 +184,8 @@ export function AdminDashboard() {
       console.log("Creating doctor:", doctorForm)
 
       // Validate required fields
-      if (
-        !doctorForm.email ||
-        !doctorForm.password ||
-        !doctorForm.firstName ||
-        !doctorForm.lastName ||
-        !doctorForm.district
-      ) {
-        alert("Please fill in all required fields, including assigned district")
+      if (!doctorForm.email || !doctorForm.password || !doctorForm.firstName || !doctorForm.lastName) {
+        alert("Please fill in all required fields")
         return
       }
 
@@ -215,8 +205,6 @@ export function AdminDashboard() {
         licenseNumber: "",
         specialization: "",
         hospitalAffiliation: "",
-        phoneNumber: "",
-        district: "",
       })
 
       // Reload data to show new doctor
@@ -367,12 +355,6 @@ export function AdminDashboard() {
                             user.email.split("@")[0]}
                         </p>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
-                        {user.role === "DOCTOR" && user.district && (
-                          <p className="text-xs text-muted-foreground">District: {user.district}</p>
-                        )}
-                        {user.role === "DOCTOR" && user.phone && (
-                          <p className="text-xs text-muted-foreground">Phone: {user.phone}</p>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
@@ -470,32 +452,6 @@ export function AdminDashboard() {
                           id="hospitalAffiliation"
                           value={doctorForm.hospitalAffiliation}
                           onChange={(e) => setDoctorForm((prev) => ({ ...prev, hospitalAffiliation: e.target.value }))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="doctorDistrict">Assigned District</Label>
-                        <Select
-                          value={doctorForm.district}
-                          onValueChange={(value) => setDoctorForm((prev) => ({ ...prev, district: value }))}
-                        >
-                          <SelectTrigger id="doctorDistrict">
-                            <SelectValue placeholder="Select Bangkok district" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-64 overflow-y-auto">
-                            {BANGKOK_DISTRICTS.map((district) => (
-                              <SelectItem key={district} value={district}>
-                                {district}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="doctorPhone">Contact Phone (Optional)</Label>
-                        <Input
-                          id="doctorPhone"
-                          value={doctorForm.phoneNumber}
-                          onChange={(e) => setDoctorForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
                         />
                       </div>
                     </div>

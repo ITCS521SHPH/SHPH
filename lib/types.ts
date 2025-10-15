@@ -82,7 +82,6 @@ export interface Patient extends BaseEntity {
   dob: Date
   phone?: string
   address?: string
-  district?: string
   medicalCondition?: string
   lastVisit?: Date
 }
@@ -92,34 +91,6 @@ export interface HealthWorker extends BaseEntity {
   userId: string
   type: HealthWorkerType
   licenseNumber?: string
-}
-
-export interface DoctorProfile extends BaseEntity {
-  email: string
-  firstName: string
-  lastName: string
-  name: string
-  phone?: string | null
-  district?: string | null
-  licenseNumber: string
-  specialization?: string | null
-  experienceYears?: number | null
-  status: 'active' | 'inactive'
-  isActive: boolean
-}
-
-export interface VHVProfile extends BaseEntity {
-  email: string
-  firstName: string
-  lastName: string
-  name: string
-  phone?: string | null
-  district?: string | null
-  licenseNumber: string
-  specialization?: string | null
-  experienceYears?: number | null
-  status: 'active' | 'inactive'
-  isActive: boolean
 }
 
 // Task interface for VHV assignments
@@ -284,7 +255,6 @@ export interface CreatePatient {
   dob: string
   phone?: string
   address?: string
-  district?: string
   email?: string
   password?: string
   medicalCondition?: string
@@ -303,8 +273,6 @@ export interface CreateDoctorRequest {
   licenseNumber?: string
   specialization?: string
   hospitalAffiliation?: string
-  district: string
-  phoneNumber?: string
 }
 
 export interface CreateVHVRequest {
@@ -317,43 +285,13 @@ export interface CreateVHVRequest {
   trainingLevel?: string
 }
 
-export interface UpdateVHVProfileRequest {
-  phone?: string | null
-  district?: string | null
-}
-
 // DTOs for task management
 export interface CreateTaskRequest {
   title: string
   description: string
-  patientId?: string
+  patientId: string
   vhvId: string
   doctorId: string
-  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
-  dueDate?: string
-  areaTask?: boolean
-  areaDistrict?: string
-}
-
-// Area task types (district-based)
-export interface AreaTask extends BaseEntity {
-  title: string
-  description: string
-  doctorId: string
-  vhvId: string
-  district?: string
-  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
-  status: "pending" | "in_progress" | "completed" | "cancelled"
-  dueDate?: Date
-  completedAt?: Date
-}
-
-export interface CreateAreaTaskRequest {
-  title: string
-  description: string
-  vhvId: string
-  doctorId: string
-  district?: string
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   dueDate?: string
 }

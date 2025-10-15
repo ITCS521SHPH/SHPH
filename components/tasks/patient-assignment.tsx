@@ -17,13 +17,9 @@ import { getCurrentUserFromStorage } from "@/lib/auth"
 interface PatientAssignmentProps {
   doctorId?: string
   onAssignmentComplete?: () => void
-  hideCurrentAssignments?: boolean
-  hideUnassigned?: boolean
-  assignedSearch?: string
-  unassignedSearch?: string
 }
 
-export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentAssignments, hideUnassigned, assignedSearch = "", unassignedSearch = "" }: PatientAssignmentProps) {
+export function PatientAssignment({ doctorId, onAssignmentComplete }: PatientAssignmentProps) {
   const currentUser = getCurrentUserFromStorage()
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
@@ -62,22 +58,6 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
   }, [doctorId, currentUser?.id])
 
   const { data: assignments, refetch: refetchAssignments } = useApiData(getAssignments, [])
-
-  // Only show real patient assignments in the top list (exclude area placeholders)
-  const isAreaPlaceholder = (patient: any) => {
-    if (!patient) return false
-    const fn = (patient.firstName || patient.first_name || '').toString().trim()
-    return fn === 'Area Task' || fn === 'Area'
-  }
-  const displayAssignments = (assignments || [])
-    .filter((a: any) => !isAreaPlaceholder(a.patient))
-    .filter((a: any) => {
-      const q = assignedSearch.trim().toLowerCase()
-      if (!q) return true
-      const name = `${a.patient?.firstName || ''} ${a.patient?.lastName || ''}`.toLowerCase()
-      const vhv = (a.vhv?.name || a.vhv?.email || '').toLowerCase()
-      return name.includes(q) || vhv.includes(q)
-    })
 
   const handleOpenAssignDialog = (patient: any) => {
     setSelectedPatient(patient)
@@ -158,115 +138,104 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
   return (
     <div className="space-y-6">
       {/* Current Assignments */}
-      {!hideCurrentAssignments && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Patient Assignments</CardTitle>
-            <CardDescription>Patients currently assigned to VHVs</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {displayAssignments?.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground">No patients assigned yet</div>
-              ) : (
-                displayAssignments?.map((assignment: any) => (
-                  <Card key={assignment.id} className="border-l-4 border-l-green-500">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Patient Assignments</CardTitle>
+          <CardDescription>Patients currently assigned to VHVs</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {assignments?.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">No patients assigned yet</div>
+            ) : (
+              assignments?.map((assignment: any) => (
+                <Card key={assignment.id} className="border-l-4 border-l-green-500">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">
+                            {assignment.patient?.firstName} {assignment.patient?.lastName}
+                          </h3>
+                          <Badge variant="default">{assignment.status}</Badge>
+                          {assignment.tasks && assignment.tasks.length > 0 && (
+                            <Badge variant="outline">
+                              {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Assigned to: {assignment.vhv?.name || assignment.vhv?.email?.split("@")[0] || "Unknown VHV"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    {assignment.tasks && assignment.tasks.length > 0 && (
+                      <div className="mt-3 pt-3 border-t">
+                        <h4 className="font-medium text-sm mb-2">Assigned Tasks:</h4>
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">
-                              {assignment.patient?.firstName} {assignment.patient?.lastName}
-                            </h3>
-                            <Badge variant="default">{assignment.status}</Badge>
-                            {assignment.tasks && assignment.tasks.length > 0 && (
-                              <Badge variant="outline">
-                                {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            Assigned to: {assignment.vhv?.name || assignment.vhv?.email?.split("@")[0] || "Unknown VHV"}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
-                          </p>
+                          {assignment.tasks.map((task: any) => (
+                            <div key={task.id} className="flex items-center justify-between text-sm">
+                              <span>{task.title}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={getPriorityColor(task.priority)} className="text-xs">
+                                  {task.priority}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {task.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      {assignment.tasks && assignment.tasks.length > 0 && (
-                        <div className="mt-3 pt-3 border-t">
-                          <h4 className="font-medium text-sm mb-2">Assigned Tasks:</h4>
-                          <div className="space-y-1">
-                            {assignment.tasks.map((task: any) => (
-                              <div key={task.id} className="flex items-center justify-between text-sm">
-                                <span>{task.title}</span>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={getPriorityColor(task.priority)} className="text-xs">
-                                    {task.priority}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs">
-                                    {task.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Unassigned Patients */}
-      {!hideUnassigned && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Unassigned Patients</CardTitle>
-            <CardDescription>Patients available for assignment to VHVs</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {patientsLoading ? (
-                <div className="text-center py-4">Loading patients...</div>
-              ) : unassignedPatients.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground">All patients are assigned</div>
-              ) : (
-                unassignedPatients
-                  .filter((p: any) => {
-                    const q = unassignedSearch.trim().toLowerCase()
-                    if (!q) return true
-                    const name = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase()
-                    return name.includes(q) || (p.nationalId || '').toLowerCase().includes(q)
-                  })
-                  .map((patient: any) => (
-                  <Card key={patient.id} className="border-l-4 border-l-orange-500">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">
-                            {patient.firstName} {patient.lastName}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
-                          <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
-                        </div>
-                        <Button onClick={() => handleOpenAssignDialog(patient)}>
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Assign to VHV
-                        </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Unassigned Patients</CardTitle>
+          <CardDescription>Patients available for assignment to VHVs</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {patientsLoading ? (
+              <div className="text-center py-4">Loading patients...</div>
+            ) : unassignedPatients.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">All patients are assigned</div>
+            ) : (
+              unassignedPatients.map((patient: any) => (
+                <Card key={patient.id} className="border-l-4 border-l-orange-500">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold">
+                          {patient.firstName} {patient.lastName}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
+                        <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                      <Button onClick={() => handleOpenAssignDialog(patient)}>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Assign to VHV
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Assignment Dialog */}
       <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
