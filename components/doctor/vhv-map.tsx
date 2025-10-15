@@ -19,16 +19,6 @@ const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as 
 const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
 const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
 
-// Import Leaflet styles only on client
-if (typeof window !== "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require("leaflet/dist/leaflet.css")
-  try {
-    // Ensure Leaflet is available on window for bounds calculations
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ;(window as any).L = require("leaflet")
-  } catch {}
-}
 
 type VHV = {
   id: string
