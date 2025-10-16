@@ -513,5 +513,3 @@ BEGIN
 END;
 $function$
 ;
-
-
