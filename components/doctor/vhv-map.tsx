@@ -17,17 +17,9 @@ const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as 
 const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
 const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
 
-// Import Leaflet styles only on client
-if (typeof window !== "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require("leaflet/dist/leaflet.css")
-  try {
-    // Ensure Leaflet is available on window for bounds calculations
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ;(window as any).L = require("leaflet")
-  } catch {}
-}
-
+// ---------------------------
+// Types
+// ---------------------------
 type VHV = {
   id: string
   firstName?: string
@@ -43,6 +35,9 @@ type Props = {
   vhvs: VHV[]
 }
 
+// ---------------------------
+// Helpers
+// ---------------------------
 function getVhvLabel(v: VHV) {
   if (v.name && v.name.trim().length > 0) {
     return v.name
@@ -56,11 +51,29 @@ function getVhvLabel(v: VHV) {
   return "VHV"
 }
 
+// ---------------------------
+// Main Component
+// ---------------------------
 export function VhvMap({ vhvs }: Props) {
   const mapRef = useRef<any>(null)
   const [search, setSearch] = useState("")
   const ALL_DISTRICTS = "__ALL__"
   const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS)
+
+  // ✅ Dynamically import Leaflet only on client
+  useEffect(() => {
+    (async () => {
+      if (typeof window !== "undefined") {
+        try {
+          await import("leaflet/dist/leaflet.css")
+          const L = await import("leaflet")
+          ;(window as any).L = L
+        } catch (err) {
+          console.warn("Failed to load Leaflet dynamically", err)
+        }
+      }
+    })()
+  }, [])
 
   const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), [])
 
@@ -127,30 +140,42 @@ export function VhvMap({ vhvs }: Props) {
     } catch {}
   }, [districtGroups])
 
+  // ---------------------------
+  // Render
+  // ---------------------------
   return (
     <div className="space-y-3">
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
         <div className="flex-1">
-          <Input placeholder="Search by name, email or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search by name, email or phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+
         <div className="w-full md:w-64">
           <Select value={districtFilter} onValueChange={setDistrictFilter}>
             <SelectTrigger aria-label="Filter by district">
               <SelectValue placeholder="Filter by district" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_DISTRICTS}>All districts
-              </SelectItem>
+              <SelectItem value={ALL_DISTRICTS}>All districts</SelectItem>
               {BANGKOK_DISTRICTS.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
         <div className="hidden md:flex items-center gap-2 flex-wrap">
           <Badge variant="outline">VHVs: {filtered.length}</Badge>
           {districtFilter !== ALL_DISTRICTS && (
-            <Badge style={{ backgroundColor: colorForDistrict(districtFilter), color: "#fff" }}>{districtFilter}</Badge>
+            <Badge style={{ backgroundColor: colorForDistrict(districtFilter), color: "#fff" }}>
+              {districtFilter}
+            </Badge>
           )}
         </div>
       </div>
@@ -173,7 +198,11 @@ export function VhvMap({ vhvs }: Props) {
                 <Circle
                   center={getDistrictAnchor(districtFilter)}
                   radius={AREA_RADIUS_M}
-                  pathOptions={{ color: colorForDistrict(districtFilter), weight: 2, fillOpacity: 0.05 }}
+                  pathOptions={{
+                    color: colorForDistrict(districtFilter),
+                    weight: 2,
+                    fillOpacity: 0.05,
+                  }}
                 />
               )}
 
@@ -184,7 +213,11 @@ export function VhvMap({ vhvs }: Props) {
                     key={group.key}
                     center={group.anchor}
                     radius={10}
-                    pathOptions={{ color: group.color, fillColor: group.color, fillOpacity: 0.85 }}
+                    pathOptions={{
+                      color: group.color,
+                      fillColor: group.color,
+                      fillOpacity: 0.85,
+                    }}
                   >
                     <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
                       <span>{tooltipLabel}</span>
@@ -193,21 +226,34 @@ export function VhvMap({ vhvs }: Props) {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-semibold leading-tight">{group.displayName}</div>
-                          <Badge variant="outline">{group.items.length} VHV{group.items.length > 1 ? "s" : ""}</Badge>
+                          <Badge variant="outline">
+                            {group.items.length} VHV{group.items.length > 1 ? "s" : ""}
+                          </Badge>
                         </div>
                         <div className="max-h-64 overflow-y-auto pr-1">
                           <div className="space-y-2">
                             {group.items.map((v) => (
                               <div key={v.id} className="rounded border border-border bg-background/60 p-2">
                                 <div className="font-medium leading-tight">{getVhvLabel(v)}</div>
-                                {v.phone && <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>}
-                                {v.email && <div className="text-sm text-muted-foreground">Email: {v.email}</div>}
+                                {v.phone && (
+                                  <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>
+                                )}
+                                {v.email && (
+                                  <div className="text-sm text-muted-foreground">Email: {v.email}</div>
+                                )}
                                 {(v.district || group.displayName) && (
                                   <div className="text-sm">
-                                    Base area: <span className="font-medium">{v.district || group.displayName}</span>
+                                    Base area:{" "}
+                                    <span className="font-medium">
+                                      {v.district || group.displayName}
+                                    </span>
                                   </div>
                                 )}
-                                {v.status && <div className="text-xs text-muted-foreground">Status: {v.status}</div>}
+                                {v.status && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Status: {v.status}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
