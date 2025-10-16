@@ -1,144 +1,194 @@
-"use client"
+"use client";
 
-import dynamic from "next/dynamic"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getDistrictAnchor,
+  colorForDistrict,
+  AREA_RADIUS_M,
+} from "@/lib/district-geo";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 // React Leaflet components via dynamic import to avoid SSR issues
-const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
-const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
-const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
-const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
-const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
-const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
+const MapContainer: any = dynamic(
+  async () => (await import("react-leaflet")).MapContainer as any,
+  { ssr: false }
+);
+const TileLayer: any = dynamic(
+  async () => (await import("react-leaflet")).TileLayer as any,
+  { ssr: false }
+);
+const CircleMarker: any = dynamic(
+  async () => (await import("react-leaflet")).CircleMarker as any,
+  { ssr: false }
+);
+const Popup: any = dynamic(
+  async () => (await import("react-leaflet")).Popup as any,
+  { ssr: false }
+);
+const Tooltip: any = dynamic(
+  async () => (await import("react-leaflet")).Tooltip as any,
+  { ssr: false }
+);
+const Circle: any = dynamic(
+  async () => (await import("react-leaflet")).Circle as any,
+  { ssr: false }
+);
 
 // ---------------------------
 // Types
 // ---------------------------
 type VHV = {
-  id: string
-  firstName?: string
-  lastName?: string
-  name?: string
-  email?: string
-  phone?: string
-  district?: string
-  status?: string
-}
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  district?: string;
+  status?: string;
+};
 
 type Props = {
-  vhvs: VHV[]
-}
+  vhvs: VHV[];
+};
 
 // ---------------------------
 // Helpers
 // ---------------------------
 function getVhvLabel(v: VHV) {
   if (v.name && v.name.trim().length > 0) {
-    return v.name
+    return v.name;
   }
-  const combined = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim()
+  const combined = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
   if (combined) {
-    return combined
+    return combined;
   }
-  if (v.email) return v.email
-  if (v.phone) return v.phone
-  return "VHV"
+  if (v.email) return v.email;
+  if (v.phone) return v.phone;
+  return "VHV";
 }
 
 // ---------------------------
 // Main Component
 // ---------------------------
 export function VhvMap({ vhvs }: Props) {
-  const mapRef = useRef<any>(null)
-  const [search, setSearch] = useState("")
-  const ALL_DISTRICTS = "__ALL__"
-  const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS)
+  const mapRef = useRef<any>(null);
+  const [search, setSearch] = useState("");
+  const ALL_DISTRICTS = "__ALL__";
+  const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS);
 
   // ✅ Dynamically import Leaflet only on client
   useEffect(() => {
     (async () => {
       if (typeof window !== "undefined") {
         try {
-          await import("leaflet/dist/leaflet.css")
-          const L = await import("leaflet")
-          ;(window as any).L = L
+          await import("leaflet/dist/leaflet.css");
+          const L = await import("leaflet");
+          (window as any).L = L;
         } catch (err) {
-          console.warn("Failed to load Leaflet dynamically", err)
+          console.warn("Failed to load Leaflet dynamically", err);
         }
       }
-    })()
-  }, [])
+    })();
+  }, []);
 
-  const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), [])
+  const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), []);
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase()
+    const term = search.trim().toLowerCase();
     return (vhvs || []).filter((v) => {
-      const inDistrict = districtFilter === ALL_DISTRICTS ? true : (v.district || "") === districtFilter
-      if (!inDistrict) return false
-      if (!term) return true
-      const full = `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${v.email ?? ""} ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase()
-      return full.includes(term)
-    })
-  }, [vhvs, search, districtFilter])
+      const inDistrict =
+        districtFilter === ALL_DISTRICTS
+          ? true
+          : (v.district || "") === districtFilter;
+      if (!inDistrict) return false;
+      if (!term) return true;
+      const full = `${v.firstName ?? ""} ${v.lastName ?? ""} ${v.name ?? ""} ${
+        v.email ?? ""
+      } ${v.phone ?? ""} ${v.district ?? ""}`.toLowerCase();
+      return full.includes(term);
+    });
+  }, [vhvs, search, districtFilter]);
 
   const districtGroups = useMemo(() => {
     const map = new Map<
       string,
       {
-        displayName: string
-        rawDistrict: string | undefined
-        items: VHV[]
+        displayName: string;
+        rawDistrict: string | undefined;
+        items: VHV[];
       }
-    >()
+    >();
 
     filtered.forEach((vhv) => {
-      const rawDistrict = vhv.district?.trim()
-      const displayName = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "Unknown district"
-      const key = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "__UNKNOWN__"
-      const existing = map.get(key)
+      const rawDistrict = vhv.district?.trim();
+      const displayName =
+        rawDistrict && rawDistrict.length > 0
+          ? rawDistrict
+          : "Unknown district";
+      const key =
+        rawDistrict && rawDistrict.length > 0 ? rawDistrict : "__UNKNOWN__";
+      const existing = map.get(key);
       if (existing) {
-        existing.items.push(vhv)
+        existing.items.push(vhv);
       } else {
-        map.set(key, { displayName, rawDistrict, items: [vhv] })
+        map.set(key, { displayName, rawDistrict, items: [vhv] });
       }
-    })
+    });
 
     return Array.from(map.entries()).map(([key, value]) => {
-      const anchor = getDistrictAnchor(value.rawDistrict ?? "")
-      const colorSource = value.rawDistrict && value.rawDistrict.length > 0 ? value.rawDistrict : value.displayName
+      const anchor = getDistrictAnchor(value.rawDistrict ?? "");
+      const colorSource =
+        value.rawDistrict && value.rawDistrict.length > 0
+          ? value.rawDistrict
+          : value.displayName;
       return {
         key,
         displayName: value.displayName,
         color: colorForDistrict(colorSource),
         anchor,
         items: value.items,
-      }
-    })
-  }, [filtered])
+      };
+    });
+  }, [filtered]);
 
   // Fit bounds to filtered markers
   useEffect(() => {
-    const m = mapRef.current
-    if (!m) return
-    if (districtGroups.length === 0) return
-    const latlngs = districtGroups.map((group) => group.anchor)
+    const m = mapRef.current;
+    if (!m) return;
+    if (districtGroups.length === 0) return;
+    const latlngs = districtGroups.map((group) => group.anchor);
     try {
-      const L = (window as any).L
+      const L = (window as any).L;
       if (L && Array.isArray(latlngs) && latlngs.length > 0) {
-        const bounds = new L.LatLngBounds(latlngs)
+        const bounds = new L.LatLngBounds(latlngs);
         if (bounds && m.fitBounds) {
-          m.fitBounds(bounds.pad(0.2), { animate: true })
+          m.fitBounds(bounds.pad(0.2), { animate: true });
         }
       }
     } catch {}
-  }, [districtGroups])
+  }, [districtGroups]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && map.invalidateSize) {
+      // wait a little for styles to fully apply before re-rendering tiles
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 800);
+    }
+  }, []);
 
   // ---------------------------
   // Render
@@ -173,7 +223,12 @@ export function VhvMap({ vhvs }: Props) {
         <div className="hidden md:flex items-center gap-2 flex-wrap">
           <Badge variant="outline">VHVs: {filtered.length}</Badge>
           {districtFilter !== ALL_DISTRICTS && (
-            <Badge style={{ backgroundColor: colorForDistrict(districtFilter), color: "#fff" }}>
+            <Badge
+              style={{
+                backgroundColor: colorForDistrict(districtFilter),
+                color: "#fff",
+              }}
+            >
               {districtFilter}
             </Badge>
           )}
@@ -207,7 +262,7 @@ export function VhvMap({ vhvs }: Props) {
               )}
 
               {districtGroups.map((group) => {
-                const tooltipLabel = `${group.displayName} (${group.items.length})`
+                const tooltipLabel = `${group.displayName} (${group.items.length})`;
                 return (
                   <CircleMarker
                     key={group.key}
@@ -219,27 +274,44 @@ export function VhvMap({ vhvs }: Props) {
                       fillOpacity: 0.85,
                     }}
                   >
-                    <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+                    <Tooltip
+                      direction="top"
+                      offset={[0, -10]}
+                      opacity={1}
+                      permanent={false}
+                    >
                       <span>{tooltipLabel}</span>
                     </Tooltip>
                     <Popup>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-semibold leading-tight">{group.displayName}</div>
+                          <div className="font-semibold leading-tight">
+                            {group.displayName}
+                          </div>
                           <Badge variant="outline">
-                            {group.items.length} VHV{group.items.length > 1 ? "s" : ""}
+                            {group.items.length} VHV
+                            {group.items.length > 1 ? "s" : ""}
                           </Badge>
                         </div>
                         <div className="max-h-64 overflow-y-auto pr-1">
                           <div className="space-y-2">
                             {group.items.map((v) => (
-                              <div key={v.id} className="rounded border border-border bg-background/60 p-2">
-                                <div className="font-medium leading-tight">{getVhvLabel(v)}</div>
+                              <div
+                                key={v.id}
+                                className="rounded border border-border bg-background/60 p-2"
+                              >
+                                <div className="font-medium leading-tight">
+                                  {getVhvLabel(v)}
+                                </div>
                                 {v.phone && (
-                                  <div className="text-sm text-muted-foreground">Phone: {v.phone}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Phone: {v.phone}
+                                  </div>
                                 )}
                                 {v.email && (
-                                  <div className="text-sm text-muted-foreground">Email: {v.email}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Email: {v.email}
+                                  </div>
                                 )}
                                 {(v.district || group.displayName) && (
                                   <div className="text-sm">
@@ -261,14 +333,14 @@ export function VhvMap({ vhvs }: Props) {
                       </div>
                     </Popup>
                   </CircleMarker>
-                )
+                );
               })}
             </MapContainer>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
-export default VhvMap
+export default VhvMap;
