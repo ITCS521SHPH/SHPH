@@ -88,20 +88,20 @@ export function VhvMap({ vhvs }: Props) {
   const ALL_DISTRICTS = "__ALL__";
   const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS);
 
-  // ✅ Dynamically import Leaflet only on client
-  useEffect(() => {
-    (async () => {
-      if (typeof window !== "undefined") {
-        try {
-          await import("leaflet/dist/leaflet.css");
-          const L = await import("leaflet");
-          (window as any).L = L;
-        } catch (err) {
-          console.warn("Failed to load Leaflet dynamically", err);
-        }
-      }
-    })();
-  }, []);
+  // Dynamically import Leaflet only on client
+  // useEffect(() => {
+  //   (async () => {
+  //     if (typeof window !== "undefined") {
+  //       try {
+  //         await import("leaflet/dist/leaflet.css");
+  //         const L = await import("leaflet");
+  //         (window as any).L = L;
+  //       } catch (err) {
+  //         console.warn("Failed to load Leaflet dynamically", err);
+  //       }
+  //     }
+  //   })();
+  // }, []);
 
   const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), []);
 

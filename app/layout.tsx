@@ -19,12 +19,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* ✅ Load Leaflet CSS globally to fix MIME issue */}
+        {/* ✅ Load Leaflet CSS globally */}
         <link
-          rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha512-sA+gLD3fYlr4dyyW2i6v4vQZ+6U6eZQYpsNhn+U7b+8W7+P3a9Ork7HkJtRz/NbVGWw3V5R3LyiZ1c6h1zWgMg=="
-          crossOrigin=""
+          rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossOrigin="" 
+        />
+
+        {/* ✅ Load Leaflet JS globally (fixes broken map tiles in v0.dev) */}
+        <script
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossOrigin=""
         />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
