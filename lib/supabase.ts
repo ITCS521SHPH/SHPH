@@ -69,6 +69,100 @@ export interface Database {
           updated_at?: string
         }
       }
+      doctors: {
+        Row: {
+          id: string
+          email: string
+          password_hash: string
+          first_name: string
+          last_name: string
+          phone: string | null
+          district: string | null
+          license_number: string
+          specialization: string | null
+          experience_years: number | null
+          is_active: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          password_hash: string
+          first_name: string
+          last_name: string
+          phone?: string | null
+          district?: string | null
+          license_number: string
+          specialization?: string | null
+          experience_years?: number | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          password_hash?: string
+          first_name?: string
+          last_name?: string
+          phone?: string | null
+          district?: string | null
+          license_number?: string
+          specialization?: string | null
+          experience_years?: number | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      vhvs: {
+        Row: {
+          id: string
+          email: string
+          password_hash: string | null
+          first_name: string
+          last_name: string
+          phone: string | null
+          district: string | null
+          license_number: string
+          specialization: string | null
+          experience_years: number | null
+          is_active: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          password_hash?: string | null
+          first_name: string
+          last_name: string
+          phone?: string | null
+          district?: string | null
+          license_number: string
+          specialization?: string | null
+          experience_years?: number | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          password_hash?: string | null
+          first_name?: string
+          last_name?: string
+          phone?: string | null
+          district?: string | null
+          license_number?: string
+          specialization?: string | null
+          experience_years?: number | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       patients: {
         Row: {
           id: string
@@ -81,6 +175,7 @@ export interface Database {
           dob: string
           phone: string | null
           address: string | null
+          district: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           medical_history: string | null
@@ -100,6 +195,7 @@ export interface Database {
           dob: string
           phone?: string | null
           address?: string | null
+          district?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           medical_history?: string | null
@@ -119,6 +215,7 @@ export interface Database {
           dob?: string
           phone?: string | null
           address?: string | null
+          district?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           medical_history?: string | null
