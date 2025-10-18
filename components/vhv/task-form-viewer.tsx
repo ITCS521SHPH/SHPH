@@ -3,228 +3,212 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle, Clock, AlertCircle, FileText } from "lucide-react"
-import { tasksApi } from "@/lib/api"
+import { Textarea } from "@/components/ui/textarea"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { CheckCircle, FileText } from "lucide-react"
 
-type Task = {
+type FormField = {
   id: string
+  type: "text" | "textarea" | "radio" | "checkbox" | "number" | "date"
+  label: string
+  required?: boolean
+  options?: string[]
+  placeholder?: string
+}
+
+type TaskFormSchema = {
   title: string
-  description: string
-  status: string
-  priority: string
-  dueDate: string
-  patientId?: string
-  doctorId?: string
-  completedAt?: string
-  patient?: {
-    firstName: string
-    lastName: string
-  }
+  description?: string
+  fields: FormField[]
 }
 
 type Props = {
-  tasks: Task[]
-  onTaskUpdate: () => void
+  task: any
+  onSubmit: (formData: Record<string, any>) => Promise<void>
+  onCancel: () => void
 }
 
-export function TaskFormViewer({ tasks, onTaskUpdate }: Props) {
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [completionNotes, setCompletionNotes] = useState("")
+export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
+  const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleCompleteTask = async () => {
-    if (!selectedTask) return
+  // Extract form schema from task description
+  const extractFormSchema = (description: string): TaskFormSchema | null => {
+    try {
+      const match = description.match(/<FORM_SCHEMA>([\s\S]*?)<\/FORM_SCHEMA>/)
+      if (match && match[1]) {
+        return JSON.parse(match[1].trim())
+      }
+    } catch (error) {
+      console.error("Failed to parse form schema:", error)
+    }
+    return null
+  }
+
+  const formSchema = extractFormSchema(task.description || "")
+  const cleanDescription = (task.description || "").replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "").trim()
+
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldId]: value,
+    }))
+  }
+
+  const handleSubmit = async () => {
+    if (!formSchema) return
+
+    // Validate required fields
+    const missingFields = formSchema.fields
+      .filter((field) => field.required && !formData[field.id])
+      .map((field) => field.label)
+
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(", ")}`)
+      return
+    }
 
     setIsSubmitting(true)
     try {
-      await tasksApi.update(selectedTask.id, {
-        status: "COMPLETED",
-        completedAt: new Date().toISOString(),
-        notes: completionNotes,
-      })
-
-      alert("Task completed successfully!")
-      setCompletionNotes("")
-      setSelectedTask(null)
-      onTaskUpdate()
+      await onSubmit(formData)
     } catch (error) {
-      console.error("Failed to complete task:", error)
-      alert("Failed to complete task. Please try again.")
+      console.error("Failed to submit form:", error)
+      alert("Failed to submit form. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority?.toUpperCase()) {
-      case "HIGH":
-        return "bg-red-500"
-      case "MEDIUM":
-        return "bg-orange-500"
-      case "LOW":
-        return "bg-blue-500"
-      default:
-        return "bg-gray-500"
-    }
+  if (!formSchema) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{task.title}</CardTitle>
+          <CardDescription>{cleanDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>This task does not have a form to fill out.</p>
+            <p className="text-sm mt-2">You can mark it as complete when done.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
-
-  const getStatusIcon = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case "COMPLETED":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "IN_PROGRESS":
-        return <Clock className="h-4 w-4 text-blue-500" />
-      case "PENDING":
-        return <AlertCircle className="h-4 w-4 text-orange-500" />
-      default:
-        return <FileText className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  const pendingTasks = tasks.filter((t) => t.status !== "COMPLETED")
-  const completedTasks = tasks.filter((t) => t.status === "COMPLETED")
 
   return (
-    <div className="space-y-6">
-      {/* Pending Tasks */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Pending Tasks ({pendingTasks.length})</h3>
-        <div className="space-y-4">
-          {pendingTasks.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6 text-center text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
-                <p>No pending tasks. Great job!</p>
-              </CardContent>
-            </Card>
-          ) : (
-            pendingTasks.map((task) => (
-              <Card
-                key={task.id}
-                className={`border-l-4 ${
-                  task.priority === "HIGH"
-                    ? "border-l-red-500"
-                    : task.priority === "MEDIUM"
-                      ? "border-l-orange-500"
-                      : "border-l-blue-500"
-                }`}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        {getStatusIcon(task.status)}
-                        {task.title}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        {task.patient && (
-                          <span>
-                            Patient: {task.patient.firstName} {task.patient.lastName}
-                          </span>
-                        )}
-                      </CardDescription>
-                    </div>
-                    <div className="flex flex-col gap-2 items-end">
-                      <Badge className={getPriorityColor(task.priority)}>{task.priority || "NORMAL"}</Badge>
-                      <Badge variant="outline" className="text-xs">
-                        Due: {new Date(task.dueDate).toLocaleDateString()}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium">Task Description</Label>
-                    <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
-                  </div>
-
-                  {selectedTask?.id === task.id ? (
-                    <div className="space-y-4 pt-4 border-t">
-                      <div>
-                        <Label htmlFor="completion-notes">Completion Notes *</Label>
-                        <Textarea
-                          id="completion-notes"
-                          placeholder="Describe what you did to complete this task..."
-                          value={completionNotes}
-                          onChange={(e) => setCompletionNotes(e.target.value)}
-                          rows={4}
-                          className="mt-2"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleCompleteTask}
-                          disabled={!completionNotes.trim() || isSubmitting}
-                          className="flex-1"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          {isSubmitting ? "Submitting..." : "Mark as Complete"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedTask(null)
-                            setCompletionNotes("")
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button onClick={() => setSelectedTask(task)} variant="default" className="w-full">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Fill Task Form
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Completed Tasks */}
-      {completedTasks.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Completed Tasks ({completedTasks.length})</h3>
-          <div className="space-y-4">
-            {completedTasks.map((task) => (
-              <Card key={task.id} className="border-l-4 border-l-green-500 opacity-75">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        {task.title}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        {task.patient && (
-                          <span>
-                            Patient: {task.patient.firstName} {task.patient.lastName}
-                          </span>
-                        )}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="default" className="bg-green-500">
-                      Completed
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">
-                    Completed on: {task.completedAt ? new Date(task.completedAt).toLocaleDateString() : "N/A"}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>{formSchema.title || task.title}</CardTitle>
+            <CardDescription>{formSchema.description || cleanDescription}</CardDescription>
           </div>
+          <Badge variant="outline">Form Task</Badge>
         </div>
-      )}
-    </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {formSchema.fields.map((field) => (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+
+            {field.type === "text" && (
+              <Input
+                id={field.id}
+                placeholder={field.placeholder}
+                value={formData[field.id] || ""}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              />
+            )}
+
+            {field.type === "number" && (
+              <Input
+                id={field.id}
+                type="number"
+                placeholder={field.placeholder}
+                value={formData[field.id] || ""}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              />
+            )}
+
+            {field.type === "date" && (
+              <Input
+                id={field.id}
+                type="date"
+                value={formData[field.id] || ""}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              />
+            )}
+
+            {field.type === "textarea" && (
+              <Textarea
+                id={field.id}
+                placeholder={field.placeholder}
+                value={formData[field.id] || ""}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                rows={4}
+              />
+            )}
+
+            {field.type === "radio" && field.options && (
+              <RadioGroup
+                value={formData[field.id] || ""}
+                onValueChange={(value) => handleFieldChange(field.id, value)}
+              >
+                {field.options.map((option) => (
+                  <div key={option} className="flex items-center space-x-2">
+                    <RadioGroupItem value={option} id={`${field.id}-${option}`} />
+                    <Label htmlFor={`${field.id}-${option}`} className="font-normal">
+                      {option}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            )}
+
+            {field.type === "checkbox" && field.options && (
+              <div className="space-y-2">
+                {field.options.map((option) => (
+                  <div key={option} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`${field.id}-${option}`}
+                      checked={(formData[field.id] || []).includes(option)}
+                      onCheckedChange={(checked) => {
+                        const currentValues = formData[field.id] || []
+                        const newValues = checked
+                          ? [...currentValues, option]
+                          : currentValues.filter((v: string) => v !== option)
+                        handleFieldChange(field.id, newValues)
+                      }}
+                    />
+                    <Label htmlFor={`${field.id}-${option}`} className="font-normal">
+                      {option}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        <div className="flex gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="flex-1">
+            <CheckCircle className="h-4 w-4 mr-2" />
+            {isSubmitting ? "Submitting..." : "Submit Form & Complete Task"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

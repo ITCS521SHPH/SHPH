@@ -747,13 +747,13 @@ export function DoctorDashboard() {
               <Users className="h-4 w-4" />
               Patient List
             </TabsTrigger>
-            <TabsTrigger value="vhv_map" className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              VHV Map
-            </TabsTrigger>
             <TabsTrigger value="patient_map" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Patient Map
+            </TabsTrigger>
+            <TabsTrigger value="vhv_map" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              VHV Map
             </TabsTrigger>
           </TabsList>
 
@@ -1096,6 +1096,20 @@ export function DoctorDashboard() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="patient_map" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Patient Location Map</CardTitle>
+                <CardDescription>
+                  View patient household locations by district. Click markers for patient details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PatientMap patients={(patients || []) as any} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="vhv_map" className="space-y-4">
             <Card>
               <CardHeader>
@@ -1106,20 +1120,6 @@ export function DoctorDashboard() {
               </CardHeader>
               <CardContent>
                 <VhvMap vhvs={(availableVHVs || []) as any} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="patient_map" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Patient Household Locations</CardTitle>
-                <CardDescription>
-                  View patient household locations on the map. Click markers for patient details.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PatientMap patients={(patients || []) as any} />
               </CardContent>
             </Card>
           </TabsContent>

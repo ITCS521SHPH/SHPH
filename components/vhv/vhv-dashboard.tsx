@@ -19,10 +19,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Eye, FileText } from "lucide-react"
+import { Plus, Eye } from "lucide-react"
 import {
   Users,
   CheckCircle,
+  FileText,
   MapPin,
   ChevronDown,
   ChevronRight,
@@ -76,8 +77,6 @@ export function VHVDashboard() {
   const [undoableActions, setUndoableActions] = useState<{
     [key: string]: { type: string; data: any; timeoutId: NodeJS.Timeout }
   }>({})
-  const [selectedTaskForForm, setSelectedTaskForForm] = useState<any>(null)
-  const [showTaskForm, setShowTaskForm] = useState(false)
 
   // Initialize offline storage
   useEffect(() => {
@@ -445,6 +444,37 @@ export function VHVDashboard() {
     }
   }
 
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [selectedTaskForForm, setSelectedTaskForForm] = useState<any>(null)
+
+  const handleOpenTaskForm = (task: any) => {
+    setSelectedTaskForForm(task)
+    setShowTaskForm(true)
+  }
+
+  const handleSubmitTaskForm = async (formData: Record<string, any>) => {
+    if (!selectedTaskForForm) return
+
+    try {
+      console.log("[v0] Submitting task form:", { taskId: selectedTaskForForm.id, formData })
+
+      // Complete the task with form data
+      if (selectedTaskForForm.patientId) {
+        await tasksApi.complete(selectedTaskForForm.id, formData)
+      } else {
+        await areaTasksApi.complete(selectedTaskForForm.id, formData)
+      }
+
+      alert("Task form submitted successfully!")
+      setShowTaskForm(false)
+      setSelectedTaskForForm(null)
+      refetchTasks()
+    } catch (error) {
+      console.error("Failed to submit task form:", error)
+      throw error
+    }
+  }
+
   const handleCompleteTask = async (taskId: string) => {
     try {
       const task = tasks?.find((t: any) => t.id === taskId)
@@ -515,36 +545,7 @@ export function VHVDashboard() {
     }
   }
 
-  // Add handlers for task form viewer
-  const handleOpenTaskForm = (task: any) => {
-    setSelectedTaskForForm(task)
-    setShowTaskForm(true)
-  }
-
-  const handleCloseTaskForm = () => {
-    setShowTaskForm(false)
-    setSelectedTaskForForm(null)
-  }
-
-  const handleTaskFormSubmit = async (formData: any) => {
-    if (!selectedTaskForForm) return
-
-    try {
-      // Complete the task with the form data
-      if (selectedTaskForForm.patientId) {
-        await tasksApi.complete(selectedTaskForForm.id)
-      } else {
-        await areaTasksApi.complete(selectedTaskForForm.id)
-      }
-
-      console.log("Task completed with form data:", formData)
-      handleCloseTaskForm()
-      refetchTasks()
-    } catch (error) {
-      console.error("Failed to complete task:", error)
-      alert("Failed to complete task. Please try again.")
-    }
-  }
+  // (moved earlier)
 
   const visibleTasks = useMemo(() => {
     const taskList = tasks ?? []
@@ -615,32 +616,6 @@ export function VHVDashboard() {
   console.log("  completedTasks:", completedTasks)
   console.log("  locationFilterActive:", locationFilterActive)
 
-  // Add task form viewer rendering
-  if (showTaskForm && selectedTaskForForm) {
-    return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={handleCloseTaskForm}>
-                  ← Back to Dashboard
-                </Button>
-                <div>
-                  <h1 className="text-xl font-bold">Complete Task - {selectedTaskForForm.title}</h1>
-                  <p className="text-muted-foreground">Fill out the required information</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-        <main className="container mx-auto px-4 py-6">
-          <TaskFormViewer task={selectedTaskForForm} onSubmit={handleTaskFormSubmit} onCancel={handleCloseTaskForm} />
-        </main>
-      </div>
-    )
-  }
-
   if (showReviewPage && selectedPatientForReview) {
     return (
       <PatientReview
@@ -687,6 +662,35 @@ export function VHVDashboard() {
             }}
             onFormComplete={handleFormComplete}
             completedSections={completedSections}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  if (showTaskForm && selectedTaskForForm) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => setShowTaskForm(false)}>
+                  ← Back to Dashboard
+                </Button>
+                <div>
+                  <h1 className="text-xl font-bold">Task Form</h1>
+                  <p className="text-muted-foreground">Fill out the required information</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-6">
+          <TaskFormViewer
+            task={selectedTaskForForm}
+            onSubmit={handleSubmitTaskForm}
+            onCancel={() => setShowTaskForm(false)}
           />
         </main>
       </div>
@@ -983,10 +987,10 @@ export function VHVDashboard() {
                         <CardContent className="pt-4">
                           <div
                             className="flex items-center justify-between cursor-pointer"
-                            onClick={() => togglePatientExpansion(assignment.id)}
+                            onClick={() => togglePatientExpansion(patient.id)}
                           >
                             <div className="flex items-center gap-3">
-                              {expandedPatient === assignment.id ? (
+                              {expandedPatient === patient.id ? (
                                 <ChevronDown className="h-4 w-4" />
                               ) : (
                                 <ChevronRight className="h-4 w-4" />
@@ -1166,13 +1170,25 @@ export function VHVDashboard() {
                                               {tStatus}
                                             </Badge>
                                             {tStatus !== "completed" && (
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleCompleteTask(task.id)}
-                                              >
-                                                Complete
-                                              </Button>
+                                              <>
+                                                {task.description && task.description.includes("<FORM_SCHEMA>") ? (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="default"
+                                                    onClick={() => handleOpenTaskForm(task)}
+                                                  >
+                                                    Fill Form
+                                                  </Button>
+                                                ) : (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleCompleteTask(task.id)}
+                                                  >
+                                                    Complete
+                                                  </Button>
+                                                )}
+                                              </>
                                             )}
                                           </div>
                                         </div>
@@ -1226,7 +1242,7 @@ export function VHVDashboard() {
                                 assignment.patientId === task.patientId || assignment.patient?.id === task.patientId,
                             )
                             const patient = assignmentForTask?.patient
-                            const hasFormSchema = task.description?.includes("<FORM_SCHEMA>")
+                            const hasForm = task.description && task.description.includes("<FORM_SCHEMA>")
 
                             return (
                               <Card
@@ -1260,10 +1276,9 @@ export function VHVDashboard() {
                                         <Badge variant={tStatus === "in_progress" ? "secondary" : "outline"}>
                                           {tStatus}
                                         </Badge>
-                                        {hasFormSchema && (
+                                        {hasForm && (
                                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                            <FileText className="h-3 w-3 mr-1" />
-                                            Form Required
+                                            Has Form
                                           </Badge>
                                         )}
                                       </div>
@@ -1285,7 +1300,7 @@ export function VHVDashboard() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      {hasFormSchema ? (
+                                      {hasForm ? (
                                         <Button variant="default" size="sm" onClick={() => handleOpenTaskForm(task)}>
                                           <FileText className="h-4 w-4 mr-2" />
                                           Fill Form
@@ -1383,7 +1398,7 @@ export function VHVDashboard() {
                           activeAreaList.map((task: any) => {
                             const tStatus = normStatus(task.status)
                             const tPriority = normPriority(task.priority)
-                            const hasFormSchema = task.description?.includes("<FORM_SCHEMA>")
+                            const hasForm = task.description && task.description.includes("<FORM_SCHEMA>")
 
                             return (
                               <Card
@@ -1417,10 +1432,9 @@ export function VHVDashboard() {
                                         <Badge variant={tStatus === "in_progress" ? "secondary" : "outline"}>
                                           {tStatus}
                                         </Badge>
-                                        {hasFormSchema && (
+                                        {hasForm && (
                                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                            <FileText className="h-3 w-3 mr-1" />
-                                            Form Required
+                                            Has Form
                                           </Badge>
                                         )}
                                       </div>
@@ -1437,7 +1451,7 @@ export function VHVDashboard() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      {hasFormSchema ? (
+                                      {hasForm ? (
                                         <Button variant="default" size="sm" onClick={() => handleOpenTaskForm(task)}>
                                           <FileText className="h-4 w-4 mr-2" />
                                           Fill Form

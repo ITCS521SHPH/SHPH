@@ -2,8 +2,10 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { getDistrictAnchor, colorForDistrict, AREA_RADIUS_M } from "@/lib/district-geo"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { MapPin, Phone, User } from "lucide-react"
@@ -11,15 +13,20 @@ import { MapPin, Phone, User } from "lucide-react"
 // React Leaflet components via dynamic import to avoid SSR issues
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
 const TileLayer: any = dynamic(async () => (await import("react-leaflet")).TileLayer as any, { ssr: false })
-const Marker: any = dynamic(async () => (await import("react-leaflet")).Marker as any, { ssr: false })
+const CircleMarker: any = dynamic(async () => (await import("react-leaflet")).CircleMarker as any, { ssr: false })
 const Popup: any = dynamic(async () => (await import("react-leaflet")).Popup as any, { ssr: false })
+const Tooltip: any = dynamic(async () => (await import("react-leaflet")).Tooltip as any, { ssr: false })
+const Circle: any = dynamic(async () => (await import("react-leaflet")).Circle as any, { ssr: false })
 
+// Types
 type Patient = {
   id: string
-  firstName: string
-  lastName: string
-  address: string
+  firstName?: string
+  lastName?: string
+  name?: string
+  email?: string
   phone?: string
+  address?: string
   district?: string
   medicalCondition?: string
   lastVisit?: string
@@ -29,80 +36,93 @@ type Props = {
   patients: Patient[]
 }
 
-// Helper function to geocode address (simplified - in production use a real geocoding service)
-function geocodeAddress(address: string, district?: string): [number, number] | null {
-  // Bangkok center coordinates
-  const bangkokCenter: [number, number] = [13.7563, 100.5018]
-
-  // Simple hash-based coordinate generation for demo purposes
-  // In production, use a real geocoding API like Google Maps or OpenStreetMap Nominatim
-  const hash = (address + (district || "")).split("").reduce((acc, char) => {
-    return acc + char.charCodeAt(0)
-  }, 0)
-
-  // Generate coordinates within Bangkok area (roughly ±0.1 degrees)
-  const latOffset = ((hash % 200) - 100) / 1000 // -0.1 to +0.1
-  const lngOffset = (((hash * 7) % 200) - 100) / 1000
-
-  return [bangkokCenter[0] + latOffset, bangkokCenter[1] + lngOffset]
+// Helpers
+function getPatientLabel(p: Patient) {
+  if (p.name && p.name.trim().length > 0) {
+    return p.name
+  }
+  const combined = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim()
+  if (combined) {
+    return combined
+  }
+  if (p.email) return p.email
+  if (p.phone) return p.phone
+  return "Patient"
 }
 
+// Main Component
 export function PatientMap({ patients }: Props) {
   const mapRef = useRef<any>(null)
   const [search, setSearch] = useState("")
-  const [districtFilter, setDistrictFilter] = useState<string>("__ALL__")
+  const ALL_DISTRICTS = "__ALL__"
+  const [districtFilter, setDistrictFilter] = useState<string>(ALL_DISTRICTS)
 
   const center = useMemo(() => ({ lat: 13.7563, lng: 100.5018 }), [])
 
-  // Get unique districts from patients
-  const districts = useMemo(() => {
-    const districtSet = new Set<string>()
-    patients.forEach((p) => {
-      if (p.district) districtSet.add(p.district)
-    })
-    return Array.from(districtSet).sort()
-  }, [patients])
-
-  // Filter patients based on search and district
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return patients.filter((p) => {
-      const inDistrict = districtFilter === "__ALL__" ? true : p.district === districtFilter
+    return (patients || []).filter((p) => {
+      const inDistrict = districtFilter === ALL_DISTRICTS ? true : (p.district || "") === districtFilter
       if (!inDistrict) return false
       if (!term) return true
-      const full = `${p.firstName} ${p.lastName} ${p.address} ${p.phone || ""} ${p.district || ""}`.toLowerCase()
+      const full = `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.name ?? ""} ${
+        p.email ?? ""
+      } ${p.phone ?? ""} ${p.district ?? ""} ${p.address ?? ""}`.toLowerCase()
       return full.includes(term)
     })
   }, [patients, search, districtFilter])
 
-  // Add coordinates to filtered patients
-  const patientsWithCoords = useMemo(() => {
-    return filtered
-      .map((p) => {
-        const coords = geocodeAddress(p.address, p.district)
-        if (!coords) return null
-        return { ...p, coords }
-      })
-      .filter((p): p is Patient & { coords: [number, number] } => p !== null)
+  const districtGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        displayName: string
+        rawDistrict: string | undefined
+        items: Patient[]
+      }
+    >()
+
+    filtered.forEach((patient) => {
+      const rawDistrict = patient.district?.trim()
+      const displayName = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "Unknown district"
+      const key = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "__UNKNOWN__"
+      const existing = map.get(key)
+      if (existing) {
+        existing.items.push(patient)
+      } else {
+        map.set(key, { displayName, rawDistrict, items: [patient] })
+      }
+    })
+
+    return Array.from(map.entries()).map(([key, value]) => {
+      const anchor = getDistrictAnchor(value.rawDistrict ?? "")
+      const colorSource = value.rawDistrict && value.rawDistrict.length > 0 ? value.rawDistrict : value.displayName
+      return {
+        key,
+        displayName: value.displayName,
+        color: colorForDistrict(colorSource),
+        anchor,
+        items: value.items,
+      }
+    })
   }, [filtered])
 
-  // Fit bounds to show all markers
+  // Fit bounds to filtered markers
   useEffect(() => {
     const m = mapRef.current
-    if (!m || patientsWithCoords.length === 0) return
-
+    if (!m) return
+    if (districtGroups.length === 0) return
+    const latlngs = districtGroups.map((group) => group.anchor)
     try {
       const L = (window as any).L
-      if (L && patientsWithCoords.length > 0) {
-        const bounds = new L.LatLngBounds(patientsWithCoords.map((p) => p.coords))
+      if (L && Array.isArray(latlngs) && latlngs.length > 0) {
+        const bounds = new L.LatLngBounds(latlngs)
         if (bounds && m.fitBounds) {
           m.fitBounds(bounds.pad(0.2), { animate: true })
         }
       }
-    } catch (error) {
-      console.error("Error fitting bounds:", error)
-    }
-  }, [patientsWithCoords])
+    } catch {}
+  }, [districtGroups])
 
   useEffect(() => {
     const map = mapRef.current
@@ -130,8 +150,8 @@ export function PatientMap({ patients }: Props) {
               <SelectValue placeholder="Filter by district" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__ALL__">All districts</SelectItem>
-              {districts.map((d) => (
+              <SelectItem value={ALL_DISTRICTS}>All districts</SelectItem>
+              {BANGKOK_DISTRICTS.map((d) => (
                 <SelectItem key={d} value={d}>
                   {d}
                 </SelectItem>
@@ -140,8 +160,18 @@ export function PatientMap({ patients }: Props) {
           </Select>
         </div>
 
-        <div className="hidden md:flex items-center gap-2">
-          <Badge variant="outline">Patients: {patientsWithCoords.length}</Badge>
+        <div className="hidden md:flex items-center gap-2 flex-wrap">
+          <Badge variant="outline">Patients: {filtered.length}</Badge>
+          {districtFilter !== ALL_DISTRICTS && (
+            <Badge
+              style={{
+                backgroundColor: colorForDistrict(districtFilter),
+                color: "#fff",
+              }}
+            >
+              {districtFilter}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -159,53 +189,83 @@ export function PatientMap({ patients }: Props) {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {patientsWithCoords.map((patient) => (
-                <Marker key={patient.id} position={patient.coords}>
-                  <Popup>
-                    <div className="space-y-2 min-w-[200px]">
-                      <div className="font-semibold text-base flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        {patient.firstName} {patient.lastName}
-                      </div>
+              {districtFilter !== ALL_DISTRICTS && (
+                <Circle
+                  center={getDistrictAnchor(districtFilter)}
+                  radius={AREA_RADIUS_M}
+                  pathOptions={{
+                    color: colorForDistrict(districtFilter),
+                    weight: 2,
+                    fillOpacity: 0.05,
+                  }}
+                />
+              )}
 
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                          <span>{patient.address}</span>
+              {districtGroups.map((group) => {
+                const tooltipLabel = `${group.displayName} (${group.items.length})`
+                return (
+                  <CircleMarker
+                    key={group.key}
+                    center={group.anchor}
+                    radius={10}
+                    pathOptions={{
+                      color: group.color,
+                      fillColor: group.color,
+                      fillOpacity: 0.85,
+                    }}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+                      <span>{tooltipLabel}</span>
+                    </Tooltip>
+                    <Popup>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold leading-tight">{group.displayName}</div>
+                          <Badge variant="outline">
+                            {group.items.length} Patient
+                            {group.items.length > 1 ? "s" : ""}
+                          </Badge>
                         </div>
-
-                        {patient.phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span>{patient.phone}</span>
+                        <div className="max-h-64 overflow-y-auto pr-1">
+                          <div className="space-y-2">
+                            {group.items.map((p) => (
+                              <div key={p.id} className="rounded border border-border bg-background/60 p-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <User className="h-3 w-3 text-muted-foreground" />
+                                  <div className="font-medium leading-tight">{getPatientLabel(p)}</div>
+                                </div>
+                                {p.phone && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Phone className="h-3 w-3" />
+                                    {p.phone}
+                                  </div>
+                                )}
+                                {p.address && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <MapPin className="h-3 w-3" />
+                                    {p.address}
+                                  </div>
+                                )}
+                                {p.medicalCondition && (
+                                  <div className="text-sm mt-1">
+                                    <span className="text-muted-foreground">Condition: </span>
+                                    <span className="font-medium">{p.medicalCondition}</span>
+                                  </div>
+                                )}
+                                {p.lastVisit && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Last visit: {new Date(p.lastVisit).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
-
-                        {patient.district && (
-                          <div>
-                            <Badge variant="outline" className="text-xs">
-                              {patient.district}
-                            </Badge>
-                          </div>
-                        )}
-
-                        {patient.medicalCondition && (
-                          <div className="pt-2 border-t">
-                            <div className="text-xs text-muted-foreground">Condition:</div>
-                            <div className="font-medium">{patient.medicalCondition}</div>
-                          </div>
-                        )}
-
-                        {patient.lastVisit && (
-                          <div className="text-xs text-muted-foreground">
-                            Last visit: {new Date(patient.lastVisit).toLocaleDateString()}
-                          </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                    </Popup>
+                  </CircleMarker>
+                )
+              })}
             </MapContainer>
           </div>
         </CardContent>

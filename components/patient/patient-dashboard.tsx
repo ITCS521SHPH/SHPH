@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,14 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, Activity } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, ExternalLink, BookOpen } from "lucide-react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
-import { patientDataApi } from "@/lib/api"
+import { patientDataApi, intakesApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
-import { HealthRecordsViewer } from "@/components/patient/health-records-viewer"
-import { SelfCareResources } from "@/components/patient/self-care-resources"
 
 export function PatientDashboard() {
   const router = useRouter()
@@ -74,12 +72,27 @@ export function PatientDashboard() {
     [currentPatientId],
   )
 
+  const {
+    data: healthRecords,
+    loading: healthRecordsLoading,
+    error: healthRecordsError,
+  } = useApiData(
+    () => (currentPatientId ? intakesApi.getByPatient(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
+  )
+
+  // Filter only approved records
+  const approvedHealthRecords = useMemo(() => {
+    return (healthRecords || []).filter((record: any) => record.status === "APPROVED")
+  }, [healthRecords])
+
   // 調試日誌
   console.log("Patient Dashboard Data Status:", {
     appointments: { data: appointments, loading: appointmentsLoading, error: appointmentsError },
     visits: { data: visits, loading: visitsLoading, error: visitsError },
     medications: { data: medications, loading: medicationsLoading, error: medicationsError },
     vitalSigns: { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError },
+    healthRecords: { data: healthRecords, loading: healthRecordsLoading, error: healthRecordsError },
   })
 
   // 強制使用數據庫數據，不使用 mock 數據
@@ -93,6 +106,7 @@ export function PatientDashboard() {
     recentVisits: recentVisits.length,
     currentMedications: currentMedications.length,
     vitalTrends: vitalTrends.length,
+    approvedHealthRecords: approvedHealthRecords.length,
   })
 
   const handleSignOut = () => {
@@ -273,7 +287,7 @@ export function PatientDashboard() {
               Health Records
             </TabsTrigger>
             <TabsTrigger value="resources" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
+              <BookOpen className="h-4 w-4" />
               Self-Care
             </TabsTrigger>
           </TabsList>
@@ -436,11 +450,314 @@ export function PatientDashboard() {
           </TabsContent>
 
           <TabsContent value="health_records" className="space-y-4">
-            <HealthRecordsViewer visits={recentVisits} vitalSigns={vitalTrends} medications={currentMedications} />
+            <Card>
+              <CardHeader>
+                <CardTitle>My Health Records</CardTitle>
+                <CardDescription>Health assessments and diagnoses from your healthcare providers</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {healthRecordsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Loading health records...</p>
+                  </div>
+                ) : healthRecordsError ? (
+                  <div className="text-center py-8 text-red-500">
+                    <p>Error loading health records. Please try again later.</p>
+                  </div>
+                ) : approvedHealthRecords.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No health records available yet.</p>
+                    <p className="text-sm mt-2">Your approved health assessments will appear here.</p>
+                  </div>
+                ) : (
+                  approvedHealthRecords.map((record: any) => (
+                    <Card key={record.id} className="border-l-4 border-l-green-500">
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-medium">Health Assessment</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Recorded on {new Date(record.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Badge variant="default" className="bg-green-500">
+                            Approved
+                          </Badge>
+                        </div>
+
+                        {/* Patient Basics */}
+                        {record.payload?.patientBasics && (
+                          <div className="bg-muted/50 p-3 rounded-lg mb-3">
+                            <h5 className="font-medium text-sm mb-2">Patient Information</h5>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Name:</span>
+                                <p>
+                                  {record.payload.patientBasics.firstName} {record.payload.patientBasics.lastName}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Date of Birth:</span>
+                                <p>
+                                  {record.payload.patientBasics.dob
+                                    ? new Date(record.payload.patientBasics.dob).toLocaleDateString()
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Symptoms */}
+                        {record.payload?.symptoms && (
+                          <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-lg mb-3">
+                            <h5 className="font-medium text-sm mb-2">Chief Complaint</h5>
+                            <p className="text-sm">{record.payload.symptoms.chiefComplaint || "Not recorded"}</p>
+                            {record.payload.symptoms.onsetDays && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Onset: {record.payload.symptoms.onsetDays} days ago
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Vital Signs */}
+                        {record.payload?.vitals && (
+                          <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg mb-3">
+                            <h5 className="font-medium text-sm mb-2">Vital Signs</h5>
+                            <div className="grid grid-cols-3 gap-2 text-sm">
+                              {record.payload.vitals.temp && (
+                                <div>
+                                  <span className="text-muted-foreground">Temperature:</span>
+                                  <p className="font-medium">{record.payload.vitals.temp}°C</p>
+                                </div>
+                              )}
+                              {record.payload.vitals.systolic && record.payload.vitals.diastolic && (
+                                <div>
+                                  <span className="text-muted-foreground">Blood Pressure:</span>
+                                  <p className="font-medium">
+                                    {record.payload.vitals.systolic}/{record.payload.vitals.diastolic}
+                                  </p>
+                                </div>
+                              )}
+                              {record.payload.vitals.hr && (
+                                <div>
+                                  <span className="text-muted-foreground">Heart Rate:</span>
+                                  <p className="font-medium">{record.payload.vitals.hr} bpm</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Chronic Conditions */}
+                        {record.payload?.chronicConditions?.list &&
+                          record.payload.chronicConditions.list.length > 0 && (
+                            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                              <h5 className="font-medium text-sm mb-2">Chronic Conditions</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {record.payload.chronicConditions.list.map((condition: any, idx: number) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {condition.condition.replace("_", " ")}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="resources" className="space-y-4">
-            <SelfCareResources />
+            <Card>
+              <CardHeader>
+                <CardTitle>Self-Care Resources</CardTitle>
+                <CardDescription>Trusted health information and self-care guides</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* General Health */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-red-500" />
+                    General Health Information
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.who.int/health-topics"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">WHO Health Topics</p>
+                        <p className="text-sm text-muted-foreground">
+                          Comprehensive health information from the World Health Organization
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://medlineplus.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">MedlinePlus</p>
+                        <p className="text-sm text-muted-foreground">
+                          Trusted health information from the U.S. National Library of Medicine
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Chronic Disease Management */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    Chronic Disease Management
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.cdc.gov/chronicdisease/index.htm"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">CDC Chronic Disease Resources</p>
+                        <p className="text-sm text-muted-foreground">Information on managing chronic conditions</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.diabetes.org/diabetes"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">American Diabetes Association</p>
+                        <p className="text-sm text-muted-foreground">Diabetes management and prevention resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.heart.org/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">American Heart Association</p>
+                        <p className="text-sm text-muted-foreground">
+                          Heart health and cardiovascular disease information
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Mental Health */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <User className="h-5 w-5 text-purple-500" />
+                    Mental Health & Wellness
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.nimh.nih.gov/health"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">National Institute of Mental Health</p>
+                        <p className="text-sm text-muted-foreground">Mental health information and resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.mentalhealth.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">MentalHealth.gov</p>
+                        <p className="text-sm text-muted-foreground">U.S. government mental health resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Nutrition & Exercise */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Heart className="h-5 w-5 text-green-500" />
+                    Nutrition & Exercise
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.nutrition.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">Nutrition.gov</p>
+                        <p className="text-sm text-muted-foreground">Evidence-based nutrition information</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://health.gov/moveyourway"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">Move Your Way</p>
+                        <p className="text-sm text-muted-foreground">Physical activity guidelines and tips</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Emergency Information */}
+                <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg border border-red-200">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2 text-red-700 dark:text-red-400">
+                    <Bell className="h-5 w-5" />
+                    Emergency Information
+                  </h3>
+                  <p className="text-sm text-red-600 dark:text-red-300 mb-3">
+                    If you are experiencing a medical emergency, call your local emergency number immediately or use the
+                    Emergency Alert button at the top of this page.
+                  </p>
+                  <div className="space-y-2">
+                    <a
+                      href="https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 border rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <p className="font-medium text-sm">Red Cross Emergency Preparedness</p>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
