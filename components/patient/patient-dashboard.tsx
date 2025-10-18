@@ -1,22 +1,23 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, MapPin, Clock } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, Activity } from "lucide-react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
 import { patientDataApi } from "@/lib/api"
-import type { Appointment, Visit, Medication, VitalSigns } from "@/lib/types"
 import { useApiData } from "@/lib/useApiData"
+import { HealthRecordsViewer } from "@/components/patient/health-records-viewer"
+import { SelfCareResources } from "@/components/patient/self-care-resources"
 
 export function PatientDashboard() {
   const router = useRouter()
@@ -27,7 +28,7 @@ export function PatientDashboard() {
     newDate: "",
     newTime: "",
     reason: "",
-    preferredTime: ""
+    preferredTime: "",
   })
 
   // 獲取當前患者 ID（這裡需要從認證系統獲取）
@@ -36,32 +37,49 @@ export function PatientDashboard() {
   const hasValidPatientId = Boolean(currentPatientId)
 
   // 從數據庫獲取數據
-  const { data: appointments, loading: appointmentsLoading, error: appointmentsError, refetch: refetchAppointments } = useApiData(
-    () => currentPatientId ? patientDataApi.getAppointments(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: appointments,
+    loading: appointmentsLoading,
+    error: appointmentsError,
+    refetch: refetchAppointments,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getAppointments(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: visits, loading: visitsLoading, error: visitsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVisits(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: visits,
+    loading: visitsLoading,
+    error: visitsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getVisits(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: medications, loading: medicationsLoading, error: medicationsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getMedications(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: medications,
+    loading: medicationsLoading,
+    error: medicationsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getMedications(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVitalSigns(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: vitalSigns,
+    loading: vitalSignsLoading,
+    error: vitalSignsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getVitalSigns(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
   // 調試日誌
-  console.log('Patient Dashboard Data Status:', {
+  console.log("Patient Dashboard Data Status:", {
     appointments: { data: appointments, loading: appointmentsLoading, error: appointmentsError },
     visits: { data: visits, loading: visitsLoading, error: visitsError },
     medications: { data: medications, loading: medicationsLoading, error: medicationsError },
-    vitalSigns: { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError }
+    vitalSigns: { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError },
   })
 
   // 強制使用數據庫數據，不使用 mock 數據
@@ -70,18 +88,17 @@ export function PatientDashboard() {
   const currentMedications = medications || []
   const vitalTrends = vitalSigns || []
 
-  console.log('Final data being used:', {
+  console.log("Final data being used:", {
     upcomingAppointments: upcomingAppointments.length,
     recentVisits: recentVisits.length,
     currentMedications: currentMedications.length,
-    vitalTrends: vitalTrends.length
+    vitalTrends: vitalTrends.length,
   })
 
   const handleSignOut = () => {
     clearCurrentUser()
     router.push("/")
   }
-
 
   const handleJoinCall = (appointmentId: string) => {
     // TODO: Implement video call functionality
@@ -95,7 +112,7 @@ export function PatientDashboard() {
       newDate: appointment.scheduledDate || "",
       newTime: appointment.scheduledTime || "",
       reason: "",
-      preferredTime: ""
+      preferredTime: "",
     })
     setShowRescheduleDialog(true)
   }
@@ -111,46 +128,48 @@ export function PatientDashboard() {
       return
     }
 
-  console.log("Reschedule request data:", {
-    appointmentId: selectedAppointment.id,
-    patientId: currentPatientId,
-    requestedDate: rescheduleForm.newDate,
-    requestedTime: rescheduleForm.newTime,
-    reason: rescheduleForm.reason,
-    preferredAlternatives: rescheduleForm.preferredTime
-  })
+    console.log("Reschedule request data:", {
+      appointmentId: selectedAppointment.id,
+      patientId: currentPatientId,
+      requestedDate: rescheduleForm.newDate,
+      requestedTime: rescheduleForm.newTime,
+      reason: rescheduleForm.reason,
+      preferredAlternatives: rescheduleForm.preferredTime,
+    })
 
-  if (!currentPatientId) {
-    alert("Unable to submit request because no patient record is linked to this account.")
-    return
-  }
+    if (!currentPatientId) {
+      alert("Unable to submit request because no patient record is linked to this account.")
+      return
+    }
 
-  try {
+    try {
       await patientDataApi.createRescheduleRequest({
         appointmentId: selectedAppointment.id,
         patientId: currentPatientId,
         requestedDate: rescheduleForm.newDate,
         requestedTime: rescheduleForm.newTime,
         reason: rescheduleForm.reason,
-        preferredAlternatives: rescheduleForm.preferredTime
+        preferredAlternatives: rescheduleForm.preferredTime,
       })
-      
-      alert(`Reschedule request submitted successfully for ${selectedAppointment.type} on ${rescheduleForm.newDate} at ${rescheduleForm.newTime}`)
-      
+
+      alert(
+        `Reschedule request submitted successfully for ${selectedAppointment.type} on ${rescheduleForm.newDate} at ${rescheduleForm.newTime}`,
+      )
+
       setShowRescheduleDialog(false)
       setSelectedAppointment(null)
       setRescheduleForm({
         newDate: "",
         newTime: "",
         reason: "",
-        preferredTime: ""
+        preferredTime: "",
       })
-      
+
       // Refresh appointments data after successful reschedule
       refetchAppointments()
     } catch (error) {
       console.error("Failed to submit reschedule request:", error)
-      alert(`Failed to submit reschedule request: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      alert(`Failed to submit reschedule request: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -180,12 +199,7 @@ export function PatientDashboard() {
           </p>
         )}
         <div className="mb-8">
-          <EmergencyButton
-            patientId={currentPatientId}
-            patientName="Sarah Johnson"
-
-            disabled={!hasValidPatientId}
-          />
+          <EmergencyButton patientId={currentPatientId} patientName="Sarah Johnson" disabled={!hasValidPatientId} />
         </div>
 
         {/* Quick Stats */}
@@ -237,7 +251,7 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="appointments" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Appointments
@@ -253,6 +267,14 @@ export function PatientDashboard() {
             <TabsTrigger value="vitals" className="flex items-center gap-2">
               <Heart className="h-4 w-4" />
               Vital Signs
+            </TabsTrigger>
+            <TabsTrigger value="health_records" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Health Records
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Self-Care
             </TabsTrigger>
           </TabsList>
 
@@ -397,7 +419,9 @@ export function PatientDashboard() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">BP:</span>
-                          <span className="ml-1 font-medium">{vital.bloodPressureSystolic}/{vital.bloodPressureDiastolic}</span>
+                          <span className="ml-1 font-medium">
+                            {vital.bloodPressureSystolic}/{vital.bloodPressureDiastolic}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Weight:</span>
@@ -409,6 +433,14 @@ export function PatientDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="health_records" className="space-y-4">
+            <HealthRecordsViewer visits={recentVisits} vitalSigns={vitalTrends} medications={currentMedications} />
+          </TabsContent>
+
+          <TabsContent value="resources" className="space-y-4">
+            <SelfCareResources />
           </TabsContent>
         </Tabs>
       </main>
@@ -430,12 +462,15 @@ export function PatientDashboard() {
                   id="newDate"
                   type="date"
                   value={rescheduleForm.newDate || ""}
-                  onChange={(e) => setRescheduleForm(prev => ({ ...prev, newDate: e.target.value }))}
+                  onChange={(e) => setRescheduleForm((prev) => ({ ...prev, newDate: e.target.value }))}
                 />
               </div>
               <div>
                 <Label htmlFor="newTime">New Time</Label>
-                <Select value={rescheduleForm.newTime || ""} onValueChange={(value) => setRescheduleForm(prev => ({ ...prev, newTime: value }))}>
+                <Select
+                  value={rescheduleForm.newTime || ""}
+                  onValueChange={(value) => setRescheduleForm((prev) => ({ ...prev, newTime: value }))}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
@@ -459,7 +494,7 @@ export function PatientDashboard() {
                 id="reason"
                 placeholder="Please explain why you need to reschedule..."
                 value={rescheduleForm.reason || ""}
-                onChange={(e) => setRescheduleForm(prev => ({ ...prev, reason: e.target.value }))}
+                onChange={(e) => setRescheduleForm((prev) => ({ ...prev, reason: e.target.value }))}
               />
             </div>
             <div>
@@ -468,7 +503,7 @@ export function PatientDashboard() {
                 id="preferredTime"
                 placeholder="If the selected time is not available, please suggest alternative times..."
                 value={rescheduleForm.preferredTime || ""}
-                onChange={(e) => setRescheduleForm(prev => ({ ...prev, preferredTime: e.target.value }))}
+                onChange={(e) => setRescheduleForm((prev) => ({ ...prev, preferredTime: e.target.value }))}
               />
             </div>
           </div>
@@ -476,9 +511,7 @@ export function PatientDashboard() {
             <Button variant="outline" onClick={() => setShowRescheduleDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleRescheduleSubmit}>
-              Submit Request
-            </Button>
+            <Button onClick={handleRescheduleSubmit}>Submit Request</Button>
           </div>
         </DialogContent>
       </Dialog>
