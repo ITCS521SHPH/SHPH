@@ -1,4 +1,4 @@
-import type { LoginRequest, LoginResponse, CreateEmergencyAlertRequest, UpdateEmergencyAlertRequest, RescheduleRequest } from "./types"
+import type { LoginRequest, LoginResponse, CreateEmergencyAlertRequest, UpdateEmergencyAlertRequest } from "./types"
 import * as supabaseApi from "./supabase-api"
 
 // Always use Supabase database
@@ -8,7 +8,7 @@ const USE_SUPABASE = true
 if (typeof window !== "undefined") {
   console.log("API Configuration:", {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    USE_SUPABASE
+    USE_SUPABASE,
   })
 }
 
@@ -83,10 +83,10 @@ export const authApi = {
 
   logout: async () => {
     // Clear localStorage and redirect
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('currentUser')
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("currentUser")
+      localStorage.removeItem("accessToken")
+      localStorage.removeItem("refreshToken")
     }
     clearTokens()
     if (typeof window !== "undefined") {
@@ -223,31 +223,31 @@ export const vhvApi = {
           return null
         }
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to fetch VHV profile')
+        throw new Error(errorData.error || "Failed to fetch VHV profile")
       }
       return response.json()
     }
-    throw new Error('VHV profile API not implemented for mock data')
+    throw new Error("VHV profile API not implemented for mock data")
   },
 
   updateProfile: async (vhvId: string, updates: any) => {
     if (USE_SUPABASE) {
-      const response = await fetch('/api/vhv/profile', {
-        method: 'PUT',
+      const response = await fetch("/api/vhv/profile", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ vhvId, ...updates }),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to update VHV profile')
+        throw new Error(errorData.error || "Failed to update VHV profile")
       }
 
       return response.json()
     }
-    throw new Error('VHV profile API not implemented for mock data')
+    throw new Error("VHV profile API not implemented for mock data")
   },
 }
 
@@ -377,8 +377,7 @@ export const reviewsApi = {
 }
 
 export const uploadsApi = {
-  upload: async (file: File) => {
-  },
+  upload: async (file: File) => {},
 }
 
 export const adminApi = {
@@ -402,8 +401,8 @@ export const adminApi = {
         body: JSON.stringify({
           ...doctorData,
           phoneNumber: doctorData.phoneNumber,
-          role: 'DOCTOR'
-        })
+          role: "DOCTOR",
+        }),
       })
 
       if (!response.ok) {
@@ -533,10 +532,14 @@ export const tasksApi = {
     }
   },
 
-  complete: async (id: string) => {
+  complete: async (id: string, formData?: Record<string, any>) => {
     if (USE_SUPABASE) {
       const response = await fetch(`/api/tasks?id=${id}&action=complete`, {
         method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ formData }),
       })
       if (!response.ok) {
         const errorData = await response.json()
@@ -851,43 +854,52 @@ export default apiClient
 export const areaTasksApi = {
   getByVHV: async (vhvId: string) => {
     const resp = await fetch(`/api/area-tasks?vhvId=${vhvId}`)
-    if (!resp.ok) throw new Error('Failed to fetch area tasks')
+    if (!resp.ok) throw new Error("Failed to fetch area tasks")
     return resp.json()
   },
   getByDoctor: async (doctorId: string) => {
     const resp = await fetch(`/api/area-tasks?doctorId=${doctorId}`)
-    if (!resp.ok) throw new Error('Failed to fetch area tasks')
+    if (!resp.ok) throw new Error("Failed to fetch area tasks")
     return resp.json()
   },
   create: async (payload: any) => {
-    const resp = await fetch('/api/area-tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const resp = await fetch("/api/area-tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
     if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}))
-      throw new Error(e.error || 'Failed to create area task')
+      const e = await resp.json().catch(() => ({}))
+      throw new Error(e.error || "Failed to create area task")
     }
     return resp.json()
   },
   update: async (id: string, data: any) => {
-    const resp = await fetch('/api/area-tasks', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    const resp = await fetch("/api/area-tasks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...data }),
     })
-    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to update area task')
+    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to update area task")
     return resp.json()
   },
-  complete: async (id: string) => {
-    const resp = await fetch(`/api/area-tasks?id=${id}&action=complete`, { method: 'PATCH' })
-    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to complete area task')
+  complete: async (id: string, formData?: Record<string, any>) => {
+    const resp = await fetch(`/api/area-tasks?id=${id}&action=complete`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ formData }),
+    })
+    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to complete area task")
     return resp.json()
   },
   delete: async (id: string) => {
-    const resp = await fetch(`/api/area-tasks?id=${id}`, { method: 'DELETE' })
-    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to delete area task')
+    const resp = await fetch(`/api/area-tasks?id=${id}`, { method: "DELETE" })
+    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to delete area task")
     return resp.json()
-  }
+  },
+  reopen: async (id: string) => {
+    const resp = await fetch(`/api/area-tasks?id=${id}&action=reopen`, { method: "PATCH" })
+    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to reopen area task")
+    return resp.json()
+  },
 }

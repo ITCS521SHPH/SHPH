@@ -1204,6 +1204,29 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                               </div>
                             )}
                           </div>
+
+                          {tStatus === "completed" && task.formResponse && schema?.questions && (
+                            <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-2">
+                              <h4 className="font-medium text-sm flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                VHV Form Responses
+                              </h4>
+                              <div className="space-y-2">
+                                {schema.questions.map((question: any, idx: number) => {
+                                  const answer = task.formResponse[question.id]
+                                  if (!answer) return null
+                                  return (
+                                    <div key={question.id} className="text-sm">
+                                      <p className="font-medium text-muted-foreground">
+                                        {idx + 1}. {question.text}
+                                      </p>
+                                      <p className="ml-4 mt-1">{answer}</p>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 ml-4">
                           {tStatus !== "completed" && (
