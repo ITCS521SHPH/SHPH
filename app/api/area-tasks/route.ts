@@ -98,15 +98,17 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "complete") {
       const body = await request.json().catch(() => ({}))
-      const { formData } = body
+      const formData = body.formData || null
 
       const result = await supabaseApi.completeAreaTask(id, formData)
       return NextResponse.json(result)
     }
+
     if (action === "reopen") {
       const result = await supabaseApi.reopenAreaTask(id)
       return NextResponse.json(result)
     }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
     console.error("Area task action error:", error)

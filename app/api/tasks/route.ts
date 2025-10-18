@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "complete") {
       const body = await request.json().catch(() => ({}))
-      const { formData } = body
+      const formData = body.formData || null
 
       const result = await supabaseApi.completeTask(id, formData)
       return NextResponse.json(result)

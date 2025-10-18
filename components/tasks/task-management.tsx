@@ -32,6 +32,7 @@ import {
   CopyPlus,
   Search,
   MapPin,
+  FileText,
 } from "lucide-react"
 import { tasksApi, patientsApi, areaTasksApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
@@ -1205,26 +1206,27 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                             )}
                           </div>
 
-                          {tStatus === "completed" && task.formResponse && schema?.questions && (
-                            <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-2">
-                              <h4 className="font-medium text-sm flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600" />
+                          {/* VHV Form Responses for completed tasks */}
+                          {tStatus === "completed" && task.formResponse && (
+                            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
+                              <h4 className="font-semibold text-sm flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
                                 VHV Form Responses
                               </h4>
-                              <div className="space-y-2">
-                                {schema.questions.map((question: any, idx: number) => {
+                              {schema?.questions &&
+                                schema.questions.map((question: any) => {
                                   const answer = task.formResponse[question.id]
                                   if (!answer) return null
+
                                   return (
-                                    <div key={question.id} className="text-sm">
-                                      <p className="font-medium text-muted-foreground">
-                                        {idx + 1}. {question.text}
+                                    <div key={question.id} className="space-y-1">
+                                      <p className="text-sm font-medium">{question.text}</p>
+                                      <p className="text-sm text-muted-foreground pl-4">
+                                        {Array.isArray(answer) ? answer.join(", ") : answer}
                                       </p>
-                                      <p className="ml-4 mt-1">{answer}</p>
                                     </div>
                                   )
                                 })}
-                              </div>
                             </div>
                           )}
                         </div>

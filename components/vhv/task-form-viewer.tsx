@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, FileText } from "lucide-react"
 
@@ -51,6 +51,17 @@ export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
       ...prev,
       [fieldId]: value,
     }))
+  }
+
+  const handleCheckboxChange = (fieldId: string, option: string, checked: boolean) => {
+    setFormData((prev) => {
+      const currentValues = Array.isArray(prev[fieldId]) ? prev[fieldId] : []
+      if (checked) {
+        return { ...prev, [fieldId]: [...currentValues, option] }
+      } else {
+        return { ...prev, [fieldId]: currentValues.filter((v: string) => v !== option) }
+      }
+    })
   }
 
   const handleSubmit = async () => {
@@ -132,19 +143,25 @@ export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
             )}
 
             {question.type === "close" && question.options && question.options.length > 0 && (
-              <RadioGroup
-                value={formData[question.id] || ""}
-                onValueChange={(value) => handleFieldChange(question.id, value)}
-              >
-                {question.options.map((option) => (
-                  <div key={option} className="flex items-center space-x-2">
-                    <RadioGroupItem value={option} id={`${question.id}-${option}`} />
-                    <Label htmlFor={`${question.id}-${option}`} className="font-normal">
-                      {option}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
+              <div className="space-y-2">
+                {question.options.map((option) => {
+                  const currentValues = Array.isArray(formData[question.id]) ? formData[question.id] : []
+                  const isChecked = currentValues.includes(option)
+
+                  return (
+                    <div key={option} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${question.id}-${option}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => handleCheckboxChange(question.id, option, checked as boolean)}
+                      />
+                      <Label htmlFor={`${question.id}-${option}`} className="font-normal cursor-pointer">
+                        {option}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         ))}

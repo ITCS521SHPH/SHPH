@@ -892,14 +892,14 @@ export const areaTasksApi = {
     if (!resp.ok) throw new Error((await resp.json()).error || "Failed to complete area task")
     return resp.json()
   },
-  delete: async (id: string) => {
-    const resp = await fetch(`/api/area-tasks?id=${id}`, { method: "DELETE" })
-    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to delete area task")
-    return resp.json()
-  },
   reopen: async (id: string) => {
     const resp = await fetch(`/api/area-tasks?id=${id}&action=reopen`, { method: "PATCH" })
     if (!resp.ok) throw new Error((await resp.json()).error || "Failed to reopen area task")
+    return resp.json()
+  },
+  delete: async (id: string) => {
+    const resp = await fetch(`/api/area-tasks?id=${id}`, { method: "DELETE" })
+    if (!resp.ok) throw new Error((await resp.json()).error || "Failed to delete area task")
     return resp.json()
   },
 }

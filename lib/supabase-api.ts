@@ -133,7 +133,6 @@ const convertTaskRow = (row: TaskRow): Task => {
     completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
     createdAt: new Date(row.created_at),
     updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-    formResponse: (row as any).form_response || undefined,
   }
 }
 
@@ -2337,7 +2336,6 @@ const convertAreaTaskRow = (row: any) => ({
   completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
   createdAt: new Date(row.created_at),
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-  formResponse: row.form_response || undefined,
 })
 
 export const getAreaTasksByVHV = async (vhvId: string) => {
@@ -2415,6 +2413,7 @@ export const completeAreaTask = async (id: string, formData?: Record<string, any
   }
 
   const { data, error } = await supabase.from("area_tasks").update(updateData).eq("id", id).select().single()
+
   if (error) throw new Error(error.message)
   return convertAreaTaskRow(data)
 }
