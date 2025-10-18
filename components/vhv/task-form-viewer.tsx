@@ -101,6 +101,24 @@ export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
     )
   }
 
+  if (!formSchema.fields || !Array.isArray(formSchema.fields)) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{formSchema.title || task.title}</CardTitle>
+          <CardDescription>{formSchema.description || cleanDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>This form has no fields defined.</p>
+            <p className="text-sm mt-2">Please check the task configuration.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
