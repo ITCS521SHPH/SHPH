@@ -16,7 +16,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, Calendar, User, AlertCircle, CheckCircle, Clock, Target, Edit, Trash2, Filter, ListChecks, Save, CopyPlus, Search, MapPin } from "lucide-react"
+import {
+  Plus,
+  Calendar,
+  User,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Target,
+  Edit,
+  Trash2,
+  Filter,
+  ListChecks,
+  Save,
+  CopyPlus,
+  Search,
+  MapPin,
+  FileText,
+} from "lucide-react"
 import { tasksApi, patientsApi, areaTasksApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
 import { getCurrentUserFromStorage } from "@/lib/auth"
@@ -30,7 +47,7 @@ interface TaskManagementProps {
   doctorId?: string
   patientId?: string
   vhvId?: string
-  defaultTaskType?: 'patient' | 'area'
+  defaultTaskType?: "patient" | "area"
 }
 
 export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: TaskManagementProps) {
@@ -48,8 +65,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   const [useMapSelector, setUseMapSelector] = useState(false)
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([])
   const chosenDistricts = useMemo(
-    () => (useMapSelector ? selectedDistricts : (selectedDistrict ? [selectedDistrict] : [])),
-    [useMapSelector, selectedDistricts, selectedDistrict]
+    () => (useMapSelector ? selectedDistricts : selectedDistrict ? [selectedDistrict] : []),
+    [useMapSelector, selectedDistricts, selectedDistrict],
   )
 
   const [taskForm, setTaskForm] = useState({
@@ -69,7 +86,11 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     options?: string[]
   }
   const [questions, setQuestions] = useState<Question[]>([])
-  const [newQuestion, setNewQuestion] = useState<{ text: string; type: "open" | "close"; optionInput: string }>({ text: "", type: "open", optionInput: "" })
+  const [newQuestion, setNewQuestion] = useState<{ text: string; type: "open" | "close"; optionInput: string }>({
+    text: "",
+    type: "open",
+    optionInput: "",
+  })
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null)
 
   // Templates (local persistence for now)
@@ -81,14 +102,17 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     questions: Question[]
   }
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
-  const templatesKey = useMemo(() => `taskTemplates_${doctorId || currentUser?.id || "unknown"}`, [doctorId, currentUser?.id])
+  const templatesKey = useMemo(
+    () => `taskTemplates_${doctorId || currentUser?.id || "unknown"}`,
+    [doctorId, currentUser?.id],
+  )
 
   // Get tasks based on the context
   const getTasks = useCallback(async () => {
     if (vhvId) {
       const [patientTasks, areaTasks] = await Promise.all([
         tasksApi.getByVHV(vhvId),
-        areaTasksApi.getByVHV(vhvId).catch(() => [])
+        areaTasksApi.getByVHV(vhvId).catch(() => []),
       ])
       return [...patientTasks, ...areaTasks]
     } else if (patientId) {
@@ -98,7 +122,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       if (effectiveDoctorId) {
         const [patientTasks, areaTasks] = await Promise.all([
           tasksApi.getByDoctor(effectiveDoctorId),
-          areaTasksApi.getByDoctor(effectiveDoctorId).catch(() => [])
+          areaTasksApi.getByDoctor(effectiveDoctorId).catch(() => []),
         ])
         return [...patientTasks, ...areaTasks]
       }
@@ -107,12 +131,12 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }, [vhvId, patientId, doctorId, currentUser?.id])
 
   const { data: tasks, loading: tasksLoading, refetch: refetchTasks } = useApiData(getTasks, [])
-  
+
   // Debug logging for tasks
-  console.log('TaskManagement - tasks:', tasks)
-  console.log('TaskManagement - tasksLoading:', tasksLoading)
-  console.log('TaskManagement - currentUser:', currentUser)
-  console.log('TaskManagement - doctorId:', doctorId)
+  console.log("TaskManagement - tasks:", tasks)
+  console.log("TaskManagement - tasksLoading:", tasksLoading)
+  console.log("TaskManagement - currentUser:", currentUser)
+  console.log("TaskManagement - doctorId:", doctorId)
 
   // Get available patients and VHVs for task creation
   const getAvailablePatients = useCallback(async () => {
@@ -123,12 +147,16 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     return []
   }, [doctorId, currentUser?.id])
 
-  const { data: assignments, loading: assignmentsLoading, error: assignmentsError } = useApiData(getAvailablePatients, [])
-  
+  const {
+    data: assignments,
+    loading: assignmentsLoading,
+    error: assignmentsError,
+  } = useApiData(getAvailablePatients, [])
+
   // Debug logging
-  console.log('TaskManagement - assignments:', assignments)
-  console.log('TaskManagement - assignmentsLoading:', assignmentsLoading)
-  console.log('TaskManagement - assignmentsError:', assignmentsError)
+  console.log("TaskManagement - assignments:", assignments)
+  console.log("TaskManagement - assignmentsLoading:", assignmentsLoading)
+  console.log("TaskManagement - assignmentsError:", assignmentsError)
 
   const getAvailableVHVs = useCallback(async () => {
     return patientsApi.getAvailableVHVs()
@@ -136,16 +164,15 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
 
   const { data: availableVHVs } = useApiData(getAvailableVHVs, [])
   // No tabs; keep taskType independent. Filter is handled via filterType.
-  
+
   // UI helper: filter VHVs by search term and, for area tasks, by district
   const filteredVHVs = useMemo(() => {
     try {
       let list = (availableVHVs || []) as any[]
       const term = vhvSearch.trim().toLowerCase()
       if (term) {
-        list = list.filter((v: any) =>
-          (v.email?.toLowerCase().includes(term)) ||
-          (v.district?.toLowerCase().includes(term))
+        list = list.filter(
+          (v: any) => v.email?.toLowerCase().includes(term) || v.district?.toLowerCase().includes(term),
         )
       }
       return list
@@ -157,15 +184,17 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   const selectedVhvCount = vhvId ? 1 : selectedVhvIds.length
   const areaCount = chosenDistricts.length
   const hasSelectedVhvs = selectedVhvCount > 0
-  const hasPatientTarget = taskType === 'patient' ? (!!patientId || !!taskForm.patientId) : true
-  const createEnabled = Boolean(taskForm.title.trim()) && questions.length > 0 && hasPatientTarget && (
-    taskType === 'patient' ? hasSelectedVhvs : (areaCount > 0 || hasSelectedVhvs)
-  )
+  const hasPatientTarget = taskType === "patient" ? !!patientId || !!taskForm.patientId : true
+  const createEnabled =
+    Boolean(taskForm.title.trim()) &&
+    questions.length > 0 &&
+    hasPatientTarget &&
+    (taskType === "patient" ? hasSelectedVhvs : areaCount > 0 || hasSelectedVhvs)
 
   // Template helpers
   const loadTemplates = useCallback(() => {
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(templatesKey) : null
+      const raw = typeof window !== "undefined" ? localStorage.getItem(templatesKey) : null
       if (!raw) return []
       const parsed = JSON.parse(raw)
       return Array.isArray(parsed) ? parsed : []
@@ -175,7 +204,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }, [templatesKey])
 
   const saveTemplates = (list: TaskTemplate[]) => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       localStorage.setItem(templatesKey, JSON.stringify(list))
     }
   }
@@ -185,7 +214,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }, [loadTemplates])
 
   useEffect(() => {
-    if (taskType === 'area') {
+    if (taskType === "area") {
       setUseMapSelector(true)
     } else {
       setUseMapSelector(false)
@@ -194,7 +223,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }, [taskType])
 
   useEffect(() => {
-    if (taskType === 'area') {
+    if (taskType === "area") {
       setUseMapSelector(true)
     } else {
       setUseMapSelector(false)
@@ -223,67 +252,67 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }
 
   const applyTemplate = (templateId: string) => {
-    const t = templates.find(x => x.id === templateId)
+    const t = templates.find((x) => x.id === templateId)
     if (!t) return
-    setTaskForm(prev => ({ ...prev, title: t.title, description: t.description }))
+    setTaskForm((prev) => ({ ...prev, title: t.title, description: t.description }))
     setQuestions(t.questions)
   }
 
   // Embed form schema into description using a marker that VHV can later parse if needed
-  const FORM_OPEN = '<FORM_SCHEMA>'
-  const FORM_CLOSE = '</FORM_SCHEMA>'
+  const FORM_OPEN = "<FORM_SCHEMA>"
+  const FORM_CLOSE = "</FORM_SCHEMA>"
   const FORM_REGEX = /<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/gi
   const buildDescriptionWithSchema = (base: string, qs: Question[]) => {
-    const cleanBase = (base || '').replace(FORM_REGEX, '').trim()
+    const cleanBase = (base || "").replace(FORM_REGEX, "").trim()
     const schema = { questions: qs }
     return `${cleanBase}\n\n${FORM_OPEN}${JSON.stringify(schema)}${FORM_CLOSE}`.trim()
   }
   const stripFormSchema = (text?: string) => {
-    if (!text) return ''
+    if (!text) return ""
     try {
-      return text.replace(FORM_REGEX, '').trim()
+      return text.replace(FORM_REGEX, "").trim()
     } catch {
       return text
     }
   }
 
-  const AREA_OPEN = '<AREA_DISTRICT>'
-  const AREA_CLOSE = '</AREA_DISTRICT>'
+  const AREA_OPEN = "<AREA_DISTRICT>"
+  const AREA_CLOSE = "</AREA_DISTRICT>"
   const AREA_REGEX = /<AREA_DISTRICT>(.*?)<\/AREA_DISTRICT>/i
   const embedAreaDistrict = (text: string, district: string) => {
     const trimmed = text.trim()
-    return `${AREA_OPEN}${district}${AREA_CLOSE}${trimmed ? `\n\n${trimmed}` : ''}`.trim()
+    return `${AREA_OPEN}${district}${AREA_CLOSE}${trimmed ? `\n\n${trimmed}` : ""}`.trim()
   }
   const extractAreaInfo = (text?: string) => {
-    if (!text) return { district: undefined, remainder: '' }
+    if (!text) return { district: undefined, remainder: "" }
     const match = text.match(AREA_REGEX)
     const district = match ? match[1]?.trim() : undefined
-    const remainder = match ? text.replace(AREA_REGEX, '').trim() : text
+    const remainder = match ? text.replace(AREA_REGEX, "").trim() : text
     return { district, remainder }
   }
 
   // Multi-VHV selection helpers
   const toggleVhvSelection = (id: string) => {
-    setSelectedVhvIds((prev) => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id])
+    setSelectedVhvIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
   }
 
   // District selection helper (select all VHVs in district)
   const selectByDistrict = (district: string) => {
     setSelectedDistrict(district)
-    if (taskType === 'area' && !useMapSelector) {
+    if (taskType === "area" && !useMapSelector) {
       setSelectedDistricts(district ? [district] : [])
     }
     try {
       const list = (availableVHVs || []) as any[]
-      const inDistrict = district ? list.filter(v => (v as any).district === district) : []
-      setSelectedVhvIds(inDistrict.map(v => (v as any).id))
+      const inDistrict = district ? list.filter((v) => (v as any).district === district) : []
+      setSelectedVhvIds(inDistrict.map((v) => (v as any).id))
     } catch {
       setSelectedVhvIds([])
     }
   }
 
   const toggleDistrictMulti = (district: string) => {
-    setSelectedDistricts(prev => prev.includes(district) ? prev.filter(d => d !== district) : [...prev, district])
+    setSelectedDistricts((prev) => (prev.includes(district) ? prev.filter((d) => d !== district) : [...prev, district]))
   }
 
   const handleCreateTask = async () => {
@@ -308,20 +337,20 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       const descWithSchema = buildDescriptionWithSchema(taskForm.description, questions)
       const createFor = targetVhvs.length > 0 ? targetVhvs : []
 
-      if (taskType === 'area') {
+      if (taskType === "area") {
         if (areaCount === 0 && createFor.length === 0) {
-          alert('Select at least one district or VHV for area tasks')
+          alert("Select at least one district or VHV for area tasks")
           return
         }
 
         const vhvList = (availableVHVs || []) as any[]
-        const vhvById = new Map(vhvList.map(v => [v.id, v]))
+        const vhvById = new Map(vhvList.map((v) => [v.id, v]))
 
         if (createFor.length > 0) {
           const byDistrict = new Map<string, string[]>()
           for (const vid of createFor) {
             const v = vhvById.get(vid)
-            const d = (v?.district || '').trim()
+            const d = (v?.district || "").trim()
             if (!d) continue
             if (!byDistrict.has(d)) byDistrict.set(d, [])
             byDistrict.get(d)!.push(vid)
@@ -352,7 +381,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
               dueDate: taskForm.dueDate,
               doctorId: effectiveDoctorId,
             }
-            const inDistrict = vhvList.filter(v => (v as any).district === district)
+            const inDistrict = vhvList.filter((v) => (v as any).district === district)
             for (const v of inDistrict) {
               await areaTasksApi.create({ ...base, vhvId: (v as any).id })
             }
@@ -361,7 +390,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       } else {
         // Patient task
         if (!taskForm.patientId) {
-          alert('Please select a patient')
+          alert("Please select a patient")
           return
         }
         const payloadBase = {
@@ -396,7 +425,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       refetchTasks()
     } catch (error) {
       console.error("Failed to create task:", error)
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = error instanceof Error ? error.message : "Unknown error"
       alert(`Failed to create task: ${message}`)
     }
   }
@@ -410,7 +439,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     try {
       // Preserve embedded form schema if present on existing task
       const existingSchema = parseFormSchema(editingTask?.description)
-      const nextDescription = existingSchema ? buildDescriptionWithSchema(taskForm.description, existingSchema.questions || []) : taskForm.description
+      const nextDescription = existingSchema
+        ? buildDescriptionWithSchema(taskForm.description, existingSchema.questions || [])
+        : taskForm.description
       const isAreaTask = !editingTask?.patientId
       if (isAreaTask) {
         await areaTasksApi.update(editingTask.id, {
@@ -438,7 +469,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     }
 
     try {
-      const t = tasks?.find((x:any)=>x.id===taskId)
+      const t = tasks?.find((x: any) => x.id === taskId)
       if (t && !t.patientId) {
         await areaTasksApi.delete(taskId)
       } else {
@@ -453,7 +484,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
 
   const handleCompleteTask = async (taskId: string) => {
     try {
-      const t = tasks?.find((x:any)=>x.id===taskId)
+      const t = tasks?.find((x: any) => x.id === taskId)
       if (t && !t.patientId) {
         await areaTasksApi.complete(taskId)
       } else {
@@ -469,20 +500,28 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   const openEditDialog = (task: any) => {
     setEditingTask(task)
     const isAreaTask = !task.patientId
-    setTaskType(isAreaTask ? 'area' : 'patient')
+    setTaskType(isAreaTask ? "area" : "patient")
     const { district, remainder } = extractAreaInfo(task.description)
     if (isAreaTask) {
-      setSelectedDistrict(task.district || district || '')
+      setSelectedDistrict(task.district || district || "")
     } else {
-      setSelectedDistrict('')
+      setSelectedDistrict("")
     }
     if (task.vhvId) {
       setSelectedVhvIds([task.vhvId])
     }
+
+    const existingSchema = parseFormSchema(task.description)
+    if (existingSchema && existingSchema.questions) {
+      setQuestions(existingSchema.questions)
+    } else {
+      setQuestions([])
+    }
+
     setTaskForm({
       title: task.title,
       description: stripFormSchema(remainder),
-      patientId: isAreaTask ? '' : task.patientId,
+      patientId: isAreaTask ? "" : task.patientId,
       vhvId: task.vhvId,
       priority: task.priority,
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
@@ -498,24 +537,29 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       const statusMatch = filterStatus === "all" || normStatus === filterStatus
       const priorityMatch = filterPriority === "all" || normPriority === filterPriority
       const isPatientTask = !!task.patientId
-      const typeMatch =
-        filterType === 'all' ? true : filterType === 'patient' ? isPatientTask : !isPatientTask
+      const typeMatch = filterType === "all" ? true : filterType === "patient" ? isPatientTask : !isPatientTask
       return statusMatch && priorityMatch && typeMatch
     }) || []
 
   // Calculate statistics
-  const pendingTasks = filteredTasks.filter((t: any) => (t.status || '').toString().toLowerCase() === "pending").length || 0
-  const inProgressTasks = filteredTasks.filter((t: any) => (t.status || '').toString().toLowerCase() === "in_progress").length || 0
-  const completedTasks = filteredTasks.filter((t: any) => (t.status || '').toString().toLowerCase() === "completed").length || 0
+  const pendingTasks =
+    filteredTasks.filter((t: any) => (t.status || "").toString().toLowerCase() === "pending").length || 0
+  const inProgressTasks =
+    filteredTasks.filter((t: any) => (t.status || "").toString().toLowerCase() === "in_progress").length || 0
+  const completedTasks =
+    filteredTasks.filter((t: any) => (t.status || "").toString().toLowerCase() === "completed").length || 0
   const overdueTasks =
-    filteredTasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date() && (t.status || '').toString().toLowerCase() !== "completed").length || 0
+    filteredTasks.filter(
+      (t: any) =>
+        t.dueDate && new Date(t.dueDate) < new Date() && (t.status || "").toString().toLowerCase() !== "completed",
+    ).length || 0
 
   const getPatientName = (patientId: string) => {
     const assignment = assignments?.find((a: any) => a.patient?.id === patientId)
     if (!assignment?.patient) return "Unknown Patient"
     const p = assignment.patient
-    if (p.firstName === 'Area Task' || p.firstName === 'Area') {
-      const label = p.district || p.lastName || 'Unknown Area'
+    if (p.firstName === "Area Task" || p.firstName === "Area") {
+      const label = p.district || p.lastName || "Unknown Area"
       return `Area: ${label}`
     }
     return `${p.firstName} ${p.lastName}`
@@ -542,7 +586,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   }
 
   const getStatusColor = (status: string) => {
-    switch ((status || '').toString().toLowerCase()) {
+    switch ((status || "").toString().toLowerCase()) {
       case "completed":
         return "default"
       case "in_progress":
@@ -560,7 +604,11 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     const end = description.indexOf(FORM_CLOSE)
     if (start === -1 || end === -1 || end <= start) return null
     const json = description.substring(start + FORM_OPEN.length, end)
-    try { return JSON.parse(json) } catch { return null }
+    try {
+      return JSON.parse(json)
+    } catch {
+      return null
+    }
   }
 
   return (
@@ -630,7 +678,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
               <DialogContent className="w-full sm:max-w-[1000px] lg:max-w-[1200px] max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create New Task</DialogTitle>
-                  <DialogDescription>Fill in task details, assign to VHVs, and add the data items to collect.</DialogDescription>
+                  <DialogDescription>
+                    Fill in task details, assign to VHVs, and add the data items to collect.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Basic Info</div>
@@ -642,7 +692,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                       onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
                       placeholder="e.g. Follow-up assessment, blood pressure check"
                     />
-                    <p className="text-xs text-muted-foreground">Clear titles help VHVs understand the ask at a glance.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Clear titles help VHVs understand the ask at a glance.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
@@ -653,12 +705,14 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                       placeholder="Add context, instructions, and any notes for the VHV"
                       rows={3}
                     />
-                    <p className="text-xs text-muted-foreground">Use concise instructions. You can save this setup as a template.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Use concise instructions. You can save this setup as a template.
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Task Type</Label>
-                      <Select value={taskType} onValueChange={(v:any) => setTaskType(v)}>
+                      <Select value={taskType} onValueChange={(v: any) => setTaskType(v)}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -678,14 +732,21 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           <SelectValue placeholder={templates.length ? "Choose template" : "No templates saved"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {templates.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          {templates.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="flex items-end">
-                      <Button type="button" variant="outline" onClick={handleSaveTemplate} className="w-full">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSaveTemplate}
+                        className="w-full bg-transparent"
+                      >
                         <Save className="h-4 w-4 mr-2" /> Save as Template
                       </Button>
                     </div>
@@ -698,7 +759,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                       <ListChecks className="h-4 w-4" />
                       <Label>Data to Collect (at least one)</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground">These items appear in the VHV form and will be embedded in the task description.</p>
+                    <p className="text-xs text-muted-foreground">
+                      These items appear in the VHV form and will be embedded in the task description.
+                    </p>
 
                     {/* Add / edit question */}
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
@@ -706,11 +769,14 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                         <Input
                           placeholder="Question text"
                           value={newQuestion.text}
-                          onChange={(e) => setNewQuestion(prev => ({ ...prev, text: e.target.value }))}
+                          onChange={(e) => setNewQuestion((prev) => ({ ...prev, text: e.target.value }))}
                         />
                       </div>
                       <div className="md:col-span-1">
-                        <Select value={newQuestion.type} onValueChange={(v: any) => setNewQuestion(prev => ({ ...prev, type: v }))}>
+                        <Select
+                          value={newQuestion.type}
+                          onValueChange={(v: any) => setNewQuestion((prev) => ({ ...prev, type: v }))}
+                        >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -726,25 +792,44 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           onClick={() => {
                             if (!newQuestion.text.trim()) return
                             if (editingQuestionId) {
-                              setQuestions(prev => prev.map(q => q.id === editingQuestionId ? { ...q, text: newQuestion.text, type: newQuestion.type, options: newQuestion.type === 'close' ? (q.options || []) : undefined } : q))
+                              setQuestions((prev) =>
+                                prev.map((q) =>
+                                  q.id === editingQuestionId
+                                    ? {
+                                        ...q,
+                                        text: newQuestion.text,
+                                        type: newQuestion.type,
+                                        options: newQuestion.type === "close" ? q.options || [] : undefined,
+                                      }
+                                    : q,
+                                ),
+                              )
                               setEditingQuestionId(null)
                             } else {
-                              setQuestions(prev => [...prev, { id: `${Date.now()}`, text: newQuestion.text.trim(), type: newQuestion.type, options: newQuestion.type === 'close' ? [] : undefined }])
+                              setQuestions((prev) => [
+                                ...prev,
+                                {
+                                  id: `${Date.now()}`,
+                                  text: newQuestion.text.trim(),
+                                  type: newQuestion.type,
+                                  options: newQuestion.type === "close" ? [] : undefined,
+                                },
+                              ])
                             }
                             setNewQuestion({ text: "", type: "open", optionInput: "" })
                           }}
                         >
-                          {editingQuestionId ? 'Update Question' : 'Add Question'}
+                          {editingQuestionId ? "Update Question" : "Add Question"}
                         </Button>
                       </div>
                     </div>
-                    {newQuestion.type === 'close' && (
+                    {newQuestion.type === "close" && (
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                         <div className="md:col-span-3">
                           <Input
                             placeholder="Add option"
                             value={newQuestion.optionInput}
-                            onChange={(e) => setNewQuestion(prev => ({ ...prev, optionInput: e.target.value }))}
+                            onChange={(e) => setNewQuestion((prev) => ({ ...prev, optionInput: e.target.value }))}
                           />
                         </div>
                         <div className="md:col-span-1 flex items-end">
@@ -753,7 +838,11 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                             variant="outline"
                             onClick={() => {
                               if (!newQuestion.optionInput.trim()) return
-                              setNewQuestion(prev => ({ ...prev, options: [...(prev as any).options || [], prev.optionInput.trim()], optionInput: "" }))
+                              setNewQuestion((prev) => ({
+                                ...prev,
+                                options: [...((prev as any).options || []), prev.optionInput.trim()],
+                                optionInput: "",
+                              }))
                             }}
                           >
                             Add Option
@@ -762,7 +851,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                         {((newQuestion as any).options || []).length > 0 && (
                           <div className="md:col-span-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
                             {((newQuestion as any).options || []).map((opt: string, i: number) => (
-                              <span key={i} className="px-2 py-1 rounded border bg-muted/50">{opt}</span>
+                              <span key={i} className="px-2 py-1 rounded border bg-muted/50">
+                                {opt}
+                              </span>
                             ))}
                           </div>
                         )}
@@ -778,9 +869,14 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           {questions.map((q, idx) => (
                             <div key={q.id} className="flex items-start justify-between bg-muted/30 rounded p-2">
                               <div className="text-sm">
-                                <div className="font-medium">{idx + 1}. {q.text} <span className="text-muted-foreground">({q.type === 'open' ? 'Open-ended' : 'Close-ended'})</span></div>
-                                {q.type === 'close' && q.options && q.options.length > 0 && (
-                                  <div className="text-xs text-muted-foreground">Options: {q.options.join(', ')}</div>
+                                <div className="font-medium">
+                                  {idx + 1}. {q.text}{" "}
+                                  <span className="text-muted-foreground">
+                                    ({q.type === "open" ? "Open-ended" : "Close-ended"})
+                                  </span>
+                                </div>
+                                {q.type === "close" && q.options && q.options.length > 0 && (
+                                  <div className="text-xs text-muted-foreground">Options: {q.options.join(", ")}</div>
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
@@ -797,8 +893,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-red-600 hover:text-red-700"
-                                  onClick={() => setQuestions(prev => prev.filter(x => x.id !== q.id))}
+                                  className="text-red-600 hover:text-red-700 bg-transparent"
+                                  onClick={() => setQuestions((prev) => prev.filter((x) => x.id !== q.id))}
                                 >
                                   Delete
                                 </Button>
@@ -810,7 +906,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    {taskType === 'patient' && (
+                    {taskType === "patient" && (
                       <div className="space-y-2">
                         <Label htmlFor="patient">Patient</Label>
                         <Select
@@ -823,13 +919,17 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           </SelectTrigger>
                           <SelectContent>
                             {(() => {
-                              const uniquePatients = assignments?.reduce((uniquePatients: any[], assignment: any) => {
-                                if (assignment.patient && !uniquePatients.find(p => p.id === assignment.patient.id)) {
-                                  uniquePatients.push(assignment.patient)
-                                }
-                                return uniquePatients
-                              }, []) || []
-                              
+                              const uniquePatients =
+                                assignments?.reduce((uniquePatients: any[], assignment: any) => {
+                                  if (
+                                    assignment.patient &&
+                                    !uniquePatients.find((p) => p.id === assignment.patient.id)
+                                  ) {
+                                    uniquePatients.push(assignment.patient)
+                                  }
+                                  return uniquePatients
+                                }, []) || []
+
                               return uniquePatients.map((patient: any) => (
                                 <SelectItem key={patient.id} value={patient.id}>
                                   {patient.firstName} {patient.lastName}
@@ -840,22 +940,43 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                         </Select>
                       </div>
                     )}
-                    <div className={"space-y-3 " + (taskType === 'area' ? 'md:col-span-2' : '')}>
-                      <Label>{taskType === 'area' ? 'Areas & VHVs' : 'Assign to VHVs'}</Label>
+                    <div className={"space-y-3 " + (taskType === "area" ? "md:col-span-2" : "")}>
+                      <Label>{taskType === "area" ? "Areas & VHVs" : "Assign to VHVs"}</Label>
                       {vhvId ? (
-                        <Input value={availableVHVs?.find((v:any) => v.id === vhvId)?.email?.split('@')[0] || 'Selected VHV'} disabled />
+                        <Input
+                          value={
+                            availableVHVs?.find((v: any) => v.id === vhvId)?.email?.split("@")[0] || "Selected VHV"
+                          }
+                          disabled
+                        />
                       ) : (
                         <div className="border rounded-lg p-4 space-y-4">
-                          {taskType === 'area' && (
+                          {taskType === "area" && (
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-xs text-muted-foreground">Use the interactive map to highlight districts or switch to the list to pick manually.</p>
+                              <p className="text-xs text-muted-foreground">
+                                Use the interactive map to highlight districts or switch to the list to pick manually.
+                              </p>
                               <div className="flex gap-2">
-                                <Button type="button" size="sm" variant={useMapSelector ? 'secondary' : 'outline'} onClick={() => setUseMapSelector(true)}>Map</Button>
-                                <Button type="button" size="sm" variant={!useMapSelector ? 'secondary' : 'outline'} onClick={() => setUseMapSelector(false)}>List</Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={useMapSelector ? "secondary" : "outline"}
+                                  onClick={() => setUseMapSelector(true)}
+                                >
+                                  Map
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={!useMapSelector ? "secondary" : "outline"}
+                                  onClick={() => setUseMapSelector(false)}
+                                >
+                                  List
+                                </Button>
                               </div>
                             </div>
                           )}
-                          {taskType === 'area' && useMapSelector ? (
+                          {taskType === "area" && useMapSelector ? (
                             <VhvMapSelector
                               vhvs={(availableVHVs || []) as any[]}
                               selectedDistricts={selectedDistricts}
@@ -869,16 +990,24 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
                                 <Select value={selectedDistrict} onValueChange={(v) => selectByDistrict(v)}>
                                   <SelectTrigger>
-                                    <SelectValue placeholder={taskType === 'area' ? 'Select district' : 'Filter by district'} />
+                                    <SelectValue
+                                      placeholder={taskType === "area" ? "Select district" : "Filter by district"}
+                                    />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-64 overflow-y-auto">
-                                    {BANGKOK_DISTRICTS.map(d => (
-                                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                                    {BANGKOK_DISTRICTS.map((d) => (
+                                      <SelectItem key={d} value={d}>
+                                        {d}
+                                      </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                {taskType === 'patient' && (
-                                  <Button type="button" variant="outline" onClick={() => setSelectedVhvIds(filteredVHVs.map((v:any)=>v.id))}>
+                                {taskType === "patient" && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setSelectedVhvIds(filteredVHVs.map((v: any) => v.id))}
+                                  >
                                     <CopyPlus className="h-4 w-4 mr-2" /> Select All
                                   </Button>
                                 )}
@@ -898,13 +1027,16 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                               </div>
                               <ScrollArea className="h-40 pr-2">
                                 <div className="space-y-2">
-                                  {filteredVHVs.map((v:any) => (
+                                  {filteredVHVs.map((v: any) => (
                                     <label key={v.id} className="flex items-center gap-2 text-sm">
                                       <Checkbox
                                         checked={selectedVhvIds.includes(v.id)}
                                         onCheckedChange={() => toggleVhvSelection(v.id)}
                                       />
-                                      <span>{v.email?.split('@')[0]}{v.district ? ' - ' + v.district : ''}</span>
+                                      <span>
+                                        {v.email?.split("@")[0]}
+                                        {v.district ? " - " + v.district : ""}
+                                      </span>
                                     </label>
                                   ))}
                                 </div>
@@ -913,8 +1045,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           )}
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <Badge variant="secondary">VHVs selected: {selectedVhvCount}</Badge>
-                            {taskType === 'area' && <Badge variant="secondary">Areas selected: {areaCount}</Badge>}
-                            {taskType === 'area' && areaCount === 0 && !hasSelectedVhvs && (
+                            {taskType === "area" && <Badge variant="secondary">Areas selected: {areaCount}</Badge>}
+                            {taskType === "area" && areaCount === 0 && !hasSelectedVhvs && (
                               <span>Pick at least one area or VHV.</span>
                             )}
                           </div>
@@ -1014,8 +1146,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
               <div className="text-center py-4 text-muted-foreground">No tasks found</div>
             ) : (
               filteredTasks.map((task: any) => {
-                const tStatus = (task.status || '').toString().toLowerCase()
-                const tPriority = (task.priority || '').toString().toLowerCase()
+                const tStatus = (task.status || "").toString().toLowerCase()
+                const tPriority = (task.priority || "").toString().toLowerCase()
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && tStatus !== "completed"
                 const schema = parseFormSchema(task.description)
                 const extracted = extractAreaInfo(task.description)
@@ -1054,7 +1186,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                             {isAreaTask ? (
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
-                                Area: {areaDistrict || 'Unknown'}
+                                Area: {areaDistrict || "Unknown"}
                               </div>
                             ) : (
                               <div className="flex items-center gap-1">
@@ -1073,6 +1205,30 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                               </div>
                             )}
                           </div>
+
+                          {/* VHV Form Responses for completed tasks */}
+                          {tStatus === "completed" && task.formResponse && (
+                            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
+                              <h4 className="font-semibold text-sm flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                VHV Form Responses
+                              </h4>
+                              {schema?.questions &&
+                                schema.questions.map((question: any) => {
+                                  const answer = task.formResponse[question.id]
+                                  if (!answer) return null
+
+                                  return (
+                                    <div key={question.id} className="space-y-1">
+                                      <p className="text-sm font-medium">{question.text}</p>
+                                      <p className="text-sm text-muted-foreground pl-4">
+                                        {Array.isArray(answer) ? answer.join(", ") : answer}
+                                      </p>
+                                    </div>
+                                  )
+                                })}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 ml-4">
                           {tStatus !== "completed" && (

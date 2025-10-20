@@ -31,7 +31,8 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
-  UserPlus, ClipboardList,
+  UserPlus,
+  ClipboardList,
   Bell,
 } from "lucide-react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
@@ -44,6 +45,7 @@ import type { IntakeSubmission } from "@/lib/types"
 import Link from "next/link"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import VhvMap from "@/components/doctor/vhv-map"
+import PatientMap from "@/components/doctor/patient-map"
 import { UserRole } from "@/lib/types"
 
 export function DoctorDashboard() {
@@ -54,10 +56,16 @@ export function DoctorDashboard() {
 
   // Check and fix user ID if it's a hardcoded string
   useEffect(() => {
-    if (currentUser?.id && (currentUser.id === 'doctor_id' || currentUser.id === 'admin_id' || currentUser.id === 'vhv_id' || currentUser.id === 'patient_id')) {
-      console.log('Detected hardcoded user ID, clearing localStorage and redirecting to login')
+    if (
+      currentUser?.id &&
+      (currentUser.id === "doctor_id" ||
+        currentUser.id === "admin_id" ||
+        currentUser.id === "vhv_id" ||
+        currentUser.id === "patient_id")
+    ) {
+      console.log("Detected hardcoded user ID, clearing localStorage and redirecting to login")
       clearCurrentUser()
-      router.push('/login')
+      router.push("/login")
     }
   }, [currentUser?.id, router])
 
@@ -155,12 +163,12 @@ export function DoctorDashboard() {
         console.log("[v0] Changes requested")
       } else if (action === "in_review") {
         // Mark as in review - this will use the new API endpoint
-        const response = await fetch('/api/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: submissionId, action: 'in_review' })
+        const response = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: submissionId, action: "in_review" }),
         })
-        if (!response.ok) throw new Error('Failed to start review')
+        if (!response.ok) throw new Error("Failed to start review")
         alert("🔍 Review started - status updated to 'Under Review'")
         console.log("[v0] Marked as in review")
       }
@@ -175,7 +183,14 @@ export function DoctorDashboard() {
   }
 
   const handleAddPatient = useCallback(async () => {
-    if (newPatientForm.firstName && newPatientForm.lastName && newPatientForm.dob && newPatientForm.email && newPatientForm.password && newPatientForm.medicalCondition) {
+    if (
+      newPatientForm.firstName &&
+      newPatientForm.lastName &&
+      newPatientForm.dob &&
+      newPatientForm.email &&
+      newPatientForm.password &&
+      newPatientForm.medicalCondition
+    ) {
       try {
         const newPatient = await patientsApi.create({
           firstName: newPatientForm.firstName,
@@ -223,13 +238,13 @@ export function DoctorDashboard() {
 
     try {
       console.log("[API] Assigning visit:", newVisitForm)
-      
+
       // Create a new assignment between patient and VHV
       const assignment = await patientsApi.assignVHV(
         newVisitForm.patientId,
         newVisitForm.vhvId,
-        currentUser?.id || '', // Current doctor's ID
-        [] // No tasks for now
+        currentUser?.id || "", // Current doctor's ID
+        [], // No tasks for now
       )
 
       // Reset form and close dialog
@@ -240,10 +255,10 @@ export function DoctorDashboard() {
         notes: "",
       })
       setShowNewVisitDialog(false)
-      
+
       // Refresh data
       refetchPatients()
-      
+
       console.log("[API] Visit assigned successfully:", assignment)
       alert("Visit assigned successfully!")
     } catch (error) {
@@ -262,10 +277,12 @@ export function DoctorDashboard() {
   }
 
   // Helper function to render submissions list
-  const renderSubmissionsList = (submissions: (IntakeSubmission & {
-    patient?: { firstName: string; lastName: string }
-    vhv?: { user?: { email: string } }
-  })[]) => {
+  const renderSubmissionsList = (
+    submissions: (IntakeSubmission & {
+      patient?: { firstName: string; lastName: string }
+      vhv?: { user?: { email: string } }
+    })[],
+  ) => {
     if (submissions.length === 0) {
       return (
         <div className="text-center py-8 text-muted-foreground">
@@ -288,30 +305,37 @@ export function DoctorDashboard() {
               </CardTitle>
               <CardDescription>
                 Collected by {submission.vhv?.user?.email || "Unknown VHV"} on{" "}
-                {submission.createdAt
-                  ? new Date(submission.createdAt).toLocaleDateString()
-                  : "Unknown date"}
+                {submission.createdAt ? new Date(submission.createdAt).toLocaleDateString() : "Unknown date"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge 
+              <Badge
                 variant={
-                  submission.status === 'SUBMITTED' ? 'default' : 
-                  submission.status === 'IN_REVIEW' ? 'secondary' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'destructive' : 
-                  'secondary'
+                  submission.status === "SUBMITTED"
+                    ? "default"
+                    : submission.status === "IN_REVIEW"
+                      ? "secondary"
+                      : submission.status === "CHANGES_REQUESTED"
+                        ? "destructive"
+                        : "secondary"
                 }
                 className={
-                  submission.status === 'SUBMITTED' ? 'bg-orange-500' : 
-                  submission.status === 'IN_REVIEW' ? 'bg-blue-500' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'bg-red-500' : 
-                  ''
+                  submission.status === "SUBMITTED"
+                    ? "bg-orange-500"
+                    : submission.status === "IN_REVIEW"
+                      ? "bg-blue-500"
+                      : submission.status === "CHANGES_REQUESTED"
+                        ? "bg-red-500"
+                        : ""
                 }
               >
-                {submission.status === 'SUBMITTED' ? 'Pending Review' : 
-                 submission.status === 'IN_REVIEW' ? 'Under Review' :
-                 submission.status === 'CHANGES_REQUESTED' ? 'Changes Requested' : 
-                 submission.status}
+                {submission.status === "SUBMITTED"
+                  ? "Pending Review"
+                  : submission.status === "IN_REVIEW"
+                    ? "Under Review"
+                    : submission.status === "CHANGES_REQUESTED"
+                      ? "Changes Requested"
+                      : submission.status}
               </Badge>
             </div>
           </div>
@@ -333,21 +357,19 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
                 <p className="text-sm">
-                  {submission.payload?.patientBasics?.dob 
+                  {submission.payload?.patientBasics?.dob
                     ? new Date(submission.payload.patientBasics.dob).toLocaleDateString()
                     : "Not provided"}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Contact Phone</label>
-                <p className="text-sm">
-                  {submission.payload?.patientBasics?.contactPhone || "Not provided"}
-                </p>
+                <p className="text-sm">{submission.payload?.patientBasics?.contactPhone || "Not provided"}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Visit Date</label>
                 <p className="text-sm">
-                  {submission.payload?.visitMeta?.visitDateTime 
+                  {submission.payload?.visitMeta?.visitDateTime
                     ? new Date(submission.payload.visitMeta.visitDateTime).toLocaleDateString()
                     : "Not recorded"}
                 </p>
@@ -393,9 +415,7 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Temperature</label>
                 <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.temp
-                    ? `${submission.payload.vitals.temp}°C`
-                    : "Not recorded"}
+                  {submission.payload?.vitals?.temp ? `${submission.payload.vitals.temp}°C` : "Not recorded"}
                 </p>
               </div>
               <div>
@@ -409,9 +429,7 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Heart Rate</label>
                 <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.hr
-                    ? `${submission.payload.vitals.hr} bpm`
-                    : "Not recorded"}
+                  {submission.payload?.vitals?.hr ? `${submission.payload.vitals.hr} bpm` : "Not recorded"}
                 </p>
               </div>
             </div>
@@ -428,12 +446,10 @@ export function DoctorDashboard() {
                 {submission.payload.chronicConditions.list.map((condition, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
-                      {condition.condition.replace('_', ' ')}
+                      {condition.condition.replace("_", " ")}
                     </Badge>
                     {condition.freeText && (
-                      <span className="text-sm text-muted-foreground">
-                        - {condition.freeText}
-                      </span>
+                      <span className="text-sm text-muted-foreground">- {condition.freeText}</span>
                     )}
                   </div>
                 ))}
@@ -475,7 +491,7 @@ export function DoctorDashboard() {
               Patient Consent
             </h4>
             <p className="text-sm">
-              {submission.payload?.consent?.consentGiven 
+              {submission.payload?.consent?.consentGiven
                 ? "✅ Patient has provided consent for data collection and sharing"
                 : "❌ Consent status unclear - please verify"}
             </p>
@@ -483,9 +499,9 @@ export function DoctorDashboard() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t">
-            {submission.status === 'SUBMITTED' && (
-              <Button 
-                variant="outline" 
+            {submission.status === "SUBMITTED" && (
+              <Button
+                variant="outline"
                 onClick={() => handleValidateData(submission.id, "in_review")}
                 className="flex-1"
               >
@@ -493,14 +509,14 @@ export function DoctorDashboard() {
                 Start Review
               </Button>
             )}
-            {submission.status === 'CHANGES_REQUESTED' && (
+            {submission.status === "CHANGES_REQUESTED" && (
               <div className="flex-1 text-center p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
                   Waiting for VHV to provide additional information
                 </p>
               </div>
             )}
-            {(submission.status === 'SUBMITTED' || submission.status === 'IN_REVIEW') && (
+            {(submission.status === "SUBMITTED" || submission.status === "IN_REVIEW") && (
               <>
                 <Button onClick={() => handleValidateData(submission.id, "approve")} className="flex-1">
                   <CheckCircle className="h-4 w-4 mr-2" />
@@ -557,9 +573,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="patient-select" className="text-right">
                         Patient *
                       </Label>
-                      <Select 
-                        value={newVisitForm.patientId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, patientId: value }))}
+                      <Select
+                        value={newVisitForm.patientId}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, patientId: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select patient" />
@@ -577,9 +593,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="visit-type" className="text-right">
                         Visit Type *
                       </Label>
-                      <Select 
-                        value={newVisitForm.visitType} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, visitType: value }))}
+                      <Select
+                        value={newVisitForm.visitType}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, visitType: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select visit type" />
@@ -596,9 +612,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="vhv-select" className="text-right">
                         VHV *
                       </Label>
-                      <Select 
-                        value={newVisitForm.vhvId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, vhvId: value }))}
+                      <Select
+                        value={newVisitForm.vhvId}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, vhvId: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select VHV" />
@@ -621,7 +637,7 @@ export function DoctorDashboard() {
                         placeholder="Special instructions for the VHV..."
                         className="col-span-3"
                         value={newVisitForm.notes}
-                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, notes: e.target.value }))}
+                        onChange={(e) => setNewVisitForm((prev) => ({ ...prev, notes: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -709,7 +725,7 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="emergencies" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="emergencies" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
               Emergencies
@@ -730,6 +746,10 @@ export function DoctorDashboard() {
             <TabsTrigger value="patients" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Patient List
+            </TabsTrigger>
+            <TabsTrigger value="patient_map" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Patient Map
             </TabsTrigger>
             <TabsTrigger value="vhv_map" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
@@ -753,17 +773,15 @@ export function DoctorDashboard() {
                 {/* Status Filter Tabs */}
                 <Tabs defaultValue="all" className="w-full">
                   <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="all">
-                      All ({reviewQueue?.length || 0})
-                    </TabsTrigger>
+                    <TabsTrigger value="all">All ({reviewQueue?.length || 0})</TabsTrigger>
                     <TabsTrigger value="submitted">
-                      New ({reviewQueue?.filter((r: any) => r.status === 'SUBMITTED').length || 0})
+                      New ({reviewQueue?.filter((r: any) => r.status === "SUBMITTED").length || 0})
                     </TabsTrigger>
                     <TabsTrigger value="in_review">
-                      In Review ({reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW').length || 0})
+                      In Review ({reviewQueue?.filter((r: any) => r.status === "IN_REVIEW").length || 0})
                     </TabsTrigger>
                     <TabsTrigger value="changes_requested">
-                      Needs Changes ({reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED').length || 0})
+                      Needs Changes ({reviewQueue?.filter((r: any) => r.status === "CHANGES_REQUESTED").length || 0})
                     </TabsTrigger>
                   </TabsList>
 
@@ -780,17 +798,17 @@ export function DoctorDashboard() {
                       renderSubmissionsList(reviewQueue || [])
                     )}
                   </TabsContent>
-                  
+
                   <TabsContent value="submitted" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'SUBMITTED') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "SUBMITTED") || [])}
                   </TabsContent>
-                  
+
                   <TabsContent value="in_review" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "IN_REVIEW") || [])}
                   </TabsContent>
-                  
+
                   <TabsContent value="changes_requested" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "CHANGES_REQUESTED") || [])}
                   </TabsContent>
                 </Tabs>
               </CardContent>
@@ -978,7 +996,9 @@ export function DoctorDashboard() {
                             id="medicalCondition"
                             className="col-span-3"
                             value={newPatientForm.medicalCondition}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))}
+                            onChange={(e) =>
+                              setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))
+                            }
                             placeholder="e.g., Diabetes, Hypertension"
                           />
                         </div>
@@ -1025,8 +1045,11 @@ export function DoctorDashboard() {
                             </h4>
                             <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
                               <span>DOB: {new Date(patient.dob).toLocaleDateString()}</span>
-                              <span>Condition: {patient.medicalCondition || 'Not specified'}</span>
-                              <span>Last Visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
+                              <span>Condition: {patient.medicalCondition || "Not specified"}</span>
+                              <span>
+                                Last Visit:{" "}
+                                {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : "Never"}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1049,13 +1072,18 @@ export function DoctorDashboard() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">Last visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
+                                <span className="text-sm">
+                                  Last visit:{" "}
+                                  {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : "Never"}
+                                </span>
                               </div>
                             </div>
                             <div className="space-y-2">
                               <div>
                                 <h5 className="font-medium text-sm">Medical Condition</h5>
-                                <p className="text-sm text-muted-foreground">{patient.medicalCondition || 'Not specified'}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {patient.medicalCondition || "Not specified"}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -1064,6 +1092,20 @@ export function DoctorDashboard() {
                     </CardContent>
                   </Card>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="patient_map" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Patient Location Map</CardTitle>
+                <CardDescription>
+                  View patient household locations by district. Click markers for patient details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PatientMap patients={(patients || []) as any} />
               </CardContent>
             </Card>
           </TabsContent>

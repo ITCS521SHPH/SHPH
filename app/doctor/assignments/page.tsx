@@ -9,12 +9,11 @@ import { getCurrentUserFromStorage } from "@/lib/auth"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCallback, useMemo, useState } from "react"
 import { useApiData } from "@/lib/useApiData"
-import { patientsApi } from "@/lib/api"
+import { patientsApi, areaTasksApi } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { Input } from "@/components/ui/input"
-
 
 export default function DoctorAssignmentsPage() {
   const currentUser = getCurrentUserFromStorage()
@@ -27,8 +26,8 @@ export default function DoctorAssignmentsPage() {
 
   const isAreaPlaceholder = (patient: any) => {
     if (!patient) return false
-    const fn = (patient.firstName || patient.first_name || '').toString().trim()
-    return fn === 'Area Task' || fn === 'Area'
+    const fn = (patient.firstName || patient.first_name || "").toString().trim()
+    return fn === "Area Task" || fn === "Area"
   }
   const areaAssignments = (allAssignments || []).filter((a: any) => isAreaPlaceholder(a.patient))
 
@@ -109,7 +108,6 @@ export default function DoctorAssignmentsPage() {
                 )}
               </CardContent>
             </Card>
-            
           </div>
           <Tabs defaultValue="assign" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -146,11 +144,14 @@ export default function DoctorAssignmentsPage() {
                       className="w-full md:w-[320px]"
                     />
                   </div>
-                  <PatientAssignment doctorId={currentUser?.id} hideCurrentAssignments unassignedSearch={searchUnassigned} />
+                  <PatientAssignment
+                    doctorId={currentUser?.id}
+                    hideCurrentAssignments
+                    unassignedSearch={searchUnassigned}
+                  />
                 </TabsContent>
               </Tabs>
             </TabsContent>
-
 
             <TabsContent value="tasks" className="space-y-6 mt-4">
               <Card>
