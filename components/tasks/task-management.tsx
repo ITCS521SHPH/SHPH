@@ -86,10 +86,16 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     options?: string[]
   }
   const [questions, setQuestions] = useState<Question[]>([])
-  const [newQuestion, setNewQuestion] = useState<{ text: string; type: "open" | "close"; optionInput: string }>({
+  const [newQuestion, setNewQuestion] = useState<{
+    text: string
+    type: "open" | "close"
+    optionInput: string
+    options: string[]
+  }>({
     text: "",
     type: "open",
     optionInput: "",
+    options: [],
   })
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null)
 
@@ -799,7 +805,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                         ...q,
                                         text: newQuestion.text,
                                         type: newQuestion.type,
-                                        options: newQuestion.type === "close" ? q.options || [] : undefined,
+                                        options: newQuestion.type === "close" ? [...newQuestion.options] : undefined,
                                       }
                                     : q,
                                 ),
@@ -812,11 +818,11 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                   id: `${Date.now()}`,
                                   text: newQuestion.text.trim(),
                                   type: newQuestion.type,
-                                  options: newQuestion.type === "close" ? [] : undefined,
+                                  options: newQuestion.type === "close" ? [...newQuestion.options] : undefined,
                                 },
                               ])
                             }
-                            setNewQuestion({ text: "", type: "open", optionInput: "" })
+                            setNewQuestion({ text: "", type: "open", optionInput: "", options: [] })
                           }}
                         >
                           {editingQuestionId ? "Update Question" : "Add Question"}
@@ -840,17 +846,17 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                               if (!newQuestion.optionInput.trim()) return
                               setNewQuestion((prev) => ({
                                 ...prev,
-                                options: [...((prev as any).options || []), prev.optionInput.trim()],
+                                options: [...prev.options, prev.optionInput.trim()],
                                 optionInput: "",
                               }))
-                            }}
+                          }}
                           >
                             Add Option
                           </Button>
                         </div>
-                        {((newQuestion as any).options || []).length > 0 && (
+                        {newQuestion.options.length > 0 && (
                           <div className="md:col-span-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            {((newQuestion as any).options || []).map((opt: string, i: number) => (
+                            {newQuestion.options.map((opt: string, i: number) => (
                               <span key={i} className="px-2 py-1 rounded border bg-muted/50">
                                 {opt}
                               </span>
@@ -885,7 +891,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                   variant="outline"
                                   onClick={() => {
                                     setEditingQuestionId(q.id)
-                                    setNewQuestion({ text: q.text, type: q.type, optionInput: "" })
+                                    setNewQuestion({ text: q.text, type: q.type, optionInput: "", options: q.options || [] })
                                   }}
                                 >
                                   Edit
