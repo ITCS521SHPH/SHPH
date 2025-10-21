@@ -835,10 +835,6 @@ export function DoctorDashboard() {
               <span className="hidden sm:inline">VHV Map</span>
               <span className="sm:hidden">V-Map</span>
             </TabsTrigger>
-            <TabsTrigger value="vhv_map" className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              VHV Map
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="emergencies" className="space-y-4">
