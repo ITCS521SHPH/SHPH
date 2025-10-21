@@ -245,6 +245,15 @@ export function DoctorDashboard() {
     }
   }, [newPatientForm, refetchPatients])
 
+  const startReview = async (submissionId: string) => {
+    try {
+      await handleValidateData(submissionId, "in_review")
+      router.push(`/doctor/reviews/${submissionId}`)
+    } catch (e) {
+      console.error("Failed to start review:", e)
+    }
+  }
+
   const handleAssignVisit = useCallback(async () => {
     if (!newVisitForm.patientId || !newVisitForm.vhvId || !newVisitForm.visitType) {
       alert("Please fill in all required fields")
@@ -572,7 +581,7 @@ export function DoctorDashboard() {
             {submission.status === "SUBMITTED" && (
               <Button
                 variant="outline"
-                onClick={() => handleValidateData(submission.id, "in_review")}
+                onClick={() => startReview(submission.id)}
                 className="flex-1"
               >
                 <Clock className="h-4 w-4 mr-2" />
@@ -1336,3 +1345,5 @@ export function DoctorDashboard() {
     </div>
   )
 }
+
+

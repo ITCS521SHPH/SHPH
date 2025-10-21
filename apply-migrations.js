@@ -17,7 +17,8 @@ async function applyMigrations() {
     '009_add_patient_medical_fields.sql',
     '010_add_notifications_and_status_tracking.sql',
     '011_add_audit_logs.sql',
-    '012_add_in_review_status.sql'
+    '012_add_in_review_status.sql',
+    '016_enable_in_review_status_check.sql'
   ];
 
   for (const migration of migrations) {
