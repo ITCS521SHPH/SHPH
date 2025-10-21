@@ -35,12 +35,26 @@ export function PatientRecordDetail({ submissionId }: { submissionId: string }) 
 
   const p = record.payload || {}
 
-  const InfoRow = ({ label, value }: { label: string; value?: string | number }) => (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-sm">{value !== undefined && value !== "" ? String(value) : "Not recorded"}</div>
-    </div>
-  )
+  const isPlaceholder = (v: any) => typeof v === "string" && v.trim() === "123"
+  const displayValue = (v: any) => {
+    if (v === undefined || v === null) return undefined
+    if (typeof v === "string") {
+      const t = v.trim()
+      if (t === "" || t.toLowerCase() === "n/a" || t === "0" || t === "-" || t === "--" || isPlaceholder(t)) return undefined
+      return t
+    }
+    return v
+  }
+
+  const InfoRow = ({ label, value }: { label: string; value?: string | number }) => {
+    const v = displayValue(value)
+    return (
+      <div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-sm">{v !== undefined ? String(v) : "Not recorded"}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,11 +91,11 @@ export function PatientRecordDetail({ submissionId }: { submissionId: string }) 
             <CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4"/> Vital Signs</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <InfoRow label="Temperature" value={p.vitals?.temp !== undefined ? `${p.vitals.temp} °C` : undefined} />
-            <InfoRow label="Blood Pressure" value={p.vitals?.systolic && p.vitals?.diastolic ? `${p.vitals.systolic}/${p.vitals.diastolic} mmHg` : undefined} />
-            <InfoRow label="Heart Rate" value={p.vitals?.hr !== undefined ? `${p.vitals.hr} bpm` : undefined} />
-            <InfoRow label="SpO2" value={p.vitals?.spo2 !== undefined ? `${p.vitals.spo2}%` : undefined} />
-            <InfoRow label="Glucose" value={p.vitals?.glucose !== undefined ? `${p.vitals.glucose} mg/dL` : undefined} />
+            <InfoRow label="Temperature" value={displayValue(p.vitals?.temp) !== undefined ? `${p.vitals.temp} °C` : undefined} />
+            <InfoRow label="Blood Pressure" value={p.vitals?.systolic !== undefined && p.vitals?.diastolic !== undefined && !isPlaceholder(p.vitals?.systolic) && !isPlaceholder(p.vitals?.diastolic) ? `${p.vitals.systolic}/${p.vitals.diastolic} mmHg` : undefined} />
+            <InfoRow label="Heart Rate" value={displayValue(p.vitals?.hr) !== undefined ? `${p.vitals.hr} bpm` : undefined} />
+            <InfoRow label="SpO2" value={displayValue(p.vitals?.spo2) !== undefined ? `${p.vitals.spo2}%` : undefined} />
+            <InfoRow label="Glucose" value={displayValue(p.vitals?.glucose) !== undefined ? `${p.vitals.glucose} mg/dL` : undefined} />
           </CardContent>
         </Card>
 
@@ -144,4 +158,3 @@ export function PatientRecordDetail({ submissionId }: { submissionId: string }) 
     </div>
   )
 }
-
