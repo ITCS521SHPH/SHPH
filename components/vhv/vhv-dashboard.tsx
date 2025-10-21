@@ -6,19 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PatientReview } from "./patient-review"
 import { StructuredDataForm } from "./structured-data-form"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { TaskFormViewer } from "./task-form-viewer"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Eye } from "lucide-react"
+import { Eye, Edit2, Trash2 } from "lucide-react"
 import {
   Users,
   CheckCircle,
@@ -44,6 +38,16 @@ import { useApiData } from "@/lib/useApiData"
 import { initOfflineStorage, getOfflineFormData } from "@/lib/offline-storage"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import { UserRole } from "@/lib/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export function VHVDashboard() {
   const router = useRouter()
@@ -51,10 +55,16 @@ export function VHVDashboard() {
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
   // Check and fix user ID if it's a hardcoded string
   useEffect(() => {
-    if (currentUser?.id && (currentUser.id === 'doctor_id' || currentUser.id === 'admin_id' || currentUser.id === 'vhv_id' || currentUser.id === 'patient_id')) {
-      console.log('Detected hardcoded user ID, clearing localStorage and redirecting to login')
+    if (
+      currentUser?.id &&
+      (currentUser.id === "doctor_id" ||
+        currentUser.id === "admin_id" ||
+        currentUser.id === "vhv_id" ||
+        currentUser.id === "patient_id")
+    ) {
+      console.log("Detected hardcoded user ID, clearing localStorage and redirecting to login")
       clearCurrentUser()
-      router.push('/login')
+      router.push("/login")
     }
   }, [currentUser?.id, router])
   const [selectedPatientForReview, setSelectedPatientForReview] = useState<any>(null)
@@ -64,10 +74,15 @@ export function VHVDashboard() {
   const [showDataForm, setShowDataForm] = useState(false)
   const [selectedPatientForForm, setSelectedPatientForForm] = useState<any>(null)
   const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
+  const [showEditPatientDialog, setShowEditPatientDialog] = useState(false)
+  const [showDeletePatientDialog, setShowDeletePatientDialog] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [completedSections, setCompletedSections] = useState<string[]>([])
   const [currentIntakeId, setCurrentIntakeId] = useState<string | null>(null)
   const [activeEmergencyCount, setActiveEmergencyCount] = useState(0)
-  const [undoableActions, setUndoableActions] = useState<{[key: string]: {type: string, data: any, timeoutId: NodeJS.Timeout}}>({})
+  const [undoableActions, setUndoableActions] = useState<{
+    [key: string]: { type: string; data: any; timeoutId: NodeJS.Timeout }
+  }>({})
 
   // Initialize offline storage
   useEffect(() => {
@@ -94,7 +109,7 @@ export function VHVDashboard() {
   // Cleanup undo timers on unmount
   useEffect(() => {
     return () => {
-      Object.values(undoableActions).forEach(action => {
+      Object.values(undoableActions).forEach((action) => {
         clearTimeout(action.timeoutId)
       })
     }
@@ -138,23 +153,23 @@ export function VHVDashboard() {
     try {
       return patientsApi.getAssignmentsByVHV(currentUser.id)
     } catch (e) {
-      console.error('Error fetching all assignments for VHV:', e)
+      console.error("Error fetching all assignments for VHV:", e)
       return []
     }
   }, [currentUser?.id])
 
   const { data: allAssignmentsForVHV } = useApiData(getAllAssignmentsForVHV, [])
-  
+
   const getTasks = useCallback(async () => {
     if (!currentUser?.id) return []
     try {
       const [patientTasks, areaTasks] = await Promise.all([
         tasksApi.getByVHV(currentUser.id),
-        areaTasksApi.getByVHV(currentUser.id).catch(() => [])
+        areaTasksApi.getByVHV(currentUser.id).catch(() => []),
       ])
       return [...patientTasks, ...areaTasks]
     } catch (e) {
-      console.error('Error fetching tasks for VHV:', e)
+      console.error("Error fetching tasks for VHV:", e)
       return []
     }
   }, [currentUser?.id])
@@ -175,40 +190,40 @@ export function VHVDashboard() {
   // Helper to determine if a patient has any submitted/approved/rejected intake
   const hasSubmittedIntake = useCallback((patient: any) => {
     return !!patient?.intakeSubmissions?.some(
-      (intake: any) => intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
+      (intake: any) => intake.status === "SUBMITTED" || intake.status === "APPROVED" || intake.status === "REJECTED",
     )
   }, [])
 
   // Visible assignments (exclude area placeholders) – defined early so other hooks can depend on it
   const isAreaPlaceholder = (patient: any) => {
     if (!patient) return false
-    const fn = (patient.firstName || (patient as any).first_name || '').toString().trim()
-    return fn === 'Area Task' || fn === 'Area'
+    const fn = (patient.firstName || (patient as any).first_name || "").toString().trim()
+    return fn === "Area Task" || fn === "Area"
   }
   const visibleAssignments = (assignedPatients ?? []).filter((a: any) => !isAreaPlaceholder(a.patient))
 
   // Assigned Patients filter (All/Active/Completed)
-  const [assignedFilter, setAssignedFilter] = useState<'all' | 'active' | 'completed'>('all')
+  const [assignedFilter, setAssignedFilter] = useState<"all" | "active" | "completed">("all")
   // Load saved filter on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vhvAssignedFilter')
-      if (saved === 'all' || saved === 'active' || saved === 'completed') {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vhvAssignedFilter")
+      if (saved === "all" || saved === "active" || saved === "completed") {
         setAssignedFilter(saved)
       }
     }
   }, [])
   // Persist filter changes
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('vhvAssignedFilter', assignedFilter)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("vhvAssignedFilter", assignedFilter)
     }
   }, [assignedFilter])
   const filteredAssignments = useMemo(() => {
-    if (assignedFilter === 'active') {
+    if (assignedFilter === "active") {
       return (visibleAssignments ?? []).filter((assignment: any) => !hasSubmittedIntake(assignment.patient))
     }
-    if (assignedFilter === 'completed') {
+    if (assignedFilter === "completed") {
       return (visibleAssignments ?? []).filter((assignment: any) => hasSubmittedIntake(assignment.patient))
     }
     return visibleAssignments ?? []
@@ -250,7 +265,7 @@ export function VHVDashboard() {
       refetchPatients()
     } catch (error) {
       console.error("Error adding patient:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       alert(`Failed to create patient: ${errorMessage}. Please try again.`)
     }
   }, [newPatientForm, refetchPatients])
@@ -268,30 +283,30 @@ export function VHVDashboard() {
     try {
       // Additional validation: ensure patient has a valid ID
       if (!patient || !patient.id) {
-        console.error('Cannot open data form: Invalid patient object', patient)
-        alert('Error: Invalid patient data. Please refresh and try again.')
+        console.error("Cannot open data form: Invalid patient object", patient)
+        alert("Error: Invalid patient data. Please refresh and try again.")
         return
       }
 
-      console.log('Creating new intake for patient:', patient.id)
+      console.log("Creating new intake for patient:", patient.id)
       // Create a new intake submission when starting data collection
       const newIntake = await intakesApi.create(patient.id, currentUser?.id)
-      console.log('New intake created:', newIntake)
+      console.log("New intake created:", newIntake)
 
       // Validate that intake was created properly
       if (!newIntake || !newIntake.id) {
-        throw new Error('Intake creation returned invalid data')
+        throw new Error("Intake creation returned invalid data")
       }
 
       setCurrentIntakeId(newIntake.id)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      
+
       // Refresh assigned patients data to show updated intake status
       refetchPatients()
     } catch (error) {
       console.error("Failed to create intake:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       alert(`Failed to create intake submission: ${errorMessage}. Please try again.`)
       // Don't open form if intake creation fails
       setCurrentIntakeId(null)
@@ -303,18 +318,18 @@ export function VHVDashboard() {
     try {
       // Validate inputs
       if (!patient || !patient.id) {
-        console.error('Cannot continue data form: Invalid patient object', patient)
-        alert('Error: Invalid patient data. Please refresh and try again.')
+        console.error("Cannot continue data form: Invalid patient object", patient)
+        alert("Error: Invalid patient data. Please refresh and try again.")
         return
       }
 
-      if (!intakeId || intakeId.trim() === '') {
-        console.error('Cannot continue data form: Invalid intake ID', intakeId)
-        alert('Error: Invalid intake ID. Please refresh and try again.')
+      if (!intakeId || intakeId.trim() === "") {
+        console.error("Cannot continue data form: Invalid intake ID", intakeId)
+        alert("Error: Invalid intake ID. Please refresh and try again.")
         return
       }
 
-      console.log('Continuing intake:', intakeId, 'for patient:', patient.id)
+      console.log("Continuing intake:", intakeId, "for patient:", patient.id)
       // Load offline data to get completed sections
       const offlineData = await getOfflineFormData(patient.id.toString())
       if (offlineData && offlineData.completedSections) {
@@ -325,12 +340,12 @@ export function VHVDashboard() {
       setCurrentIntakeId(intakeId)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      
+
       // Refresh assigned patients data
       refetchPatients()
     } catch (error) {
       console.error("Failed to load offline data:", error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       alert(`Failed to continue data form: ${errorMessage}. Please try again.`)
       // Reset state on error
       setCurrentIntakeId(null)
@@ -350,7 +365,7 @@ export function VHVDashboard() {
       setSelectedPatientForReview(patient)
       setReviewIntakeId(intake.id)
       setShowReviewPage(true)
-      
+
       // Refresh assigned patients data
       refetchPatients()
     } catch (error) {
@@ -435,6 +450,37 @@ export function VHVDashboard() {
     }
   }
 
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [selectedTaskForForm, setSelectedTaskForForm] = useState<any>(null)
+
+  const handleOpenTaskForm = (task: any) => {
+    setSelectedTaskForForm(task)
+    setShowTaskForm(true)
+  }
+
+  const handleSubmitTaskForm = async (formData: Record<string, any>) => {
+    if (!selectedTaskForForm) return
+
+    try {
+      console.log("[v0] Submitting task form:", { taskId: selectedTaskForForm.id, formData })
+
+      // Complete the task with form data
+      if (selectedTaskForForm.patientId) {
+        await tasksApi.complete(selectedTaskForForm.id, formData)
+      } else {
+        await areaTasksApi.complete(selectedTaskForForm.id, formData)
+      }
+
+      alert("Task form submitted successfully!")
+      setShowTaskForm(false)
+      setSelectedTaskForForm(null)
+      refetchTasks()
+    } catch (error) {
+      console.error("Failed to submit task form:", error)
+      throw error
+    }
+  }
+
   const handleCompleteTask = async (taskId: string) => {
     try {
       const task = tasks?.find((t: any) => t.id === taskId)
@@ -446,27 +492,27 @@ export function VHVDashboard() {
       } else {
         await areaTasksApi.complete(taskId)
       }
-      
+
       // Create an undo action with 10-second timeout
       const timeoutId = setTimeout(() => {
-        setUndoableActions(prev => {
+        setUndoableActions((prev) => {
           const newActions = { ...prev }
           delete newActions[taskId]
           return newActions
         })
       }, 10000)
 
-      setUndoableActions(prev => ({
+      setUndoableActions((prev) => ({
         ...prev,
         [taskId]: {
-          type: 'COMPLETE_TASK',
+          type: "COMPLETE_TASK",
           data: task,
-          timeoutId
-        }
+          timeoutId,
+        },
       }))
 
       refetchTasks()
-      
+
       // Show success message
       console.log(`Task "${task.title}" completed. Undo available for 10 seconds.`)
     } catch (error) {
@@ -482,16 +528,16 @@ export function VHVDashboard() {
     try {
       // Clear the timeout
       clearTimeout(undoAction.timeoutId)
-      
+
       // Undo the task completion (patient vs area)
       if (undoAction.data?.patientId) {
         await tasksApi.reopen(taskId)
       } else {
         await areaTasksApi.reopen(taskId)
       }
-      
+
       // Remove from undo actions
-      setUndoableActions(prev => {
+      setUndoableActions((prev) => {
         const newActions = { ...prev }
         delete newActions[taskId]
         return newActions
@@ -505,7 +551,59 @@ export function VHVDashboard() {
     }
   }
 
-  // (moved earlier)
+  const handleEditPatient = async () => {
+    try {
+      if (!selectedPatient) return
+
+      console.log("[v0] Editing patient:", selectedPatient)
+
+      const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: selectedPatient.firstName,
+          lastName: selectedPatient.lastName,
+          dob: selectedPatient.dob,
+          address: selectedPatient.address,
+          phone: selectedPatient.phone,
+          nationalId: selectedPatient.nationalId,
+          district: selectedPatient.district,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update patient")
+
+      alert("Patient updated successfully!")
+      setShowEditPatientDialog(false)
+      setSelectedPatient(null)
+      refetchPatients()
+    } catch (error) {
+      console.error("[v0] Failed to update patient:", error)
+      alert("Failed to update patient. Please try again.")
+    }
+  }
+
+  const handleDeletePatient = async () => {
+    try {
+      if (!selectedPatient) return
+
+      console.log("[v0] Deleting patient:", selectedPatient)
+
+      const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete patient")
+
+      alert("Patient deleted successfully!")
+      setShowDeletePatientDialog(false)
+      setSelectedPatient(null)
+      refetchPatients()
+    } catch (error) {
+      console.error("[v0] Failed to delete patient:", error)
+      alert("Failed to delete patient. Please try again.")
+    }
+  }
 
   const visibleTasks = useMemo(() => {
     const taskList = tasks ?? []
@@ -515,7 +613,7 @@ export function VHVDashboard() {
     const patientDistrictById = new Map<string, string | undefined>(
       ((allAssignmentsForVHV ?? []) as any[])
         .map((a: any) => [a.patientId || a.patient?.id, a.patient?.district] as const)
-        .filter(([pid]) => !!pid)
+        .filter(([pid]) => !!pid),
     )
     const hasPatientMap = patientDistrictById.size > 0
 
@@ -533,52 +631,48 @@ export function VHVDashboard() {
   }, [tasks, vhvProfile?.district, allAssignmentsForVHV])
 
   const locationFilterActive = (vhvProfile?.district ?? "").trim() !== ""
-  const normStatus = (s: any) => (s || '').toString().toLowerCase()
-  const normPriority = (p: any) => (p || '').toString().toLowerCase()
+  const normStatus = (s: any) => (s || "").toString().toLowerCase()
+  const normPriority = (p: any) => (p || "").toString().toLowerCase()
   // Split visible tasks by type
-  const patientTasksAll = useMemo(
-    () => (visibleTasks || []).filter((task: any) => !!task.patientId),
-    [visibleTasks]
-  )
-  const areaTasksAll = useMemo(
-    () => (visibleTasks || []).filter((task: any) => !task.patientId),
-    [visibleTasks]
-  )
+  const patientTasksAll = useMemo(() => (visibleTasks || []).filter((task: any) => !!task.patientId), [visibleTasks])
+  const areaTasksAll = useMemo(() => (visibleTasks || []).filter((task: any) => !task.patientId), [visibleTasks])
   const activePatientList = useMemo(
     () => patientTasksAll.filter((task: any) => normStatus(task.status) !== "completed"),
-    [patientTasksAll]
+    [patientTasksAll],
   )
   const completedPatientList = useMemo(
     () => patientTasksAll.filter((task: any) => normStatus(task.status) === "completed"),
-    [patientTasksAll]
+    [patientTasksAll],
   )
   const activeAreaList = useMemo(
     () => areaTasksAll.filter((task: any) => normStatus(task.status) !== "completed"),
-    [areaTasksAll]
+    [areaTasksAll],
   )
   const completedAreaList = useMemo(
     () => areaTasksAll.filter((task: any) => normStatus(task.status) === "completed"),
-    [areaTasksAll]
+    [areaTasksAll],
   )
 
   // Calculate statistics from real data
   const activePatients = visibleAssignments.filter((assignment: any) => assignment.status === "active")
   const completedVisits = visibleAssignments.filter((assignment: any) => assignment.patient?.lastVisit).length
-  const pendingReviews = visibleAssignments.filter((assignment: any) => assignment.patient?.status === "pending_review").length
+  const pendingReviews = visibleAssignments.filter(
+    (assignment: any) => assignment.patient?.status === "pending_review",
+  ).length
 
   const pendingTasks = visibleTasks.filter((t: any) => normStatus(t.status) === "pending").length
   const inProgressTasks = visibleTasks.filter((t: any) => normStatus(t.status) === "in_progress").length
   const completedTasks = visibleTasks.filter((t: any) => normStatus(t.status) === "completed").length
 
   // Debug logging for statistics
-  console.log('VHVDashboard - Statistics:')
-  console.log('  activePatients:', activePatients.length)
-  console.log('  completedVisits:', completedVisits)
-  console.log('  pendingReviews:', pendingReviews)
-  console.log('  pendingTasks:', pendingTasks)
-  console.log('  inProgressTasks:', inProgressTasks)
-  console.log('  completedTasks:', completedTasks)
-  console.log('  locationFilterActive:', locationFilterActive)
+  console.log("VHVDashboard - Statistics:")
+  console.log("  activePatients:", activePatients.length)
+  console.log("  completedVisits:", completedVisits)
+  console.log("  pendingReviews:", pendingReviews)
+  console.log("  pendingTasks:", pendingTasks)
+  console.log("  inProgressTasks:", inProgressTasks)
+  console.log("  completedTasks:", completedTasks)
+  console.log("  locationFilterActive:", locationFilterActive)
 
   if (showReviewPage && selectedPatientForReview) {
     return (
@@ -632,18 +726,47 @@ export function VHVDashboard() {
     )
   }
 
+  if (showTaskForm && selectedTaskForForm) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => setShowTaskForm(false)}>
+                  ← Back to Dashboard
+                </Button>
+                <div>
+                  <h1 className="text-xl font-bold">Task Form</h1>
+                  <p className="text-muted-foreground">Fill out the required information</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-6">
+          <TaskFormViewer
+            task={selectedTaskForForm}
+            onSubmit={handleSubmitTaskForm}
+            onCancel={() => setShowTaskForm(false)}
+          />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Activity className="h-8 w-8 text-primary" />
+              <Activity className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">VHV Dashboard</h1>
-                <p className="text-muted-foreground">Village Health Volunteer Portal</p>
-                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" />
+                <h1 className="text-xl md:text-2xl font-bold">VHV Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Village Health Volunteer Portal</p>
+                <div className="mt-1 flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                  <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5" />
                   <span>
                     {profileLoading
                       ? "Loading coverage details..."
@@ -656,122 +779,14 @@ export function VHVDashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Dialog open={showAddPatientDialog} onOpenChange={setShowAddPatientDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="default">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Patient
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Add New Patient</DialogTitle>
-                    <DialogDescription>Enter the patient information to create a new record.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="firstName" className="text-right">
-                        First Name
-                      </Label>
-                      <Input
-                        id="firstName"
-                        className="col-span-3"
-                        value={newPatientForm.firstName}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="lastName" className="text-right">
-                        Last Name
-                      </Label>
-                      <Input
-                        id="lastName"
-                        className="col-span-3"
-                        value={newPatientForm.lastName}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, lastName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="dob" className="text-right">
-                        Date of Birth
-                      </Label>
-                      <Input
-                        id="dob"
-                        type="date"
-                        className="col-span-3"
-                        value={newPatientForm.dob}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, dob: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="nationalId" className="text-right">
-                        National ID
-                      </Label>
-                      <Input
-                        id="nationalId"
-                        className="col-span-3"
-                        value={newPatientForm.nationalId}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, nationalId: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="address" className="text-right">
-                        Address
-                      </Label>
-                      <Textarea
-                        id="address"
-                        className="col-span-3"
-                        value={newPatientForm.address}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, address: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="district" className="text-right">
-                        District
-                      </Label>
-                      <div className="col-span-3">
-                        <Select
-                          value={newPatientForm.district}
-                          onValueChange={(value) => setNewPatientForm((prev) => ({ ...prev, district: value }))}
-                        >
-                          <SelectTrigger id="district">
-                            <SelectValue placeholder="Select Bangkok district" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-64 overflow-y-auto">
-                            {BANGKOK_DISTRICTS.map((district) => (
-                              <SelectItem key={district} value={district}>
-                                {district}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="phone" className="text-right">
-                        Phone
-                      </Label>
-                      <Input
-                        id="phone"
-                        className="col-span-3"
-                        value={newPatientForm.phone}
-                        onChange={(e) => setNewPatientForm((prev) => ({ ...prev, phone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setShowAddPatientDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddPatient}>Add Patient</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Button variant="ghost" asChild>
-                <Link href="/vhv/profile">My Profile</Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="ghost" asChild size="sm">
+                <Link href="/vhv/profile">
+                  <span className="hidden sm:inline">My Profile</span>
+                  <span className="sm:hidden">Profile</span>
+                </Link>
               </Button>
-              <Button variant="outline" onClick={handleSignOut}>
+              <Button variant="outline" onClick={handleSignOut} size="sm">
                 Sign Out
               </Button>
             </div>
@@ -781,58 +796,58 @@ export function VHVDashboard() {
 
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Assigned Patients</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Assigned Patients</CardTitle>
+              <Users className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{activePatients.length}</div>
+              <div className="text-xl md:text-2xl font-bold">{activePatients.length}</div>
               <p className="text-xs text-muted-foreground">Active assignments</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Pending Tasks</CardTitle>
+              <AlertCircle className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{pendingTasks}</div>
+              <div className="text-xl md:text-2xl font-bold">{pendingTasks}</div>
               <p className="text-xs text-muted-foreground">Tasks to complete</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">In Progress</CardTitle>
+              <Target className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{inProgressTasks}</div>
+              <div className="text-xl md:text-2xl font-bold">{inProgressTasks}</div>
               <p className="text-xs text-muted-foreground">Tasks in progress</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Completed</CardTitle>
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{completedTasks}</div>
+              <div className="text-xl md:text-2xl font-bold">{completedTasks}</div>
               <p className="text-xs text-muted-foreground">Tasks completed</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overall Progress</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Overall Progress</CardTitle>
+              <Activity className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl md:text-2xl font-bold">
                 {visibleTasks.length > 0 ? Math.round((completedTasks / visibleTasks.length) * 100) : 0}%
               </div>
               <p className="text-xs text-muted-foreground">Task completion rate</p>
@@ -841,13 +856,13 @@ export function VHVDashboard() {
 
           <Card className={activeEmergencyCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Emergency Alerts</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Emergency Alerts</CardTitle>
               <Bell
-                className={`h-4 w-4 ${activeEmergencyCount > 0 ? "text-red-500 animate-pulse" : "text-gray-500"}`}
+                className={`h-3 w-3 md:h-4 md:w-4 ${activeEmergencyCount > 0 ? "text-red-500 animate-pulse" : "text-gray-500"}`}
               />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
+              <div className={`text-xl md:text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
                 {activeEmergencyCount}
               </div>
               <p className="text-xs text-muted-foreground">Active emergencies</p>
@@ -856,22 +871,29 @@ export function VHVDashboard() {
         </div>
 
         <Tabs defaultValue="emergencies" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="emergencies" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Emergencies
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Bell className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Emergencies</span>
+              <span className="sm:hidden">Emerg</span>
               {activeEmergencyCount > 0 && (
                 <Badge className="bg-red-500 text-white text-xs px-1 py-0 min-w-[16px] h-4">
                   {activeEmergencyCount}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="patients">Assigned Patients</TabsTrigger>
-            <TabsTrigger value="tasks">My Tasks</TabsTrigger>
+            <TabsTrigger value="patients" className="text-xs md:text-sm">
+              <span className="hidden sm:inline">Assigned Patients</span>
+              <span className="sm:hidden">Patients</span>
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="text-xs md:text-sm">
+              <span className="hidden sm:inline">My Tasks</span>
+              <span className="sm:hidden">Tasks</span>
+            </TabsTrigger>
           </TabsList>
           {locationFilterActive && vhvProfile?.district && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
-              <MapPin className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground px-1">
+              <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5" />
               <span>Tasks filtered by {vhvProfile.district}</span>
             </div>
           )}
@@ -882,17 +904,19 @@ export function VHVDashboard() {
 
           <TabsContent value="patients" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 gap-3">
                 <div>
-                  <CardTitle>Assigned Patients</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-base md:text-lg">Assigned Patients</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
                     Patients assigned to your care by doctors
-                    
                   </CardDescription>
                 </div>
-                <div className="w-40">
-                  <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v as 'all' | 'active' | 'completed')}>
-                    <SelectTrigger>
+                <div className="w-full sm:w-40">
+                  <Select
+                    value={assignedFilter}
+                    onValueChange={(v) => setAssignedFilter(v as "all" | "active" | "completed")}
+                  >
+                    <SelectTrigger className="text-xs md:text-sm">
                       <SelectValue placeholder="Filter" />
                     </SelectTrigger>
                     <SelectContent>
@@ -905,217 +929,279 @@ export function VHVDashboard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {patientsLoading ? (
-                  <div className="text-center py-4">Loading patients...</div>
+                  <div className="text-center py-4 text-sm">Loading patients...</div>
                 ) : patientsError ? (
-                  <div className="text-center py-4 text-red-500">Error loading patients</div>
+                  <div className="text-center py-4 text-red-500 text-sm">Error loading patients</div>
                 ) : !assignedPatients || assignedPatients.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">No patients assigned</div>
+                  <div className="text-center py-4 text-muted-foreground text-sm">No patients assigned</div>
                 ) : filteredAssignments.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">No patients for this filter</div>
+                  <div className="text-center py-4 text-muted-foreground text-sm">No patients for this filter</div>
                 ) : (
                   filteredAssignments.map((assignment: any) => {
                     const patient = assignment.patient
                     if (!patient) return null
-                    
-                    return (
-                    <Card key={assignment.id} className="border-l-4 border-l-blue-500">
-                      <CardContent className="pt-4">
-                        <div
-                          className="flex items-center justify-between cursor-pointer"
-                          onClick={() => togglePatientExpansion(assignment.id)}
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedPatient === assignment.id ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold">
-                                  {patient.firstName} {patient.lastName}
-                                </h3>
-                                <Badge variant={assignment.status === "active" ? "default" : "secondary"}>
-                                  {assignment.status || "active"}
-                                </Badge>
-                                {patient.intakeSubmissions && patient.intakeSubmissions.length > 0 &&
-                                  patient.intakeSubmissions.some((intake: any) =>
-                                    intake.status === 'SUBMITTED' || intake.status === 'APPROVED' || intake.status === 'REJECTED'
-                                  ) && (
-                                    <Badge variant="default">complete</Badge>
-                                  )}
-                                {assignment.tasks && assignment.tasks.length > 0 && (
-                                  <Badge variant="outline">
-                                    {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                Assigned:{" "}
-                                {assignment.assignedAt
-                                  ? new Date(assignment.assignedAt).toLocaleDateString()
-                                  : "Unknown"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {(() => {
-                              // Get the most recent intake for this patient
-                              const latestIntake = patient.intakeSubmissions?.[0]
-                              const hasActiveIntake =
-                                latestIntake && (latestIntake.status === "DRAFT" || latestIntake.status === "SUBMITTED")
-                              const hasCompletableIntake =
-                                latestIntake &&
-                                latestIntake.status === "DRAFT" &&
-                                latestIntake.payload &&
-                                Object.keys(latestIntake.payload).length > 0
 
-                              if (!hasActiveIntake) {
-                                // No active intake - show Start Visit only
-                                return (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleOpenDataForm(patient)
-                                    }}
+                    return (
+                      <Card key={assignment.id} className="border-l-4 border-l-blue-500">
+                        <CardContent className="pt-4">
+                          <div
+                            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer"
+                            onClick={() => togglePatientExpansion(patient.id)}
+                          >
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              {expandedPatient === patient.id ? (
+                                <ChevronDown className="h-4 w-4 flex-shrink-0 mt-1" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 flex-shrink-0 mt-1" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-sm md:text-base">
+                                    {patient.firstName} {patient.lastName}
+                                  </h3>
+                                  <Badge
+                                    variant={assignment.status === "active" ? "default" : "secondary"}
+                                    className="text-xs"
                                   >
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Start Visit
-                                  </Button>
-                                )
-                              } else if (latestIntake.status === "DRAFT") {
-                                // Has draft intake - show both buttons
-                                return (
-                                  <>
+                                    {assignment.status || "active"}
+                                  </Badge>
+                                  {patient.intakeSubmissions &&
+                                    patient.intakeSubmissions.length > 0 &&
+                                    patient.intakeSubmissions.some(
+                                      (intake: any) =>
+                                        intake.status === "SUBMITTED" ||
+                                        intake.status === "APPROVED" ||
+                                        intake.status === "REJECTED",
+                                    ) && (
+                                      <Badge variant="default" className="text-xs">
+                                        complete
+                                      </Badge>
+                                    )}
+                                  {assignment.tasks && assignment.tasks.length > 0 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs md:text-sm text-muted-foreground">
+                                  Assigned:{" "}
+                                  {assignment.assignedAt
+                                    ? new Date(assignment.assignedAt).toLocaleDateString()
+                                    : "Unknown"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                              {(() => {
+                                const latestIntake = patient.intakeSubmissions?.[0]
+                                const hasActiveIntake =
+                                  latestIntake &&
+                                  (latestIntake.status === "DRAFT" || latestIntake.status === "SUBMITTED")
+                                const hasCompletableIntake =
+                                  latestIntake &&
+                                  latestIntake.status === "DRAFT" &&
+                                  latestIntake.payload &&
+                                  Object.keys(latestIntake.payload).length > 0
+
+                                if (!hasActiveIntake) {
+                                  return (
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        handleContinueDataForm(patient, latestIntake.id)
+                                        handleOpenDataForm(patient)
                                       }}
+                                      className="flex-1 sm:flex-initial text-xs md:text-sm"
                                     >
-                                      <FileText className="h-4 w-4 mr-2" />
-                                      Continue Visit
+                                      <FileText className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                      <span className="hidden sm:inline">Start Visit</span>
+                                      <span className="sm:hidden">Start</span>
                                     </Button>
-                                    {hasCompletableIntake && (
+                                  )
+                                } else if (latestIntake.status === "DRAFT") {
+                                  return (
+                                    <>
                                       <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={(e) => {
                                           e.stopPropagation()
-                                          handleCompleteDataCollection(patient)
+                                          handleContinueDataForm(patient, latestIntake.id)
                                         }}
+                                        className="flex-1 sm:flex-initial text-xs md:text-sm"
                                       >
-                                        <Send className="h-4 w-4 mr-2" />
-                                        Review & Submit
+                                        <FileText className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                        <span className="hidden sm:inline">Continue Visit</span>
+                                        <span className="sm:hidden">Continue</span>
                                       </Button>
-                                    )}
-                                  </>
-                                )
-                              } else {
-                                // Intake already submitted - show View Visit button
-                                return (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleOpenPatientReview(patient, latestIntake)
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Visit
-                                  </Button>
-                                )
-                              }
-                            })()}
-                          </div>
-                        </div>
-
-                        {expandedPatient === patient.id && (
-                          <div className="mt-4 pt-4 border-t space-y-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-sm">
-                                    {patient.district ? patient.district : "District not set"}
-                                  </span>
-                                </div>
-                                {patient.address && (
-                                  <p className="text-xs text-muted-foreground pl-6">{patient.address}</p>
-                                )}
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-sm">{patient.phone}</span>
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <div>
-                                  <h5 className="font-medium text-sm">National ID</h5>
-                                  <p className="text-sm text-muted-foreground">{patient.nationalId}</p>
-                                </div>
-                                <div>
-                                  <h5 className="font-medium text-sm">Date of Birth</h5>
-                                  <p className="text-sm text-muted-foreground">
-                                    {patient.dob ? new Date(patient.dob).toLocaleDateString() : "Not specified"}
-                                  </p>
-                                </div>
-                              </div>
+                                      {hasCompletableIntake && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleCompleteDataCollection(patient)
+                                          }}
+                                          className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                        >
+                                          <Send className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                          <span className="hidden sm:inline">Review & Submit</span>
+                                          <span className="sm:hidden">Submit</span>
+                                        </Button>
+                                      )}
+                                    </>
+                                  )
+                                } else {
+                                  return (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleOpenPatientReview(patient, latestIntake)
+                                      }}
+                                      className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                    >
+                                      <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                      <span className="hidden sm:inline">View Visit</span>
+                                      <span className="sm:hidden">View</span>
+                                    </Button>
+                                  )
+                                }
+                              })()}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedPatient(patient)
+                                  setShowEditPatientDialog(true)
+                                }}
+                                className="text-xs md:text-sm"
+                              >
+                                <Edit2 className="h-3 w-3 md:h-4 md:w-4" />
+                                <span className="hidden sm:inline ml-1">Edit</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedPatient(patient)
+                                  setShowDeletePatientDialog(true)
+                                }}
+                                className="text-xs md:text-sm"
+                              >
+                                <Trash2 className="h-3 w-3 md:h-4 md:w-4 text-destructive" />
+                                <span className="hidden sm:inline ml-1">Delete</span>
+                              </Button>
                             </div>
+                          </div>
 
-                            {assignment.tasks && assignment.tasks.length > 0 && (
-                              <div className="mt-4 pt-4 border-t">
-                                <h5 className="font-medium text-sm mb-2">Patient Tasks</h5>
+                          {expandedPatient === patient.id && (
+                            <div className="mt-4 pt-4 border-t space-y-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  {assignment.tasks.map((task: any) => {
-                                    const tStatus = normStatus(task.status)
-                                    const tPriority = normPriority(task.priority)
-                                    return (
-                                      <div
-                                        key={task.id}
-                                        className="flex items-center justify-between p-2 bg-muted rounded"
-                                      >
-                                      <div>
-                                        <p className="font-medium text-sm">{task.title}</p>
-                                        <p className="text-xs text-muted-foreground">{(task.description || '').replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, '').trim()}</p>
-                                      </div>
-                                        <div className="flex items-center gap-2">
-                                          <Badge
-                                            variant={
-                                            tStatus === "completed"
-                                              ? "default"
-                                              : tStatus === "in_progress"
-                                                ? "secondary"
-                                                : tPriority === "high" || tPriority === "urgent"
-                                                  ? "destructive"
-                                                  : "outline"
-                                            }
-                                          >
-                                            {tStatus}
-                                          </Badge>
-                                          {tStatus !== "completed" && (
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleCompleteTask(task.id)}
-                                            >
-                                              Complete
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </div>
-                                  )})}
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-xs md:text-sm break-words">
+                                      {patient.district ? patient.district : "District not set"}
+                                    </span>
+                                  </div>
+                                  {patient.address && (
+                                    <p className="text-xs text-muted-foreground pl-5 md:pl-6 break-words">
+                                      {patient.address}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-xs md:text-sm">{patient.phone}</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <div>
+                                    <h5 className="font-medium text-xs md:text-sm">National ID</h5>
+                                    <p className="text-xs md:text-sm text-muted-foreground">{patient.nationalId}</p>
+                                  </div>
+                                  <div>
+                                    <h5 className="font-medium text-xs md:text-sm">Date of Birth</h5>
+                                    <p className="text-xs md:text-sm text-muted-foreground">
+                                      {patient.dob ? new Date(patient.dob).toLocaleDateString() : "Not specified"}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+
+                              {assignment.tasks && assignment.tasks.length > 0 && (
+                                <div className="mt-4 pt-4 border-t">
+                                  <h5 className="font-medium text-xs md:text-sm mb-2">Patient Tasks</h5>
+                                  <div className="space-y-2">
+                                    {assignment.tasks.map((task: any) => {
+                                      const tStatus = normStatus(task.status)
+                                      const tPriority = normPriority(task.priority)
+                                      return (
+                                        <div
+                                          key={task.id}
+                                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 bg-muted rounded"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-xs md:text-sm">{task.title}</p>
+                                            <p className="text-xs text-muted-foreground break-words">
+                                              {(task.description || "")
+                                                .replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "")
+                                                .trim()}
+                                            </p>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                            <Badge
+                                              variant={
+                                                tStatus === "completed"
+                                                  ? "default"
+                                                  : tStatus === "in_progress"
+                                                    ? "secondary"
+                                                    : tPriority === "high" || tPriority === "urgent"
+                                                      ? "destructive"
+                                                      : "outline"
+                                              }
+                                              className="text-xs"
+                                            >
+                                              {tStatus}
+                                            </Badge>
+                                            {tStatus !== "completed" && (
+                                              <>
+                                                {task.description && task.description.includes("<FORM_SCHEMA>") ? (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="default"
+                                                    onClick={() => handleOpenTaskForm(task)}
+                                                    className="text-xs"
+                                                  >
+                                                    Fill Form
+                                                  </Button>
+                                                ) : (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleCompleteTask(task.id)}
+                                                    className="text-xs"
+                                                  >
+                                                    Complete
+                                                  </Button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     )
                   })
                 )}
@@ -1126,176 +1212,47 @@ export function VHVDashboard() {
           <TabsContent value="tasks" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>My Tasks</CardTitle>
-                <CardDescription>
-                  Tasks assigned to you by doctors
-                </CardDescription>
+                <CardTitle className="text-base md:text-lg">My Tasks</CardTitle>
+                <CardDescription className="text-xs md:text-sm">Tasks assigned to you by doctors</CardDescription>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="patient" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="patient">Patient Tasks</TabsTrigger>
-                    <TabsTrigger value="area">Area Tasks</TabsTrigger>
+                    <TabsTrigger value="patient" className="text-xs md:text-sm">
+                      Patient Tasks
+                    </TabsTrigger>
+                    <TabsTrigger value="area" className="text-xs md:text-sm">
+                      Area Tasks
+                    </TabsTrigger>
                   </TabsList>
 
                   {/* Patient Tasks */}
                   <TabsContent value="patient" className="mt-4">
                     <Tabs defaultValue="active" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="active">Active ({activePatientList.length})</TabsTrigger>
-                        <TabsTrigger value="completed">Completed ({completedPatientList.length})</TabsTrigger>
+                        <TabsTrigger value="active" className="text-xs md:text-sm">
+                          Active ({activePatientList.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="completed" className="text-xs md:text-sm">
+                          Completed ({completedPatientList.length})
+                        </TabsTrigger>
                       </TabsList>
                       <TabsContent value="active" className="space-y-4 mt-4">
                         {tasksLoading ? (
-                          <div className="text-center py-4">Loading tasks...</div>
+                          <div className="text-center py-4 text-sm">Loading tasks...</div>
                         ) : activePatientList.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">No active tasks</div>
+                          <div className="text-center py-4 text-muted-foreground text-sm">No active tasks</div>
                         ) : (
                           activePatientList.map((task: any) => {
-                        const tStatus = normStatus(task.status)
-                        const tPriority = normPriority(task.priority)
-                        const assignmentForTask = visibleAssignments.find(
-                          (assignment: any) =>
-                            assignment.patientId === task.patientId || assignment.patient?.id === task.patientId
-                        )
-                        const patient = assignmentForTask?.patient
-
-                        return (
-                          <Card
-                            key={task.id}
-                            className={`border-l-4 ${
-                              tStatus === "in_progress"
-                                ? "border-l-yellow-500"
-                                : tPriority === "high" || tPriority === "urgent"
-                                  ? "border-l-red-500"
-                                  : "border-l-blue-500"
-                            }`}
-                          >
-                            <CardContent className="pt-4">
-                              <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold">{task.title}</h3>
-                                    <Badge
-                                      variant={
-                                        tPriority === "urgent"
-                                          ? "destructive"
-                                          : tPriority === "high"
-                                            ? "destructive"
-                                            : tPriority === "medium"
-                                              ? "secondary"
-                                              : "outline"
-                                      }
-                                    >
-                                      {tPriority}
-                                    </Badge>
-                                    <Badge
-                                      variant={tStatus === "in_progress" ? "secondary" : "outline"}
-                                    >
-                                      {tStatus}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground">{(task.description || '').replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, '').trim()}</p>
-                                  {patient && (
-                                    <p className="text-sm text-muted-foreground">
-                                      Patient: {patient.firstName} {patient.lastName}
-                                    </p>
-                                  )}
-                                  {task.dueDate && (
-                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                      <Calendar className="h-3 w-3" />
-                                      Due: {new Date(task.dueDate).toLocaleDateString()}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Button variant="outline" size="sm" onClick={() => handleCompleteTask(task.id)}>
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                    Complete
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )
-                      })
-                        )}
-                      </TabsContent>
-                      <TabsContent value="completed" className="space-y-4 mt-4">
-                        {tasksLoading ? (
-                          <div className="text-center py-4">Loading tasks...</div>
-                        ) : completedPatientList.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">No completed tasks</div>
-                        ) : (
-                          completedPatientList.map((task: any) => {
-                        const tPriority = normPriority(task.priority)
-                        const assignmentForTask = visibleAssignments.find(
-                          (assignment: any) =>
-                            assignment.patientId === task.patientId || assignment.patient?.id === task.patientId
-                        )
-                        const patient = assignmentForTask?.patient
-
-                        return (
-                          <Card key={task.id} className="border-l-4 border-l-green-500">
-                            <CardContent className="pt-4">
-                              <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold">{task.title}</h3>
-                                    <Badge variant="outline">{tPriority}</Badge>
-                                    <Badge variant="default">completed</Badge>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground">{(task.description || '').replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, '').trim()}</p>
-                                  {patient && (
-                                    <p className="text-sm text-muted-foreground">
-                                      Patient: {patient.firstName} {patient.lastName}
-                                    </p>
-                                  )}
-                                  {task.completedAt && (
-                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                      <CheckCircle className="h-3 w-3" />
-                                      Completed: {new Date(task.completedAt).toLocaleDateString()}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {undoableActions[task.id] && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleUndoCompleteTask(task.id)}
-                                      className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
-                                    >
-                                      Undo
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )
-                          })
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  </TabsContent>
-
-                  {/* Area Tasks */}
-                  <TabsContent value="area" className="mt-4">
-                    <Tabs defaultValue="active" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="active">Active ({activeAreaList.length})</TabsTrigger>
-                        <TabsTrigger value="completed">Completed ({completedAreaList.length})</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="active" className="space-y-4 mt-4">
-                        {tasksLoading ? (
-                          <div className="text-center py-4">Loading tasks...</div>
-                        ) : activeAreaList.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">No active tasks</div>
-                        ) : (
-                          activeAreaList.map((task: any) => {
                             const tStatus = normStatus(task.status)
                             const tPriority = normPriority(task.priority)
+                            const assignmentForTask = visibleAssignments.find(
+                              (assignment: any) =>
+                                assignment.patientId === task.patientId || assignment.patient?.id === task.patientId,
+                            )
+                            const patient = assignmentForTask?.patient
+                            const hasForm = task.description && task.description.includes("<FORM_SCHEMA>")
+
                             return (
                               <Card
                                 key={task.id}
@@ -1308,10 +1265,10 @@ export function VHVDashboard() {
                                 }`}
                               >
                                 <CardContent className="pt-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <h3 className="font-semibold">{task.title}</h3>
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="space-y-1 flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="font-semibold text-sm md:text-base">{task.title}</h3>
                                         <Badge
                                           variant={
                                             tPriority === "urgent"
@@ -1322,26 +1279,64 @@ export function VHVDashboard() {
                                                   ? "secondary"
                                                   : "outline"
                                           }
+                                          className="text-xs"
                                         >
                                           {tPriority}
                                         </Badge>
-                                        <Badge variant={tStatus === "in_progress" ? "secondary" : "outline"}>
+                                        <Badge
+                                          variant={tStatus === "in_progress" ? "secondary" : "outline"}
+                                          className="text-xs"
+                                        >
                                           {tStatus}
                                         </Badge>
+                                        {hasForm && (
+                                          <Badge
+                                            variant="outline"
+                                            className="bg-blue-50 text-blue-700 border-blue-200 text-xs"
+                                          >
+                                            Has Form
+                                          </Badge>
+                                        )}
                                       </div>
-                                      <p className="text-sm text-muted-foreground">{(task.description || '').replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, '').trim()}</p>
+                                      <p className="text-xs md:text-sm text-muted-foreground break-words">
+                                        {(task.description || "")
+                                          .replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "")
+                                          .trim()}
+                                      </p>
+                                      {patient && (
+                                        <p className="text-xs md:text-sm text-muted-foreground">
+                                          Patient: {patient.firstName} {patient.lastName}
+                                        </p>
+                                      )}
                                       {task.dueDate && (
-                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <div className="flex items-center gap-1 text-xs md:text-sm text-muted-foreground">
                                           <Calendar className="h-3 w-3" />
                                           Due: {new Date(task.dueDate).toLocaleDateString()}
                                         </div>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Button variant="outline" size="sm" onClick={() => handleCompleteTask(task.id)}>
-                                        <CheckCircle className="h-4 w-4 mr-2" />
-                                        Complete
-                                      </Button>
+                                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                      {hasForm ? (
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleOpenTaskForm(task)}
+                                          className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                        >
+                                          <FileText className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                          Fill Form
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleCompleteTask(task.id)}
+                                          className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                        >
+                                          <CheckCircle className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                          Complete
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 </CardContent>
@@ -1352,9 +1347,181 @@ export function VHVDashboard() {
                       </TabsContent>
                       <TabsContent value="completed" className="space-y-4 mt-4">
                         {tasksLoading ? (
-                          <div className="text-center py-4">Loading tasks...</div>
+                          <div className="text-center py-4 text-sm">Loading tasks...</div>
+                        ) : completedPatientList.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground text-sm">No completed tasks</div>
+                        ) : (
+                          completedPatientList.map((task: any) => {
+                            const tPriority = normPriority(task.priority)
+                            const assignmentForTask = visibleAssignments.find(
+                              (assignment: any) =>
+                                assignment.patientId === task.patientId || assignment.patient?.id === task.patientId,
+                            )
+                            const patient = assignmentForTask?.patient
+
+                            return (
+                              <Card key={task.id} className="border-l-4 border-l-green-500">
+                                <CardContent className="pt-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <h3 className="font-semibold">{task.title}</h3>
+                                        <Badge variant="outline">{tPriority}</Badge>
+                                        <Badge variant="default">completed</Badge>
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">
+                                        {(task.description || "")
+                                          .replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "")
+                                          .trim()}
+                                      </p>
+                                      {patient && (
+                                        <p className="text-sm text-muted-foreground">
+                                          Patient: {patient.firstName} {patient.lastName}
+                                        </p>
+                                      )}
+                                      {task.completedAt && (
+                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                          <CheckCircle className="h-3 w-3" />
+                                          Completed: {new Date(task.completedAt).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {undoableActions[task.id] && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleUndoCompleteTask(task.id)}
+                                          className="text-yellow-600 border-yellow-600 hover:bg-yellow-50"
+                                        >
+                                          Undo
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )
+                          })
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  </TabsContent>
+
+                  {/* Area Tasks */}
+                  <TabsContent value="area" className="mt-4">
+                    <Tabs defaultValue="active" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="active" className="text-xs md:text-sm">
+                          Active ({activeAreaList.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="completed" className="text-xs md:text-sm">
+                          Completed ({completedAreaList.length})
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="active" className="space-y-4 mt-4">
+                        {tasksLoading ? (
+                          <div className="text-center py-4 text-sm">Loading tasks...</div>
+                        ) : activeAreaList.length === 0 ? (
+                          <div className="text-center py-4 text-muted-foreground text-sm">No active tasks</div>
+                        ) : (
+                          activeAreaList.map((task: any) => {
+                            const tStatus = normStatus(task.status)
+                            const tPriority = normPriority(task.priority)
+                            const hasForm = task.description && task.description.includes("<FORM_SCHEMA>")
+
+                            return (
+                              <Card
+                                key={task.id}
+                                className={`border-l-4 ${
+                                  tStatus === "in_progress"
+                                    ? "border-l-yellow-500"
+                                    : tPriority === "high" || tPriority === "urgent"
+                                      ? "border-l-red-500"
+                                      : "border-l-blue-500"
+                                }`}
+                              >
+                                <CardContent className="pt-4">
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="space-y-1 flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="font-semibold text-sm md:text-base">{task.title}</h3>
+                                        <Badge
+                                          variant={
+                                            tPriority === "urgent"
+                                              ? "destructive"
+                                              : tPriority === "high"
+                                                ? "destructive"
+                                                : tPriority === "medium"
+                                                  ? "secondary"
+                                                  : "outline"
+                                          }
+                                          className="text-xs"
+                                        >
+                                          {tPriority}
+                                        </Badge>
+                                        <Badge
+                                          variant={tStatus === "in_progress" ? "secondary" : "outline"}
+                                          className="text-xs"
+                                        >
+                                          {tStatus}
+                                        </Badge>
+                                        {hasForm && (
+                                          <Badge
+                                            variant="outline"
+                                            className="bg-blue-50 text-blue-700 border-blue-200 text-xs"
+                                          >
+                                            Has Form
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs md:text-sm text-muted-foreground break-words">
+                                        {(task.description || "")
+                                          .replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "")
+                                          .trim()}
+                                      </p>
+                                      {task.dueDate && (
+                                        <div className="flex items-center gap-1 text-xs md:text-sm text-muted-foreground">
+                                          <Calendar className="h-3 w-3" />
+                                          Due: {new Date(task.dueDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                      {hasForm ? (
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleOpenTaskForm(task)}
+                                          className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                        >
+                                          <FileText className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                          Fill Form
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleCompleteTask(task.id)}
+                                          className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                        >
+                                          <CheckCircle className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                          Complete
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )
+                          })
+                        )}
+                      </TabsContent>
+                      <TabsContent value="completed" className="space-y-4 mt-4">
+                        {tasksLoading ? (
+                          <div className="text-center py-4 text-sm">Loading tasks...</div>
                         ) : completedAreaList.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">No completed tasks</div>
+                          <div className="text-center py-4 text-muted-foreground text-sm">No completed tasks</div>
                         ) : (
                           completedAreaList.map((task: any) => (
                             <Card key={task.id} className="border-l-4 border-l-green-500">
@@ -1366,7 +1533,11 @@ export function VHVDashboard() {
                                       <Badge variant="outline">{normPriority(task.priority)}</Badge>
                                       <Badge variant="default">completed</Badge>
                                     </div>
-                                    <p className="text-sm text-muted-foreground">{(task.description || '').replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, '').trim()}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {(task.description || "")
+                                        .replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/g, "")
+                                        .trim()}
+                                    </p>
                                     {task.completedAt && (
                                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                         <CheckCircle className="h-3 w-3" />
@@ -1400,6 +1571,111 @@ export function VHVDashboard() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={showEditPatientDialog} onOpenChange={setShowEditPatientDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+            <DialogDescription>Update patient information</DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First Name</Label>
+                  <Input
+                    value={selectedPatient.firstName || ""}
+                    onChange={(e) => setSelectedPatient({ ...selectedPatient, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input
+                    value={selectedPatient.lastName || ""}
+                    onChange={(e) => setSelectedPatient({ ...selectedPatient, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Input
+                  type="date"
+                  value={selectedPatient.dob ? selectedPatient.dob.split("T")[0] : ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, dob: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Address</Label>
+                <Textarea
+                  value={selectedPatient.address || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, address: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={selectedPatient.phone || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>National ID</Label>
+                <Input
+                  value={selectedPatient.nationalId || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, nationalId: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>District</Label>
+                <Select
+                  value={selectedPatient.district || ""}
+                  onValueChange={(value) => setSelectedPatient({ ...selectedPatient, district: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select district" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {BANGKOK_DISTRICTS.map((district) => (
+                      <SelectItem key={district} value={district}>
+                        {district}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditPatientDialog(false)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button onClick={handleEditPatient} className="w-full sm:w-auto">
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeletePatientDialog} onOpenChange={setShowDeletePatientDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedPatient?.firstName} {selectedPatient?.lastName} from the system.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePatient}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

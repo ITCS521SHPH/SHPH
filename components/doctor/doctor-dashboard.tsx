@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -31,8 +41,11 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
-  UserPlus, ClipboardList,
+  UserPlus,
+  ClipboardList,
   Bell,
+  Edit2,
+  Trash2,
 } from "lucide-react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -44,6 +57,7 @@ import type { IntakeSubmission } from "@/lib/types"
 import Link from "next/link"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import VhvMap from "@/components/doctor/vhv-map"
+import PatientMap from "@/components/doctor/patient-map"
 import { UserRole } from "@/lib/types"
 
 export function DoctorDashboard() {
@@ -51,13 +65,22 @@ export function DoctorDashboard() {
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState(getCurrentUserFromStorage())
   const [activeEmergencyCount, setActiveEmergencyCount] = useState(0)
+  const [showEditPatientDialog, setShowEditPatientDialog] = useState(false)
+  const [showDeletePatientDialog, setShowDeletePatientDialog] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
 
   // Check and fix user ID if it's a hardcoded string
   useEffect(() => {
-    if (currentUser?.id && (currentUser.id === 'doctor_id' || currentUser.id === 'admin_id' || currentUser.id === 'vhv_id' || currentUser.id === 'patient_id')) {
-      console.log('Detected hardcoded user ID, clearing localStorage and redirecting to login')
+    if (
+      currentUser?.id &&
+      (currentUser.id === "doctor_id" ||
+        currentUser.id === "admin_id" ||
+        currentUser.id === "vhv_id" ||
+        currentUser.id === "patient_id")
+    ) {
+      console.log("Detected hardcoded user ID, clearing localStorage and redirecting to login")
       clearCurrentUser()
-      router.push('/login')
+      router.push("/login")
     }
   }, [currentUser?.id, router])
 
@@ -155,12 +178,12 @@ export function DoctorDashboard() {
         console.log("[v0] Changes requested")
       } else if (action === "in_review") {
         // Mark as in review - this will use the new API endpoint
-        const response = await fetch('/api/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: submissionId, action: 'in_review' })
+        const response = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: submissionId, action: "in_review" }),
         })
-        if (!response.ok) throw new Error('Failed to start review')
+        if (!response.ok) throw new Error("Failed to start review")
         alert("🔍 Review started - status updated to 'Under Review'")
         console.log("[v0] Marked as in review")
       }
@@ -175,7 +198,14 @@ export function DoctorDashboard() {
   }
 
   const handleAddPatient = useCallback(async () => {
-    if (newPatientForm.firstName && newPatientForm.lastName && newPatientForm.dob && newPatientForm.email && newPatientForm.password && newPatientForm.medicalCondition) {
+    if (
+      newPatientForm.firstName &&
+      newPatientForm.lastName &&
+      newPatientForm.dob &&
+      newPatientForm.email &&
+      newPatientForm.password &&
+      newPatientForm.medicalCondition
+    ) {
       try {
         const newPatient = await patientsApi.create({
           firstName: newPatientForm.firstName,
@@ -223,13 +253,13 @@ export function DoctorDashboard() {
 
     try {
       console.log("[API] Assigning visit:", newVisitForm)
-      
+
       // Create a new assignment between patient and VHV
       const assignment = await patientsApi.assignVHV(
         newVisitForm.patientId,
         newVisitForm.vhvId,
-        currentUser?.id || '', // Current doctor's ID
-        [] // No tasks for now
+        currentUser?.id || "", // Current doctor's ID
+        [], // No tasks for now
       )
 
       // Reset form and close dialog
@@ -240,10 +270,10 @@ export function DoctorDashboard() {
         notes: "",
       })
       setShowNewVisitDialog(false)
-      
+
       // Refresh data
       refetchPatients()
-      
+
       console.log("[API] Visit assigned successfully:", assignment)
       alert("Visit assigned successfully!")
     } catch (error) {
@@ -251,6 +281,61 @@ export function DoctorDashboard() {
       alert("Failed to assign visit. Please try again.")
     }
   }, [newVisitForm, refetchPatients])
+
+  const handleEditPatient = async () => {
+    try {
+      if (!selectedPatient) return
+
+      console.log("[v0] Editing patient:", selectedPatient)
+
+      const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: selectedPatient.firstName,
+          lastName: selectedPatient.lastName,
+          dob: selectedPatient.dob,
+          address: selectedPatient.address,
+          phone: selectedPatient.phone,
+          nationalId: selectedPatient.nationalId,
+          email: selectedPatient.email,
+          medicalCondition: selectedPatient.medicalCondition,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update patient")
+
+      alert("Patient updated successfully!")
+      setShowEditPatientDialog(false)
+      setSelectedPatient(null)
+      refetchPatients()
+    } catch (error) {
+      console.error("[v0] Failed to update patient:", error)
+      alert("Failed to update patient. Please try again.")
+    }
+  }
+
+  const handleDeletePatient = async () => {
+    try {
+      if (!selectedPatient) return
+
+      console.log("[v0] Deleting patient:", selectedPatient)
+
+      const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete patient")
+
+      alert("Patient deleted successfully!")
+      setShowDeletePatientDialog(false)
+      setSelectedPatient(null)
+      refetchPatients()
+    } catch (error) {
+      console.error("[v0] Failed to delete patient:", error)
+      alert("Failed to delete patient. Please try again.")
+    }
+  }
 
   const handleSignOut = () => {
     clearCurrentUser()
@@ -262,10 +347,12 @@ export function DoctorDashboard() {
   }
 
   // Helper function to render submissions list
-  const renderSubmissionsList = (submissions: (IntakeSubmission & {
-    patient?: { firstName: string; lastName: string }
-    vhv?: { user?: { email: string } }
-  })[]) => {
+  const renderSubmissionsList = (
+    submissions: (IntakeSubmission & {
+      patient?: { firstName: string; lastName: string }
+      vhv?: { user?: { email: string } }
+    })[],
+  ) => {
     if (submissions.length === 0) {
       return (
         <div className="text-center py-8 text-muted-foreground">
@@ -288,30 +375,37 @@ export function DoctorDashboard() {
               </CardTitle>
               <CardDescription>
                 Collected by {submission.vhv?.user?.email || "Unknown VHV"} on{" "}
-                {submission.createdAt
-                  ? new Date(submission.createdAt).toLocaleDateString()
-                  : "Unknown date"}
+                {submission.createdAt ? new Date(submission.createdAt).toLocaleDateString() : "Unknown date"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge 
+              <Badge
                 variant={
-                  submission.status === 'SUBMITTED' ? 'default' : 
-                  submission.status === 'IN_REVIEW' ? 'secondary' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'destructive' : 
-                  'secondary'
+                  submission.status === "SUBMITTED"
+                    ? "default"
+                    : submission.status === "IN_REVIEW"
+                      ? "secondary"
+                      : submission.status === "CHANGES_REQUESTED"
+                        ? "destructive"
+                        : "secondary"
                 }
                 className={
-                  submission.status === 'SUBMITTED' ? 'bg-orange-500' : 
-                  submission.status === 'IN_REVIEW' ? 'bg-blue-500' :
-                  submission.status === 'CHANGES_REQUESTED' ? 'bg-red-500' : 
-                  ''
+                  submission.status === "SUBMITTED"
+                    ? "bg-orange-500"
+                    : submission.status === "IN_REVIEW"
+                      ? "bg-blue-500"
+                      : submission.status === "CHANGES_REQUESTED"
+                        ? "bg-red-500"
+                        : ""
                 }
               >
-                {submission.status === 'SUBMITTED' ? 'Pending Review' : 
-                 submission.status === 'IN_REVIEW' ? 'Under Review' :
-                 submission.status === 'CHANGES_REQUESTED' ? 'Changes Requested' : 
-                 submission.status}
+                {submission.status === "SUBMITTED"
+                  ? "Pending Review"
+                  : submission.status === "IN_REVIEW"
+                    ? "Under Review"
+                    : submission.status === "CHANGES_REQUESTED"
+                      ? "Changes Requested"
+                      : submission.status}
               </Badge>
             </div>
           </div>
@@ -333,21 +427,19 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
                 <p className="text-sm">
-                  {submission.payload?.patientBasics?.dob 
+                  {submission.payload?.patientBasics?.dob
                     ? new Date(submission.payload.patientBasics.dob).toLocaleDateString()
                     : "Not provided"}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Contact Phone</label>
-                <p className="text-sm">
-                  {submission.payload?.patientBasics?.contactPhone || "Not provided"}
-                </p>
+                <p className="text-sm">{submission.payload?.patientBasics?.contactPhone || "Not provided"}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Visit Date</label>
                 <p className="text-sm">
-                  {submission.payload?.visitMeta?.visitDateTime 
+                  {submission.payload?.visitMeta?.visitDateTime
                     ? new Date(submission.payload.visitMeta.visitDateTime).toLocaleDateString()
                     : "Not recorded"}
                 </p>
@@ -393,9 +485,7 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Temperature</label>
                 <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.temp
-                    ? `${submission.payload.vitals.temp}°C`
-                    : "Not recorded"}
+                  {submission.payload?.vitals?.temp ? `${submission.payload.vitals.temp}°C` : "Not recorded"}
                 </p>
               </div>
               <div>
@@ -409,9 +499,7 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Heart Rate</label>
                 <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.hr
-                    ? `${submission.payload.vitals.hr} bpm`
-                    : "Not recorded"}
+                  {submission.payload?.vitals?.hr ? `${submission.payload.vitals.hr} bpm` : "Not recorded"}
                 </p>
               </div>
             </div>
@@ -428,12 +516,10 @@ export function DoctorDashboard() {
                 {submission.payload.chronicConditions.list.map((condition, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
-                      {condition.condition.replace('_', ' ')}
+                      {condition.condition.replace("_", " ")}
                     </Badge>
                     {condition.freeText && (
-                      <span className="text-sm text-muted-foreground">
-                        - {condition.freeText}
-                      </span>
+                      <span className="text-sm text-muted-foreground">- {condition.freeText}</span>
                     )}
                   </div>
                 ))}
@@ -475,7 +561,7 @@ export function DoctorDashboard() {
               Patient Consent
             </h4>
             <p className="text-sm">
-              {submission.payload?.consent?.consentGiven 
+              {submission.payload?.consent?.consentGiven
                 ? "✅ Patient has provided consent for data collection and sharing"
                 : "❌ Consent status unclear - please verify"}
             </p>
@@ -483,9 +569,9 @@ export function DoctorDashboard() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t">
-            {submission.status === 'SUBMITTED' && (
-              <Button 
-                variant="outline" 
+            {submission.status === "SUBMITTED" && (
+              <Button
+                variant="outline"
                 onClick={() => handleValidateData(submission.id, "in_review")}
                 className="flex-1"
               >
@@ -493,14 +579,14 @@ export function DoctorDashboard() {
                 Start Review
               </Button>
             )}
-            {submission.status === 'CHANGES_REQUESTED' && (
+            {submission.status === "CHANGES_REQUESTED" && (
               <div className="flex-1 text-center p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg">
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
                   Waiting for VHV to provide additional information
                 </p>
               </div>
             )}
-            {(submission.status === 'SUBMITTED' || submission.status === 'IN_REVIEW') && (
+            {(submission.status === "SUBMITTED" || submission.status === "IN_REVIEW") && (
               <>
                 <Button onClick={() => handleValidateData(submission.id, "approve")} className="flex-1">
                   <CheckCircle className="h-4 w-4 mr-2" />
@@ -522,30 +608,32 @@ export function DoctorDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Stethoscope className="h-8 w-8 text-primary" />
+              <Stethoscope className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">Doctor Dashboard</h1>
-                <p className="text-muted-foreground">{currentUser?.name || currentUser?.email || "Doctor"}</p>
+                <h1 className="text-xl md:text-2xl font-bold">Doctor Dashboard</h1>
+                <p className="text-sm text-muted-foreground">{currentUser?.name || currentUser?.email || "Doctor"}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" asChild>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" asChild size="sm">
                 <Link href="/doctor/assignments">
                   <ClipboardList className="h-4 w-4 mr-2" />
-                  Assignments & Tasks
+                  <span className="hidden sm:inline">Assignments & Tasks</span>
+                  <span className="sm:hidden">Tasks</span>
                 </Link>
               </Button>
 
               <Dialog open={showNewVisitDialog} onOpenChange={setShowNewVisitDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="default">
+                  <Button variant="default" size="sm">
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Start New Patient Visit
+                    <span className="hidden sm:inline">Start New Patient Visit</span>
+                    <span className="sm:hidden">New Visit</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Start New Patient Visit</DialogTitle>
                     <DialogDescription>
@@ -557,9 +645,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="patient-select" className="text-right">
                         Patient *
                       </Label>
-                      <Select 
-                        value={newVisitForm.patientId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, patientId: value }))}
+                      <Select
+                        value={newVisitForm.patientId}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, patientId: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select patient" />
@@ -577,9 +665,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="visit-type" className="text-right">
                         Visit Type *
                       </Label>
-                      <Select 
-                        value={newVisitForm.visitType} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, visitType: value }))}
+                      <Select
+                        value={newVisitForm.visitType}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, visitType: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select visit type" />
@@ -596,9 +684,9 @@ export function DoctorDashboard() {
                       <Label htmlFor="vhv-select" className="text-right">
                         VHV *
                       </Label>
-                      <Select 
-                        value={newVisitForm.vhvId} 
-                        onValueChange={(value) => setNewVisitForm(prev => ({ ...prev, vhvId: value }))}
+                      <Select
+                        value={newVisitForm.vhvId}
+                        onValueChange={(value) => setNewVisitForm((prev) => ({ ...prev, vhvId: value }))}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select VHV" />
@@ -621,7 +709,7 @@ export function DoctorDashboard() {
                         placeholder="Special instructions for the VHV..."
                         className="col-span-3"
                         value={newVisitForm.notes}
-                        onChange={(e) => setNewVisitForm(prev => ({ ...prev, notes: e.target.value }))}
+                        onChange={(e) => setNewVisitForm((prev) => ({ ...prev, notes: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -636,7 +724,7 @@ export function DoctorDashboard() {
                   </div>
                 </DialogContent>
               </Dialog>
-              <Button variant="outline" onClick={handleSignOut}>
+              <Button variant="outline" onClick={handleSignOut} size="sm">
                 Sign Out
               </Button>
             </div>
@@ -644,62 +732,64 @@ export function DoctorDashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 md:py-8">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Validations</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Pending Validations</CardTitle>
               <AlertTriangle className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{reviewQueue?.length || 0}</div>
+              <div className="text-xl md:text-2xl font-bold">{reviewQueue?.length || 0}</div>
               <p className="text-xs text-muted-foreground">Require your review</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Validated Today</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Validated Today</CardTitle>
               <CheckCircle className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{approvedReviews?.length || 0}</div>
+              <div className="text-xl md:text-2xl font-bold">{approvedReviews?.length || 0}</div>
               <p className="text-xs text-muted-foreground">Cases reviewed</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Patients</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Active Patients</CardTitle>
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{patients?.length || 0}</div>
+              <div className="text-xl md:text-2xl font-bold">{patients?.length || 0}</div>
               <p className="text-xs text-muted-foreground">Under your care</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Avg Response Time</CardTitle>
               <Clock className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2.4h</div>
+              <div className="text-xl md:text-2xl font-bold">2.4h</div>
               <p className="text-xs text-muted-foreground">For validations</p>
             </CardContent>
           </Card>
 
-          <Card className={activeEmergencyCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}>
+          <Card
+            className={`col-span-2 md:col-span-1 ${activeEmergencyCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}`}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Emergency Alerts</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Emergency Alerts</CardTitle>
               <Bell
                 className={`h-4 w-4 ${activeEmergencyCount > 0 ? "text-red-500 animate-pulse" : "text-gray-500"}`}
               />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
+              <div className={`text-xl md:text-2xl font-bold ${activeEmergencyCount > 0 ? "text-red-600" : ""}`}>
                 {activeEmergencyCount}
               </div>
               <p className="text-xs text-muted-foreground">Active emergencies</p>
@@ -709,27 +799,41 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="emergencies" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="emergencies" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Emergencies
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+            <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Bell className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Emergencies</span>
+              <span className="sm:hidden">Emerg</span>
               {activeEmergencyCount > 0 && (
                 <Badge className="bg-red-500 text-white text-xs px-1 py-0 min-w-[16px] h-4">
                   {activeEmergencyCount}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="pending" className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Pending Validations
+            <TabsTrigger value="pending" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Pending Validations</span>
+              <span className="sm:hidden">Pending</span>
             </TabsTrigger>
-            <TabsTrigger value="validated" className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Validated
+            <TabsTrigger value="validated" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Validated</span>
+              <span className="sm:hidden">Valid</span>
             </TabsTrigger>
-            <TabsTrigger value="patients" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Patient List
+            <TabsTrigger value="patients" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Users className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Patient List</span>
+              <span className="sm:hidden">Patients</span>
+            </TabsTrigger>
+            <TabsTrigger value="patient_map" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <MapPin className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Patient Map</span>
+              <span className="sm:hidden">P-Map</span>
+            </TabsTrigger>
+            <TabsTrigger value="vhv_map" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <MapPin className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">VHV Map</span>
+              <span className="sm:hidden">V-Map</span>
             </TabsTrigger>
             <TabsTrigger value="vhv_map" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
@@ -753,17 +857,15 @@ export function DoctorDashboard() {
                 {/* Status Filter Tabs */}
                 <Tabs defaultValue="all" className="w-full">
                   <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="all">
-                      All ({reviewQueue?.length || 0})
-                    </TabsTrigger>
+                    <TabsTrigger value="all">All ({reviewQueue?.length || 0})</TabsTrigger>
                     <TabsTrigger value="submitted">
-                      New ({reviewQueue?.filter((r: any) => r.status === 'SUBMITTED').length || 0})
+                      New ({reviewQueue?.filter((r: any) => r.status === "SUBMITTED").length || 0})
                     </TabsTrigger>
                     <TabsTrigger value="in_review">
-                      In Review ({reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW').length || 0})
+                      In Review ({reviewQueue?.filter((r: any) => r.status === "IN_REVIEW").length || 0})
                     </TabsTrigger>
                     <TabsTrigger value="changes_requested">
-                      Needs Changes ({reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED').length || 0})
+                      Needs Changes ({reviewQueue?.filter((r: any) => r.status === "CHANGES_REQUESTED").length || 0})
                     </TabsTrigger>
                   </TabsList>
 
@@ -780,17 +882,17 @@ export function DoctorDashboard() {
                       renderSubmissionsList(reviewQueue || [])
                     )}
                   </TabsContent>
-                  
+
                   <TabsContent value="submitted" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'SUBMITTED') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "SUBMITTED") || [])}
                   </TabsContent>
-                  
+
                   <TabsContent value="in_review" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'IN_REVIEW') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "IN_REVIEW") || [])}
                   </TabsContent>
-                  
+
                   <TabsContent value="changes_requested" className="mt-4">
-                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === 'CHANGES_REQUESTED') || [])}
+                    {renderSubmissionsList(reviewQueue?.filter((r: any) => r.status === "CHANGES_REQUESTED") || [])}
                   </TabsContent>
                 </Tabs>
               </CardContent>
@@ -857,19 +959,19 @@ export function DoctorDashboard() {
           <TabsContent value="patients" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <CardTitle>Patient List</CardTitle>
                     <CardDescription>Manage your patients and view their details</CardDescription>
                   </div>
                   <Dialog open={showAddPatientDialog} onOpenChange={setShowAddPatientDialog}>
                     <DialogTrigger asChild>
-                      <Button>
+                      <Button size="sm">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Patient
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>Add New Patient</DialogTitle>
                         <DialogDescription>
@@ -978,7 +1080,9 @@ export function DoctorDashboard() {
                             id="medicalCondition"
                             className="col-span-3"
                             value={newPatientForm.medicalCondition}
-                            onChange={(e) => setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))}
+                            onChange={(e) =>
+                              setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))
+                            }
                             placeholder="e.g., Diabetes, Hypertension"
                           />
                         </div>
@@ -1013,25 +1117,54 @@ export function DoctorDashboard() {
                         className="flex items-center justify-between cursor-pointer"
                         onClick={() => togglePatientExpansion(patient.id)}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           {expandedPatient === patient.id ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4 flex-shrink-0" />
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4 flex-shrink-0" />
                           )}
-                          <div>
-                            <h4 className="font-medium">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm md:text-base">
                               {patient.firstName} {patient.lastName}
                             </h4>
-                            <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
+                            <div className="flex flex-col sm:flex-row sm:gap-4 text-xs md:text-sm text-muted-foreground">
                               <span>DOB: {new Date(patient.dob).toLocaleDateString()}</span>
-                              <span>Condition: {patient.medicalCondition || 'Not specified'}</span>
-                              <span>Last Visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
+                              <span className="truncate">Condition: {patient.medicalCondition || "Not specified"}</span>
+                              <span>
+                                Last Visit:{" "}
+                                {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : "Never"}
+                              </span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">Active</Badge>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <Badge variant="outline" className="text-xs">
+                            Active
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedPatient(patient)
+                              setShowEditPatientDialog(true)
+                            }}
+                          >
+                            <Edit2 className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="hidden sm:inline ml-1">Edit</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedPatient(patient)
+                              setShowDeletePatientDialog(true)
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 md:h-4 md:w-4 text-destructive" />
+                            <span className="hidden sm:inline ml-1">Delete</span>
+                          </Button>
                         </div>
                       </div>
 
@@ -1040,22 +1173,27 @@ export function DoctorDashboard() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{patient.address}</span>
+                                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs md:text-sm break-words">{patient.address}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{patient.phone}</span>
+                                <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs md:text-sm">{patient.phone}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">Last visit: {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'Never'}</span>
+                                <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs md:text-sm">
+                                  Last visit:{" "}
+                                  {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : "Never"}
+                                </span>
                               </div>
                             </div>
                             <div className="space-y-2">
                               <div>
-                                <h5 className="font-medium text-sm">Medical Condition</h5>
-                                <p className="text-sm text-muted-foreground">{patient.medicalCondition || 'Not specified'}</p>
+                                <h5 className="font-medium text-xs md:text-sm">Medical Condition</h5>
+                                <p className="text-xs md:text-sm text-muted-foreground">
+                                  {patient.medicalCondition || "Not specified"}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -1064,6 +1202,20 @@ export function DoctorDashboard() {
                     </CardContent>
                   </Card>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="patient_map" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Patient Location Map</CardTitle>
+                <CardDescription>
+                  View patient household locations by district. Click markers for patient details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PatientMap patients={(patients || []) as any} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -1083,6 +1235,108 @@ export function DoctorDashboard() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={showEditPatientDialog} onOpenChange={setShowEditPatientDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+            <DialogDescription>Update patient information</DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First Name</Label>
+                  <Input
+                    value={selectedPatient.firstName || ""}
+                    onChange={(e) => setSelectedPatient({ ...selectedPatient, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input
+                    value={selectedPatient.lastName || ""}
+                    onChange={(e) => setSelectedPatient({ ...selectedPatient, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Birth</Label>
+                <Input
+                  type="date"
+                  value={selectedPatient.dob ? selectedPatient.dob.split("T")[0] : ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, dob: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Address</Label>
+                <Textarea
+                  value={selectedPatient.address || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, address: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={selectedPatient.phone || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>National ID</Label>
+                <Input
+                  value={selectedPatient.nationalId || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, nationalId: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={selectedPatient.email || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Medical Condition</Label>
+                <Input
+                  value={selectedPatient.medicalCondition || ""}
+                  onChange={(e) => setSelectedPatient({ ...selectedPatient, medicalCondition: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditPatientDialog(false)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button onClick={handleEditPatient} className="w-full sm:w-auto">
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeletePatientDialog} onOpenChange={setShowDeletePatientDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedPatient?.firstName} {selectedPatient?.lastName} from the system.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePatient}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

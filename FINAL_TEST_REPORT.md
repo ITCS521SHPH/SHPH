@@ -29,12 +29,12 @@
 **Root Cause**: Production build optimization may be stripping/changing React event handlers
 
 **Workaround**: Use `form.requestSubmit()` via JavaScript evaluation:
-```javascript
+\`\`\`javascript
 const form = document.querySelector('form');
 if (form) {
   form.requestSubmit();
 }
-```
+\`\`\`
 
 **Permanent Fix**: Update `components/auth/login-form.tsx` to:
 - Use explicit HTML form submission with `action` attribute
@@ -83,47 +83,47 @@ if (form) {
 ## Database State
 
 ### Users Table
-```sql
+\`\`\`sql
 SELECT email, role FROM auth.users;
-```
+\`\`\`
 - 4 patient users including patient@demo.com
 
 ### Admins Table
-```sql
+\`\`\`sql
 SELECT email FROM admins;
-```
+\`\`\`
 - admin@demo.com ✅
 
 ### Doctors Table
-```sql
+\`\`\`sql
 SELECT email FROM doctors;
-```
+\`\`\`
 - doctor@demo.com ✅
 - dr.johnson@shph.com ✅
 
 ### VHVs Table
-```sql
+\`\`\`sql
 SELECT email FROM vhvs;
-```
+\`\`\`
 - vhv@demo.com ✅
 - vhv.robert@shph.com ✅
 
 ### Patients Table
-```sql
+\`\`\`sql
 SELECT patient_id, user_id FROM patients;
-```
+\`\`\`
 - P001, P002, P003, P004 (all with valid user_id) ✅
 
 ### Tasks Table
-```sql
+\`\`\`sql
 SELECT COUNT(*) FROM tasks WHERE vhv_id = '33333333-3333-3333-3333-333333333333';
-```
+\`\`\`
 - Result: 3 tasks ✅
 
 ### Assignments Table
-```sql
+\`\`\`sql
 SELECT patient_id, vhv_id, status FROM assignments WHERE vhv_id = '33333333-3333-3333-3333-333333333333';
-```
+\`\`\`
 - Result: 4 assignments (all status='active') ✅
 
 ## Next Steps
@@ -145,7 +145,7 @@ SELECT patient_id, vhv_id, status FROM assignments WHERE vhv_id = '33333333-3333
 
 ## Supabase SQL Executed
 
-```sql
+\`\`\`sql
 -- Created 4 assignments
 INSERT INTO assignments (id, patient_id, doctor_id, vhv_id, assigned_at, status, created_at, updated_at)
 VALUES 
@@ -153,7 +153,7 @@ VALUES
   (gen_random_uuid(), 'b7a42ec9-1a15-42dd-920e-739a61aef750', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', NOW(), 'active', NOW(), NOW()),
   (gen_random_uuid(), '6c22c37a-bc78-4390-b6c7-b78a9aaa3dca', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', NOW(), 'active', NOW(), NOW()),
   (gen_random_uuid(), '67a6b97f-d7ef-43c4-b8aa-85facefd89af', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', NOW(), 'active', NOW(), NOW());
-```
+\`\`\`
 
 ## Conclusion
 

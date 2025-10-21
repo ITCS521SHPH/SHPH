@@ -5,7 +5,17 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Heart, Users, Phone, AlertTriangle, CheckCircle, Clock, MapPin, Calendar, User } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Heart, Users, Phone, AlertTriangle, CheckCircle, Clock, MapPin, Calendar, User, Trash2 } from "lucide-react"
 import { clearCurrentUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -82,6 +92,9 @@ export function CaregiverDashboard() {
   const [patients, setPatients] = useState(patientsUnderCare)
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [showPatientDetails, setShowPatientDetails] = useState(false)
+  const [showDeletePatientDialog, setShowDeletePatientDialog] = useState(false)
+  const [showDeleteTaskDialog, setShowDeleteTaskDialog] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<any>(null)
 
   const handleTaskComplete = (taskId: number) => {
     console.log("[v0] Completing task:", taskId)
@@ -122,6 +135,20 @@ export function CaregiverDashboard() {
     router.push("/")
   }
 
+  const handleDeletePatient = (patientId: number) => {
+    console.log("[v0] Deleting patient:", patientId)
+    setPatients((prev) => prev.filter((p) => p.id !== patientId))
+    setShowDeletePatientDialog(false)
+    setSelectedPatient(null)
+  }
+
+  const handleDeleteTask = (taskId: number) => {
+    console.log("[v0] Deleting task:", taskId)
+    setTasks((prev) => prev.filter((t) => t.id !== taskId))
+    setShowDeleteTaskDialog(false)
+    setSelectedTask(null)
+  }
+
   const completedTasks = tasks.filter((t) => t.status === "completed").length
   const pendingTasks = tasks.filter((t) => t.status === "pending").length
   const urgentPatients = patients.filter((p) => p.urgency === "medium").length
@@ -130,42 +157,41 @@ export function CaregiverDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Heart className="h-8 w-8 text-primary" />
+              <Heart className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">Caregiver Dashboard</h1>
-                <p className="text-muted-foreground">Jennifer Martinez</p>
+                <h1 className="text-xl md:text-2xl font-bold">Caregiver Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Jennifer Martinez</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleSignOut}>
+            <Button variant="outline" onClick={handleSignOut} size="sm">
               Sign Out
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <main className="container mx-auto px-4 py-6 md:py-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Patients Under Care</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Patients Under Care</CardTitle>
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{patients.length}</div>
+              <div className="text-xl md:text-2xl font-bold">{patients.length}</div>
               <p className="text-xs text-muted-foreground">Active patients</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Tasks</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Today's Tasks</CardTitle>
               <CheckCircle className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tasks.length}</div>
+              <div className="text-xl md:text-2xl font-bold">{tasks.length}</div>
               <p className="text-xs text-muted-foreground">
                 {completedTasks} completed, {pendingTasks} pending
               </p>
@@ -174,40 +200,40 @@ export function CaregiverDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Urgent Alerts</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Urgent Alerts</CardTitle>
               <AlertTriangle className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{urgentPatients}</div>
+              <div className="text-xl md:text-2xl font-bold">{urgentPatients}</div>
               <p className="text-xs text-muted-foreground">Requires attention</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="col-span-2 md:col-span-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Next Medication</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Next Medication</CardTitle>
               <Clock className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">6:00 PM</div>
+              <div className="text-xl md:text-2xl font-bold">6:00 PM</div>
               <p className="text-xs text-muted-foreground">Robert's insulin</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Patients and Tasks */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="patients" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="patients" className="flex items-center gap-2">
+                <TabsTrigger value="patients" className="flex items-center gap-2 text-xs md:text-sm">
                   <Users className="h-4 w-4" />
-                  My Patients
+                  <span className="hidden sm:inline">My Patients</span>
+                  <span className="sm:hidden">Patients</span>
                 </TabsTrigger>
-                <TabsTrigger value="tasks" className="flex items-center gap-2">
+                <TabsTrigger value="tasks" className="flex items-center gap-2 text-xs md:text-sm">
                   <CheckCircle className="h-4 w-4" />
-                  Today's Tasks
+                  <span className="hidden sm:inline">Today's Tasks</span>
+                  <span className="sm:hidden">Tasks</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -226,26 +252,26 @@ export function CaregiverDashboard() {
                         }`}
                       >
                         <CardContent className="pt-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <h4 className="font-medium">{patient.name}</h4>
-                              <p className="text-sm text-muted-foreground">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm md:text-base">{patient.name}</h4>
+                              <p className="text-xs md:text-sm text-muted-foreground">
                                 Age {patient.age} • {patient.gender}
                               </p>
                             </div>
                             <Badge
                               variant={patient.status === "stable" ? "default" : "secondary"}
-                              className={patient.status === "stable" ? "bg-green-500" : "bg-orange-500"}
+                              className={`${patient.status === "stable" ? "bg-green-500" : "bg-orange-500"} text-xs`}
                             >
                               {patient.status === "stable" ? "Stable" : "Needs Attention"}
                             </Badge>
                           </div>
-                          <div className="space-y-2 text-sm">
+                          <div className="space-y-2 text-xs md:text-sm">
                             <div>
                               <span className="text-muted-foreground">Condition:</span>
                               <p className="font-medium">{patient.condition}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4">
                               <div>
                                 <span className="text-muted-foreground">Last Visit:</span>
                                 <p className="font-medium">{patient.lastVisit}</p>
@@ -256,7 +282,7 @@ export function CaregiverDashboard() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2 mt-4">
+                          <div className="flex flex-wrap gap-2 mt-4">
                             <Button
                               size="sm"
                               onClick={(e) => {
@@ -264,6 +290,7 @@ export function CaregiverDashboard() {
                                 e.stopPropagation()
                                 handleViewDetails(patient.id)
                               }}
+                              className="flex-1 sm:flex-initial"
                             >
                               View Details
                             </Button>
@@ -275,8 +302,22 @@ export function CaregiverDashboard() {
                                 e.stopPropagation()
                                 handleUpdateStatus(patient.id)
                               }}
+                              className="flex-1 sm:flex-initial"
                             >
                               Update Status
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setSelectedPatient(patient)
+                                setShowDeletePatientDialog(true)
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 md:h-4 md:w-4 text-destructive" />
+                              <span className="hidden sm:inline ml-1">Delete</span>
                             </Button>
                           </div>
                         </CardContent>
@@ -305,12 +346,12 @@ export function CaregiverDashboard() {
                         }`}
                       >
                         <CardContent className="pt-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <h4 className="font-medium">{task.task}</h4>
-                              <p className="text-sm text-muted-foreground">{task.patient}</p>
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm md:text-base">{task.task}</h4>
+                              <p className="text-xs md:text-sm text-muted-foreground">{task.patient}</p>
                             </div>
-                            <div className="text-right">
+                            <div className="flex items-center gap-2">
                               <Badge
                                 variant={
                                   task.status === "completed"
@@ -319,33 +360,48 @@ export function CaregiverDashboard() {
                                       ? "secondary"
                                       : "outline"
                                 }
-                                className={
+                                className={`${
                                   task.status === "completed"
                                     ? "bg-green-500"
                                     : task.status === "pending"
                                       ? "bg-orange-500"
                                       : ""
-                                }
+                                } text-xs`}
                               >
                                 {task.status}
                               </Badge>
-                              <p className="text-sm text-muted-foreground mt-1">{task.time}</p>
+                              <p className="text-xs md:text-sm text-muted-foreground">{task.time}</p>
                             </div>
                           </div>
-                          {task.status !== "completed" && (
+                          <div className="flex gap-2 mt-2">
+                            {task.status !== "completed" && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  handleTaskComplete(task.id)
+                                }}
+                                className="flex-1 sm:flex-initial"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Mark Complete
+                              </Button>
+                            )}
                             <Button
+                              variant="outline"
                               size="sm"
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                handleTaskComplete(task.id)
+                                setSelectedTask(task)
+                                setShowDeleteTaskDialog(true)
                               }}
-                              className="mt-2"
                             >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Mark Complete
+                              <Trash2 className="h-3 w-3 md:h-4 md:w-4 text-destructive" />
+                              <span className="hidden sm:inline ml-1">Delete</span>
                             </Button>
-                          )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))}
@@ -355,11 +411,10 @@ export function CaregiverDashboard() {
             </Tabs>
           </div>
 
-          {/* Emergency Contacts and Alerts */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                   <AlertTriangle className="h-5 w-5 text-orange-500" />
                   Urgent Alerts
                 </CardTitle>
@@ -373,8 +428,8 @@ export function CaregiverDashboard() {
                         key={patient.id}
                         className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-md"
                       >
-                        <AlertTriangle className="h-4 w-4 text-orange-500" />
-                        <div className="text-sm">
+                        <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                        <div className="text-xs md:text-sm">
                           <p className="font-medium">
                             {patient.name} - {patient.condition}
                           </p>
@@ -383,7 +438,7 @@ export function CaregiverDashboard() {
                       </div>
                     ))}
                   {patients.filter((p) => p.urgency === "medium").length === 0 && (
-                    <p className="text-sm text-muted-foreground">No urgent alerts at this time.</p>
+                    <p className="text-xs md:text-sm text-muted-foreground">No urgent alerts at this time.</p>
                   )}
                 </div>
               </CardContent>
@@ -391,7 +446,7 @@ export function CaregiverDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                   <Phone className="h-5 w-5 text-primary" />
                   Emergency Contacts
                 </CardTitle>
@@ -399,10 +454,10 @@ export function CaregiverDashboard() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {emergencyContacts.map((contact, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{contact.name}</p>
-                      <p className="text-sm text-muted-foreground">{contact.role}</p>
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm md:text-base truncate">{contact.name}</p>
+                      <p className="text-xs md:text-sm text-muted-foreground">{contact.role}</p>
                     </div>
                     <Button
                       size="sm"
@@ -422,23 +477,23 @@ export function CaregiverDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Care Guidelines</CardTitle>
+                <CardTitle className="text-base md:text-lg">Care Guidelines</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-3 text-xs md:text-sm">
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <p>Monitor vital signs daily for high-risk patients</p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <p>Ensure medication adherence and timing</p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <p>Report any concerning changes immediately</p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <p>Maintain detailed care activity logs</p>
                 </div>
               </CardContent>
@@ -447,18 +502,16 @@ export function CaregiverDashboard() {
         </div>
       </main>
 
-      {/* Patient Details Dialog */}
       <Dialog open={showPatientDetails} onOpenChange={setShowPatientDetails}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Patient Details</DialogTitle>
             <DialogDescription>Comprehensive information about {selectedPatient?.name}</DialogDescription>
           </DialogHeader>
           {selectedPatient && (
             <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">Personal Info</span>
@@ -475,7 +528,7 @@ export function CaregiverDashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div>
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">Contact Info</span>
@@ -491,7 +544,6 @@ export function CaregiverDashboard() {
                 </div>
               </div>
 
-              {/* Medical Information */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Heart className="h-4 w-4 text-muted-foreground" />
@@ -522,7 +574,6 @@ export function CaregiverDashboard() {
                 </div>
               </div>
 
-              {/* Visit Information */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -538,22 +589,63 @@ export function CaregiverDashboard() {
                 </div>
               </div>
 
-              {/* Notes */}
               <div className="space-y-2">
                 <p className="text-sm font-medium">Care Notes:</p>
                 <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">{selectedPatient.notes}</p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setShowPatientDetails(false)}>
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowPatientDetails(false)} className="w-full sm:w-auto">
                   Close
                 </Button>
-                <Button onClick={() => handleUpdateStatus(selectedPatient.id)}>Update Status</Button>
+                <Button onClick={() => handleUpdateStatus(selectedPatient.id)} className="w-full sm:w-auto">
+                  Update Status
+                </Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeletePatientDialog} onOpenChange={setShowDeletePatientDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {selectedPatient?.name} from your patient list. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleDeletePatient(selectedPatient?.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteTaskDialog} onOpenChange={setShowDeleteTaskDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the task "{selectedTask?.task}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleDeleteTask(selectedTask?.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
