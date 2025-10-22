@@ -396,7 +396,7 @@ alter table "public"."intake_submissions" add constraint "intake_submissions_pat
 
 alter table "public"."intake_submissions" validate constraint "intake_submissions_patient_id_fkey";
 
-alter table "public"."intake_submissions" add constraint "intake_submissions_status_check" CHECK ((status = ANY (ARRAY['DRAFT'::text, 'SUBMITTED'::text, 'APPROVED'::text, 'CHANGES_REQUESTED'::text, 'REJECTED'::text]))) not valid;
+alter table "public"."intake_submissions" add constraint "intake_submissions_status_check" CHECK ((status = ANY (ARRAY['DRAFT'::text, 'SUBMITTED'::text, 'IN_REVIEW'::text, 'APPROVED'::text, 'CHANGES_REQUESTED'::text, 'REJECTED'::text]))) not valid;
 
 alter table "public"."intake_submissions" validate constraint "intake_submissions_status_check";
 

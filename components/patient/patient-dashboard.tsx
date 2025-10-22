@@ -5,17 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, MapPin, Clock } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, ExternalLink, BookOpen } from "lucide-react"
+import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
-import { patientDataApi } from "@/lib/api"
-import type { Appointment, Visit, Medication, VitalSigns } from "@/lib/types"
+import { patientDataApi, intakesApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
 
 export function PatientDashboard() {
@@ -27,7 +27,7 @@ export function PatientDashboard() {
     newDate: "",
     newTime: "",
     reason: "",
-    preferredTime: ""
+    preferredTime: "",
   })
 
   // 獲取當前患者 ID（這裡需要從認證系統獲取）
@@ -36,32 +36,64 @@ export function PatientDashboard() {
   const hasValidPatientId = Boolean(currentPatientId)
 
   // 從數據庫獲取數據
-  const { data: appointments, loading: appointmentsLoading, error: appointmentsError, refetch: refetchAppointments } = useApiData(
-    () => currentPatientId ? patientDataApi.getAppointments(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: appointments,
+    loading: appointmentsLoading,
+    error: appointmentsError,
+    refetch: refetchAppointments,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getAppointments(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: visits, loading: visitsLoading, error: visitsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVisits(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: visits,
+    loading: visitsLoading,
+    error: visitsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getVisits(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: medications, loading: medicationsLoading, error: medicationsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getMedications(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: medications,
+    loading: medicationsLoading,
+    error: medicationsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getMedications(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
 
-  const { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError } = useApiData(
-    () => currentPatientId ? patientDataApi.getVitalSigns(currentPatientId) : Promise.resolve([]),
-    [currentPatientId]
+  const {
+    data: vitalSigns,
+    loading: vitalSignsLoading,
+    error: vitalSignsError,
+  } = useApiData(
+    () => (currentPatientId ? patientDataApi.getVitalSigns(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
   )
+
+  const {
+    data: healthRecords,
+    loading: healthRecordsLoading,
+    error: healthRecordsError,
+  } = useApiData(
+    () => (currentPatientId ? intakesApi.getByPatient(currentPatientId) : Promise.resolve([])),
+    [currentPatientId],
+  )
+
+  // Filter only approved records
+  const approvedHealthRecords = useMemo(() => {
+    return (healthRecords || []).filter((record: any) => record.status === "APPROVED")
+  }, [healthRecords])
 
   // 調試日誌
-  console.log('Patient Dashboard Data Status:', {
+  console.log("Patient Dashboard Data Status:", {
     appointments: { data: appointments, loading: appointmentsLoading, error: appointmentsError },
     visits: { data: visits, loading: visitsLoading, error: visitsError },
     medications: { data: medications, loading: medicationsLoading, error: medicationsError },
-    vitalSigns: { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError }
+    vitalSigns: { data: vitalSigns, loading: vitalSignsLoading, error: vitalSignsError },
+    healthRecords: { data: healthRecords, loading: healthRecordsLoading, error: healthRecordsError },
   })
 
   // 強制使用數據庫數據，不使用 mock 數據
@@ -70,18 +102,18 @@ export function PatientDashboard() {
   const currentMedications = medications || []
   const vitalTrends = vitalSigns || []
 
-  console.log('Final data being used:', {
+  console.log("Final data being used:", {
     upcomingAppointments: upcomingAppointments.length,
     recentVisits: recentVisits.length,
     currentMedications: currentMedications.length,
-    vitalTrends: vitalTrends.length
+    vitalTrends: vitalTrends.length,
+    approvedHealthRecords: approvedHealthRecords.length,
   })
 
   const handleSignOut = () => {
     clearCurrentUser()
     router.push("/")
   }
-
 
   const handleJoinCall = (appointmentId: string) => {
     // TODO: Implement video call functionality
@@ -95,7 +127,7 @@ export function PatientDashboard() {
       newDate: appointment.scheduledDate || "",
       newTime: appointment.scheduledTime || "",
       reason: "",
-      preferredTime: ""
+      preferredTime: "",
     })
     setShowRescheduleDialog(true)
   }
@@ -111,46 +143,48 @@ export function PatientDashboard() {
       return
     }
 
-  console.log("Reschedule request data:", {
-    appointmentId: selectedAppointment.id,
-    patientId: currentPatientId,
-    requestedDate: rescheduleForm.newDate,
-    requestedTime: rescheduleForm.newTime,
-    reason: rescheduleForm.reason,
-    preferredAlternatives: rescheduleForm.preferredTime
-  })
+    console.log("Reschedule request data:", {
+      appointmentId: selectedAppointment.id,
+      patientId: currentPatientId,
+      requestedDate: rescheduleForm.newDate,
+      requestedTime: rescheduleForm.newTime,
+      reason: rescheduleForm.reason,
+      preferredAlternatives: rescheduleForm.preferredTime,
+    })
 
-  if (!currentPatientId) {
-    alert("Unable to submit request because no patient record is linked to this account.")
-    return
-  }
+    if (!currentPatientId) {
+      alert("Unable to submit request because no patient record is linked to this account.")
+      return
+    }
 
-  try {
+    try {
       await patientDataApi.createRescheduleRequest({
         appointmentId: selectedAppointment.id,
         patientId: currentPatientId,
         requestedDate: rescheduleForm.newDate,
         requestedTime: rescheduleForm.newTime,
         reason: rescheduleForm.reason,
-        preferredAlternatives: rescheduleForm.preferredTime
+        preferredAlternatives: rescheduleForm.preferredTime,
       })
-      
-      alert(`Reschedule request submitted successfully for ${selectedAppointment.type} on ${rescheduleForm.newDate} at ${rescheduleForm.newTime}`)
-      
+
+      alert(
+        `Reschedule request submitted successfully for ${selectedAppointment.type} on ${rescheduleForm.newDate} at ${rescheduleForm.newTime}`,
+      )
+
       setShowRescheduleDialog(false)
       setSelectedAppointment(null)
       setRescheduleForm({
         newDate: "",
         newTime: "",
         reason: "",
-        preferredTime: ""
+        preferredTime: "",
       })
-      
+
       // Refresh appointments data after successful reschedule
       refetchAppointments()
     } catch (error) {
       console.error("Failed to submit reschedule request:", error)
-      alert(`Failed to submit reschedule request: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      alert(`Failed to submit reschedule request: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -158,78 +192,73 @@ export function PatientDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <User className="h-8 w-8 text-primary" />
+              <User className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
-                <h1 className="text-2xl font-bold">My Health Dashboard</h1>
-                <p className="text-muted-foreground">Sarah Johnson</p>
+                <h1 className="text-xl md:text-2xl font-bold">My Health Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Sarah Johnson</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleSignOut}>
+            <Button variant="outline" onClick={handleSignOut} size="sm">
               Sign Out
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 md:py-8">
         {!hasValidPatientId && (
-          <p className="mb-2 text-sm text-red-600">
+          <p className="mb-2 text-xs md:text-sm text-red-600">
             Patient record not found. Please contact support before using emergency services.
           </p>
         )}
-        <div className="mb-8">
-          <EmergencyButton
-            patientId={currentPatientId}
-            patientName="Sarah Johnson"
-
-            disabled={!hasValidPatientId}
-          />
+        <div className="mb-6 md:mb-8">
+          <EmergencyButton patientId={currentPatientId} patientName="Sarah Johnson" disabled={!hasValidPatientId} />
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Next Appointment</CardTitle>
-              <Calendar className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-xs md:text-sm font-medium">Next Appointment</CardTitle>
+              <Calendar className="h-3 w-3 md:h-4 md:w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Jan 20</div>
+              <div className="text-xl md:text-2xl font-bold">Jan 20</div>
               <p className="text-xs text-muted-foreground">Dr. Michael Chen</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Medications</CardTitle>
-              <Heart className="h-4 w-4 text-red-500" />
+              <CardTitle className="text-xs md:text-sm font-medium">Active Medications</CardTitle>
+              <Heart className="h-3 w-3 md:h-4 md:w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2</div>
+              <div className="text-xl md:text-2xl font-bold">2</div>
               <p className="text-xs text-muted-foreground">Current prescriptions</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Last Visit</CardTitle>
-              <FileText className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-xs md:text-sm font-medium">Last Visit</CardTitle>
+              <FileText className="h-3 w-3 md:h-4 md:w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5 days</div>
+              <div className="text-xl md:text-2xl font-bold">5 days</div>
               <p className="text-xs text-muted-foreground">ago</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="col-span-2 md:col-span-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Health Score</CardTitle>
-              <Heart className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-xs md:text-sm font-medium">Health Score</CardTitle>
+              <Heart className="h-3 w-3 md:h-4 md:w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Good</div>
+              <div className="text-xl md:text-2xl font-bold">Good</div>
               <p className="text-xs text-muted-foreground">Stable condition</p>
             </CardContent>
           </Card>
@@ -237,58 +266,92 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="appointments" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Appointments
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+            <TabsTrigger
+              value="appointments"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+            >
+              <Calendar className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Appointments</span>
+              <span className="sm:hidden">Appts</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Visit History
+            <TabsTrigger value="history" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+              <FileText className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Visit History</span>
+              <span className="sm:hidden">History</span>
             </TabsTrigger>
-            <TabsTrigger value="medications" className="flex items-center gap-2">
-              <Heart className="h-4 w-4" />
-              Medications
+            <TabsTrigger
+              value="medications"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+            >
+              <Heart className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Medications</span>
+              <span className="sm:hidden">Meds</span>
             </TabsTrigger>
-            <TabsTrigger value="vitals" className="flex items-center gap-2">
-              <Heart className="h-4 w-4" />
-              Vital Signs
+            <TabsTrigger value="vitals" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+              <Heart className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Vital Signs</span>
+              <span className="sm:hidden">Vitals</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="health_records"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+            >
+              <FileText className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Health Records</span>
+              <span className="sm:hidden">Records</span>
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+              <BookOpen className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Self-Care</span>
+              <span className="sm:hidden">Care</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="appointments" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Upcoming Appointments</CardTitle>
-                <CardDescription>Your scheduled visits and check-ups</CardDescription>
+                <CardTitle className="text-base md:text-lg">Upcoming Appointments</CardTitle>
+                <CardDescription className="text-xs md:text-sm">Your scheduled visits and check-ups</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {upcomingAppointments.map((appointment: any) => (
                   <Card key={appointment.id} className="border-l-4 border-l-blue-500">
                     <CardContent className="pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{appointment.type}</h4>
-                        <Badge variant="outline">{appointment.scheduledDate}</Badge>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-sm md:text-base">{appointment.type}</h4>
+                        <Badge variant="outline" className="text-xs">
+                          {appointment.scheduledDate}
+                        </Badge>
                       </div>
-                      <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="space-y-2 text-xs md:text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          {appointment.providerName}
+                          <User className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                          <span className="break-words">{appointment.providerName}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
+                          <Clock className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
                           {appointment.scheduledTime}
                         </div>
                         <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          {appointment.location}
+                          <MapPin className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                          <span className="break-words">{appointment.location}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2 mt-4">
-                        <Button size="sm" onClick={() => handleJoinCall(appointment.id)}>
+                      <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                        <Button
+                          size="sm"
+                          onClick={() => handleJoinCall(appointment.id)}
+                          className="w-full sm:w-auto text-xs md:text-sm"
+                        >
                           Join Call
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleReschedule(appointment as any)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReschedule(appointment as any)}
+                          className="w-full sm:w-auto text-xs md:text-sm"
+                        >
                           Reschedule
                         </Button>
                       </div>
@@ -302,20 +365,22 @@ export function PatientDashboard() {
           <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Visit History</CardTitle>
-                <CardDescription>Your recent medical visits and treatments</CardDescription>
+                <CardTitle className="text-base md:text-lg">Visit History</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                  Your recent medical visits and treatments
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {recentVisits.map((visit: any) => (
                   <Card key={visit.id} className="border-l-4 border-l-green-500">
                     <CardContent className="pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{visit.diagnosis}</h4>
-                        <Badge variant="default" className="bg-green-500">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-sm md:text-base">{visit.diagnosis}</h4>
+                        <Badge variant="default" className="bg-green-500 text-xs">
                           {visit.status}
                         </Badge>
                       </div>
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-2 text-xs md:text-sm">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Provider:</span>
                           <span>{visit.providerName}</span>
@@ -339,20 +404,22 @@ export function PatientDashboard() {
           <TabsContent value="medications" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Current Medications</CardTitle>
-                <CardDescription>Your active prescriptions and dosage information</CardDescription>
+                <CardTitle className="text-base md:text-lg">Current Medications</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                  Your active prescriptions and dosage information
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {currentMedications.map((medication: any, index: number) => (
                   <Card key={index} className="border-l-4 border-l-red-500">
                     <CardContent className="pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{medication.name}</h4>
-                        <Badge variant={medication.remainingDays < 5 ? "destructive" : "secondary"}>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-sm md:text-base">{medication.name}</h4>
+                        <Badge variant={medication.remainingDays < 5 ? "destructive" : "secondary"} className="text-xs">
                           {medication.remainingDays} days left
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="grid grid-cols-2 gap-4 text-xs md:text-sm">
                         <div>
                           <span className="text-muted-foreground">Dosage:</span>
                           <p className="font-medium">{medication.dosage}</p>
@@ -369,7 +436,7 @@ export function PatientDashboard() {
                       {medication.remainingDays < 5 && (
                         <div className="flex items-center gap-2 mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
                           <Bell className="h-4 w-4 text-red-500" />
-                          <p className="text-sm text-red-700">Running low - contact your provider for refill</p>
+                          <p className="text-xs text-red-700">Running low - contact your provider for refill</p>
                         </div>
                       )}
                     </CardContent>
@@ -382,22 +449,27 @@ export function PatientDashboard() {
           <TabsContent value="vitals" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Vital Signs Trends</CardTitle>
-                <CardDescription>Your recent vital signs measurements</CardDescription>
+                <CardTitle className="text-base md:text-lg">Vital Signs Trends</CardTitle>
+                <CardDescription className="text-xs md:text-sm">Your recent vital signs measurements</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {vitalTrends.map((vital: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="text-sm text-muted-foreground">{vital.recordedDate}</div>
-                      <div className="flex gap-6 text-sm">
+                    <div
+                      key={index}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-4 border rounded-lg text-xs md:text-sm"
+                    >
+                      <div className="text-muted-foreground">{vital.recordedDate}</div>
+                      <div className="flex flex-col sm:flex-row gap-2 md:gap-6">
                         <div>
                           <span className="text-muted-foreground">Temp:</span>
                           <span className="ml-1 font-medium">{vital.temperature}°C</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">BP:</span>
-                          <span className="ml-1 font-medium">{vital.bloodPressureSystolic}/{vital.bloodPressureDiastolic}</span>
+                          <span className="ml-1 font-medium">
+                            {vital.bloodPressureSystolic}/{vital.bloodPressureDiastolic}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Weight:</span>
@@ -410,12 +482,328 @@ export function PatientDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="health_records" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base md:text-lg">My Health Records</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                  Health assessments and diagnoses from your healthcare providers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {healthRecordsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Loading health records...</p>
+                  </div>
+                ) : healthRecordsError ? (
+                  <div className="text-center py-8 text-red-500">
+                    <p>Error loading health records. Please try again later.</p>
+                  </div>
+                ) : approvedHealthRecords.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No health records available yet.</p>
+                    <p className="text-sm mt-2">Your approved health assessments will appear here.</p>
+                  </div>
+                ) : (
+                  approvedHealthRecords.map((record: any) => (
+                    <Card key={record.id} className="border-l-4 border-l-green-500">
+                      <CardContent className="pt-4">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+                          <div>
+                            <h4 className="font-medium text-sm md:text-base">Health Assessment</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Recorded on {new Date(record.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-green-500 text-xs">Approved</Badge>
+                            <Link href={`/patient/records/${record.id}`} className="text-xs inline-flex items-center gap-1 underline">
+                              View Details <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </div>
+                        </div>
+
+                        {/* Patient Basics */}
+                        {record.payload?.patientBasics && (
+                          <div className="bg-muted/50 p-3 rounded-lg mb-3 text-xs md:text-sm">
+                            <h5 className="font-medium mb-2">Patient Information</h5>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-muted-foreground">Name:</span>
+                                <p>
+                                  {record.payload.patientBasics.firstName} {record.payload.patientBasics.lastName}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Date of Birth:</span>
+                                <p>
+                                  {record.payload.patientBasics.dob
+                                    ? new Date(record.payload.patientBasics.dob).toLocaleDateString()
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Symptoms */}
+                        {record.payload?.symptoms && (
+                          <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-lg mb-3 text-xs md:text-sm">
+                            <h5 className="font-medium mb-2">Chief Complaint</h5>
+                            <p>{record.payload.symptoms.chiefComplaint || "Not recorded"}</p>
+                            {record.payload.symptoms.onsetDays && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Onset: {record.payload.symptoms.onsetDays} days ago
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Vital Signs */}
+                        {record.payload?.vitals && (
+                          <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg mb-3 text-xs md:text-sm">
+                            <h5 className="font-medium mb-2">Vital Signs</h5>
+                            <div className="grid grid-cols-3 gap-2">
+                              {record.payload.vitals.temp && (
+                                <div>
+                                  <span className="text-muted-foreground">Temperature:</span>
+                                  <p className="font-medium">{record.payload.vitals.temp}°C</p>
+                                </div>
+                              )}
+                              {record.payload.vitals.systolic && record.payload.vitals.diastolic && (
+                                <div>
+                                  <span className="text-muted-foreground">Blood Pressure:</span>
+                                  <p className="font-medium">
+                                    {record.payload.vitals.systolic}/{record.payload.vitals.diastolic}
+                                  </p>
+                                </div>
+                              )}
+                              {record.payload.vitals.hr && (
+                                <div>
+                                  <span className="text-muted-foreground">Heart Rate:</span>
+                                  <p className="font-medium">{record.payload.vitals.hr} bpm</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Chronic Conditions */}
+                        {record.payload?.chronicConditions?.list &&
+                          record.payload.chronicConditions.list.length > 0 && (
+                            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg text-xs md:text-sm">
+                              <h5 className="font-medium mb-2">Chronic Conditions</h5>
+                              <div className="flex flex-wrap gap-2">
+                                {record.payload.chronicConditions.list.map((condition: any, idx: number) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {condition.condition.replace("_", " ")}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="resources" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base md:text-lg">Self-Care Resources</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                  Trusted health information and self-care guides
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* General Health */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                    <Heart className="h-5 w-5 text-red-500" />
+                    General Health Information
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.who.int/health-topics"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">WHO Health Topics</p>
+                        <p className="text-muted-foreground">
+                          Comprehensive health information from the World Health Organization
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://medlineplus.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">MedlinePlus</p>
+                        <p className="text-muted-foreground">
+                          Trusted health information from the U.S. National Library of Medicine
+                        </p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Chronic Disease Management */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    Chronic Disease Management
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.cdc.gov/chronicdisease/index.htm"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">CDC Chronic Disease Resources</p>
+                        <p className="text-muted-foreground">Information on managing chronic conditions</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.diabetes.org/diabetes"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">American Diabetes Association</p>
+                        <p className="text-muted-foreground">Diabetes management and prevention resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.heart.org/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">American Heart Association</p>
+                        <p className="text-muted-foreground">Heart health and cardiovascular disease information</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Mental Health */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                    <User className="h-5 w-5 text-purple-500" />
+                    Mental Health & Wellness
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.nimh.nih.gov/health"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">National Institute of Mental Health</p>
+                        <p className="text-muted-foreground">Mental health information and resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://www.mentalhealth.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">MentalHealth.gov</p>
+                        <p className="text-muted-foreground">U.S. government mental health resources</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Nutrition & Exercise */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm md:text-base">
+                    <Heart className="h-5 w-5 text-green-500" />
+                    Nutrition & Exercise
+                  </h3>
+                  <div className="grid gap-3">
+                    <a
+                      href="https://www.nutrition.gov/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">Nutrition.gov</p>
+                        <p className="text-muted-foreground">Evidence-based nutrition information</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                    <a
+                      href="https://health.gov/moveyourway"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors text-xs md:text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">Move Your Way</p>
+                        <p className="text-muted-foreground">Physical activity guidelines and tips</p>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Emergency Information */}
+                <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg border border-red-200">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2 text-red-700 dark:text-red-400 text-sm md:text-base">
+                    <Bell className="h-5 w-5" />
+                    Emergency Information
+                  </h3>
+                  <p className="text-xs text-red-600 dark:text-red-300 mb-3">
+                    If you are experiencing a medical emergency, call your local emergency number immediately or use the
+                    Emergency Alert button at the top of this page.
+                  </p>
+                  <div className="space-y-2">
+                    <a
+                      href="https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 border rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-xs md:text-sm"
+                    >
+                      <p className="font-medium">Red Cross Emergency Preparedness</p>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
 
       {/* Reschedule Dialog */}
       <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
-        <DialogContent className="max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Reschedule Appointment</DialogTitle>
             <DialogDescription>
@@ -430,12 +818,15 @@ export function PatientDashboard() {
                   id="newDate"
                   type="date"
                   value={rescheduleForm.newDate || ""}
-                  onChange={(e) => setRescheduleForm(prev => ({ ...prev, newDate: e.target.value }))}
+                  onChange={(e) => setRescheduleForm((prev) => ({ ...prev, newDate: e.target.value }))}
                 />
               </div>
               <div>
                 <Label htmlFor="newTime">New Time</Label>
-                <Select value={rescheduleForm.newTime || ""} onValueChange={(value) => setRescheduleForm(prev => ({ ...prev, newTime: value }))}>
+                <Select
+                  value={rescheduleForm.newTime || ""}
+                  onValueChange={(value) => setRescheduleForm((prev) => ({ ...prev, newTime: value }))}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select time" />
                   </SelectTrigger>
@@ -459,7 +850,7 @@ export function PatientDashboard() {
                 id="reason"
                 placeholder="Please explain why you need to reschedule..."
                 value={rescheduleForm.reason || ""}
-                onChange={(e) => setRescheduleForm(prev => ({ ...prev, reason: e.target.value }))}
+                onChange={(e) => setRescheduleForm((prev) => ({ ...prev, reason: e.target.value }))}
               />
             </div>
             <div>
@@ -468,7 +859,7 @@ export function PatientDashboard() {
                 id="preferredTime"
                 placeholder="If the selected time is not available, please suggest alternative times..."
                 value={rescheduleForm.preferredTime || ""}
-                onChange={(e) => setRescheduleForm(prev => ({ ...prev, preferredTime: e.target.value }))}
+                onChange={(e) => setRescheduleForm((prev) => ({ ...prev, preferredTime: e.target.value }))}
               />
             </div>
           </div>
@@ -476,9 +867,7 @@ export function PatientDashboard() {
             <Button variant="outline" onClick={() => setShowRescheduleDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleRescheduleSubmit}>
-              Submit Request
-            </Button>
+            <Button onClick={handleRescheduleSubmit}>Submit Request</Button>
           </div>
         </DialogContent>
       </Dialog>

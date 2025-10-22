@@ -15,8 +15,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Users, UserCheck, Activity, Shield, AlertTriangle } from "lucide-react"
+import { Plus, Users, UserCheck, Activity, Shield, Edit2, Trash2 } from "lucide-react"
 import { adminApi } from "@/lib/api"
 import { clearCurrentUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -30,6 +40,9 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [showCreateDoctorDialog, setShowCreateDoctorDialog] = useState(false)
   const [showCreateVHVDialog, setShowCreateVHVDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
 
   const [doctorForm, setDoctorForm] = useState({
     email: "",
@@ -53,7 +66,6 @@ export function AdminDashboard() {
     trainingLevel: "",
   })
 
-  // Load initial data
   useEffect(() => {
     loadAdminData()
   }, [])
@@ -61,82 +73,77 @@ export function AdminDashboard() {
   const loadAdminData = async () => {
     try {
       setLoading(true)
-      
-      console.log('Admin Dashboard: Starting data load...')
-      
-      // Get data from individual role tables instead of unified users table
+
+      console.log("Admin Dashboard: Starting data load...")
+
       const [adminsResponse, doctorsResponse, vhvsResponse, patientsResponse, statsResponse] = await Promise.all([
-        fetch('/api/admin/admins'),
-        fetch('/api/admin/doctors'),
-        fetch('/api/admin/vhvs'),
-        fetch('/api/admin/patients'),
-        fetch('/api/admin/stats')
+        fetch("/api/admin/admins"),
+        fetch("/api/admin/doctors"),
+        fetch("/api/admin/vhvs"),
+        fetch("/api/admin/patients"),
+        fetch("/api/admin/stats"),
       ])
 
-      console.log('Admin Dashboard: API responses received', {
+      console.log("Admin Dashboard: API responses received", {
         adminsStatus: adminsResponse.status,
         doctorsStatus: doctorsResponse.status,
         vhvsStatus: vhvsResponse.status,
         patientsStatus: patientsResponse.status,
-        statsStatus: statsResponse.status
+        statsStatus: statsResponse.status,
       })
 
-      // Check for errors
       if (!adminsResponse.ok) {
         const error = await adminsResponse.text()
-        console.error('Admins API error:', error)
+        console.error("Admins API error:", error)
         throw new Error(`Admins API failed: ${adminsResponse.status}`)
       }
       if (!doctorsResponse.ok) {
         const error = await doctorsResponse.text()
-        console.error('Doctors API error:', error)
+        console.error("Doctors API error:", error)
         throw new Error(`Doctors API failed: ${doctorsResponse.status}`)
       }
       if (!vhvsResponse.ok) {
         const error = await vhvsResponse.text()
-        console.error('VHVs API error:', error)
+        console.error("VHVs API error:", error)
         throw new Error(`VHVs API failed: ${vhvsResponse.status}`)
       }
       if (!patientsResponse.ok) {
         const error = await patientsResponse.text()
-        console.error('Patients API error:', error)
+        console.error("Patients API error:", error)
         throw new Error(`Patients API failed: ${patientsResponse.status}`)
       }
       if (!statsResponse.ok) {
         const error = await statsResponse.text()
-        console.error('Stats API error:', error)
+        console.error("Stats API error:", error)
         throw new Error(`Stats API failed: ${statsResponse.status}`)
       }
 
-      // Parse responses
       const adminsData = await adminsResponse.json()
       const doctorsData = await doctorsResponse.json()
       const vhvsData = await vhvsResponse.json()
       const patientsData = await patientsResponse.json()
       const statsData = await statsResponse.json()
 
-      // Combine all users into a single array
       const allUsers = [
-        ...adminsData.map((user: any) => ({ ...user, role: 'ADMIN' })),
-        ...doctorsData.map((user: any) => ({ ...user, role: 'DOCTOR' })),
-        ...vhvsData.map((user: any) => ({ ...user, role: 'VHV' })),
-        ...patientsData.map((user: any) => ({ ...user, role: 'PATIENT' }))
+        ...adminsData.map((user: any) => ({ ...user, role: "ADMIN" })),
+        ...doctorsData.map((user: any) => ({ ...user, role: "DOCTOR" })),
+        ...vhvsData.map((user: any) => ({ ...user, role: "VHV" })),
+        ...patientsData.map((user: any) => ({ ...user, role: "PATIENT" })),
       ]
 
-      console.log('Admin Dashboard: Data loaded:', {
+      console.log("Admin Dashboard: Data loaded:", {
         admins: adminsData.length,
         doctors: doctorsData.length,
         vhvs: vhvsData.length,
         patients: patientsData.length,
         totalUsers: allUsers.length,
-        stats: statsData
+        stats: statsData,
       })
 
       setUsers(allUsers)
       setStats(statsData)
     } catch (error) {
       console.error("Failed to load admin data:", error)
-      // Fallback to mock data
       setUsers([
         {
           id: 1,
@@ -147,23 +154,23 @@ export function AdminDashboard() {
           name: "Dr. Michael Chen",
           status: "active",
         },
-        { 
-          id: 2, 
-          email: "vhv1@example.com", 
-          role: "VHV", 
-          firstName: "Maria", 
-          lastName: "Santos", 
+        {
+          id: 2,
+          email: "vhv1@example.com",
+          role: "VHV",
+          firstName: "Maria",
+          lastName: "Santos",
           name: "Maria Santos",
-          status: "active" 
+          status: "active",
         },
-        { 
-          id: 3, 
-          email: "vhv2@example.com", 
-          role: "VHV", 
-          firstName: "Carlos", 
-          lastName: "Rodriguez", 
+        {
+          id: 3,
+          email: "vhv2@example.com",
+          role: "VHV",
+          firstName: "Carlos",
+          lastName: "Rodriguez",
           name: "Carlos Rodriguez",
-          status: "active" 
+          status: "active",
         },
       ])
       setStats({
@@ -187,7 +194,6 @@ export function AdminDashboard() {
     try {
       console.log("Creating doctor:", doctorForm)
 
-      // Validate required fields
       if (
         !doctorForm.email ||
         !doctorForm.password ||
@@ -199,13 +205,11 @@ export function AdminDashboard() {
         return
       }
 
-      // Call API to create doctor
       await adminApi.createDoctor(doctorForm)
 
       console.log("Doctor created successfully")
       alert("Doctor created successfully!")
 
-      // Close dialog and reset form
       setShowCreateDoctorDialog(false)
       setDoctorForm({
         email: "",
@@ -219,7 +223,6 @@ export function AdminDashboard() {
         district: "",
       })
 
-      // Reload data to show new doctor
       loadAdminData()
     } catch (error) {
       console.error("Failed to create doctor:", error)
@@ -231,19 +234,16 @@ export function AdminDashboard() {
     try {
       console.log("Creating VHV:", vhvForm)
 
-      // Validate required fields
       if (!vhvForm.email || !vhvForm.password || !vhvForm.firstName || !vhvForm.lastName) {
         alert("Please fill in all required fields")
         return
       }
 
-      // Call API to create VHV
       await adminApi.createVHV(vhvForm)
 
       console.log("VHV created successfully")
       alert("VHV created successfully!")
 
-      // Close dialog and reset form
       setShowCreateVHVDialog(false)
       setVhvForm({
         email: "",
@@ -255,7 +255,6 @@ export function AdminDashboard() {
         trainingLevel: "",
       })
 
-      // Reload data to show new VHV
       loadAdminData()
     } catch (error) {
       console.error("Failed to create VHV:", error)
@@ -263,82 +262,140 @@ export function AdminDashboard() {
     }
   }
 
+  const handleEditUser = async () => {
+    try {
+      if (!selectedUser) return
+
+      console.log("[v0] Editing user:", selectedUser)
+
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: selectedUser.role,
+          firstName: selectedUser.firstName,
+          lastName: selectedUser.lastName,
+          email: selectedUser.email,
+          district: selectedUser.district,
+          phone: selectedUser.phone,
+          region: selectedUser.region,
+          phoneNumber: selectedUser.phoneNumber,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update user")
+
+      alert("User updated successfully!")
+      setShowEditDialog(false)
+      setSelectedUser(null)
+      loadAdminData()
+    } catch (error) {
+      console.error("[v0] Failed to update user:", error)
+      alert("Failed to update user. Please try again.")
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    try {
+      if (!selectedUser) return
+
+      console.log("[v0] Deleting user:", selectedUser)
+
+      const response = await fetch(`/api/admin/users/${selectedUser.id}?role=${selectedUser.role}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete user")
+
+      alert("User deleted successfully!")
+      setShowDeleteDialog(false)
+      setSelectedUser(null)
+      loadAdminData()
+    } catch (error) {
+      console.error("[v0] Failed to delete user:", error)
+      alert("Failed to delete user. Please try again.")
+    }
+  }
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage users and system settings</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Manage users and system settings</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <Badge variant="outline" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Administrator
+            <span className="hidden sm:inline">Administrator</span>
+            <span className="sm:hidden">Admin</span>
           </Badge>
-          <Button variant="outline" onClick={handleSignOut}>
+          <Button variant="outline" onClick={handleSignOut} size="sm">
             Sign Out
           </Button>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.totalUsers}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Doctors</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Doctors</CardTitle>
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalDoctors}</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.totalDoctors}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">VHVs</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">VHVs</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalVHVs}</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.totalVHVs}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Patients</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Patients</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPatients}</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.totalPatients}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="col-span-2 md:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium">Pending Reviews</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingReviews}</div>
+            <div className="text-xl md:text-2xl font-bold">{stats.pendingReviews}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Emergency Alerts Tab */}
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="users">User Management</TabsTrigger>
-          <TabsTrigger value="create">Create Users</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsTrigger value="users" className="text-xs md:text-sm">
+            User Management
+          </TabsTrigger>
+          <TabsTrigger value="create" className="text-xs md:text-sm">
+            Create Users
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -359,14 +416,17 @@ export function AdminDashboard() {
                   </div>
                 ) : (
                   users.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="space-y-1">
-                        <p className="font-medium">
+                    <div
+                      key={user.id}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-3"
+                    >
+                      <div className="space-y-1 flex-1">
+                        <p className="font-medium text-sm md:text-base">
                           {user.name ||
                             `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
                             user.email.split("@")[0]}
                         </p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="text-xs md:text-sm text-muted-foreground break-all">{user.email}</p>
                         {user.role === "DOCTOR" && user.district && (
                           <p className="text-xs text-muted-foreground">District: {user.district}</p>
                         )}
@@ -374,13 +434,44 @@ export function AdminDashboard() {
                           <p className="text-xs text-muted-foreground">Phone: {user.phone}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={user.role === "DOCTOR" ? "default" : user.role === "VHV" ? "secondary" : "outline"}
-                        >
-                          {user.role}
-                        </Badge>
-                        <Badge variant="default">Active</Badge>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                          <Badge
+                            variant={user.role === "DOCTOR" ? "default" : user.role === "VHV" ? "secondary" : "outline"}
+                            className="text-xs"
+                          >
+                            {user.role}
+                          </Badge>
+                          <Badge variant="default" className="text-xs">
+                            Active
+                          </Badge>
+                        </div>
+                        {user.role !== "ADMIN" && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedUser(user)
+                                setShowEditDialog(true)
+                              }}
+                            >
+                              <Edit2 className="h-3 w-3 md:h-4 md:w-4" />
+                              <span className="hidden sm:inline ml-1">Edit</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedUser(user)
+                                setShowDeleteDialog(true)
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 md:h-4 md:w-4 text-destructive" />
+                              <span className="hidden sm:inline ml-1">Delete</span>
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -392,7 +483,6 @@ export function AdminDashboard() {
 
         <TabsContent value="create" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Create Doctor Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Create Doctor Account</CardTitle>
@@ -406,13 +496,13 @@ export function AdminDashboard() {
                       Add Doctor
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
+                  <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Create Doctor Account</DialogTitle>
                       <DialogDescription>Enter the doctor's information to create their account.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="firstName">First Name</Label>
                           <Input
@@ -510,7 +600,6 @@ export function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Create VHV Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Create VHV Account</CardTitle>
@@ -524,13 +613,13 @@ export function AdminDashboard() {
                       Add VHV
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
+                  <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Create VHV Account</DialogTitle>
                       <DialogDescription>Enter the VHV's information to create their account.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="vhvFirstName">First Name</Label>
                           <Input
@@ -604,12 +693,121 @@ export function AdminDashboard() {
           </div>
         </TabsContent>
 
-        {/* Emergency Alert Management Tab Content */}
         <TabsContent value="emergency" className="space-y-4">
           <EmergencyAlertManagement />
         </TabsContent>
       </Tabs>
 
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Update user information</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First Name</Label>
+                  <Input
+                    value={selectedUser.firstName || ""}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input
+                    value={selectedUser.lastName || ""}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={selectedUser.email || ""}
+                  onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
+                />
+              </div>
+              {selectedUser.role === "DOCTOR" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>District</Label>
+                    <Select
+                      value={selectedUser.district || ""}
+                      onValueChange={(value) => setSelectedUser({ ...selectedUser, district: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select district" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64 overflow-y-auto">
+                        {BANGKOK_DISTRICTS.map((district) => (
+                          <SelectItem key={district} value={district}>
+                            {district}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={selectedUser.phone || ""}
+                      onChange={(e) => setSelectedUser({ ...selectedUser, phone: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+              {selectedUser.role === "VHV" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Region</Label>
+                    <Input
+                      value={selectedUser.region || ""}
+                      onChange={(e) => setSelectedUser({ ...selectedUser, region: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      value={selectedUser.phoneNumber || ""}
+                      onChange={(e) => setSelectedUser({ ...selectedUser, phoneNumber: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditUser}>Save Changes</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedUser?.firstName} {selectedUser?.lastName} ({selectedUser?.email}).
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
