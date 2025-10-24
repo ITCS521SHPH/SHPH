@@ -1318,49 +1318,19 @@ export const getIntakes = async (patientId?: string, vhvId?: string) => {
   )
 }
 
-export const getIntakeById = async (id: string) => {
-  if (!supabase) {
-    return null
-  }
-
-  const { data, error } = await supabase
-    .from("intake_submissions")
-    .select("*")
-    .eq("id", id)
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return data
-    ? {
-        id: data.id,
-        patientId: data.patient_id,
-        vhvId: data.vhv_id,
-        status: data.status,
-        payload: data.payload,
-        attachments: data.attachments,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at),
-      }
-    : null
-}
-
 export const updateIntake = async (id: string, updateData: any) => {
   if (!supabase) {
     throw new Error("Supabase not configured")
   }
 
-  // Build patch object only with provided fields to avoid wiping JSON with undefined/null
-  const patch: any = { updated_at: new Date().toISOString() }
-  if (typeof updateData.status !== 'undefined') patch.status = updateData.status
-  if (typeof updateData.payload !== 'undefined') patch.payload = updateData.payload
-  if (typeof updateData.attachments !== 'undefined') patch.attachments = updateData.attachments
-
   const { data, error } = await supabase
     .from("intake_submissions")
-    .update(patch)
+    .update({
+      status: updateData.status,
+      payload: updateData.payload,
+      attachments: updateData.attachments,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .select()
 
@@ -1537,7 +1507,7 @@ export const markReviewInProgress = async (id: string) => {
     throw new Error("Supabase not configured")
   }
 
-  // Set status to IN_REVIEW (now allowed by DB constraint)
+  // Since the status is likely a text field, we can use 'IN_REVIEW' directly
   const { data, error } = await supabase
     .from("intake_submissions")
     .update({
@@ -2484,7 +2454,6 @@ export const supabaseApi = {
   // Intake management
   createIntake,
   getIntakes,
-  getIntakeById,
   updateIntake,
 
   // Review management

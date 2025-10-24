@@ -53,26 +53,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!areaTask && !patientId) {
-      return NextResponse.json(
-        { error: 'patientId is required for patient tasks' },
-        { status: 400 }
-      )
-    }
-
-    // For patient tasks, ensure assignment exists; for area tasks, skip
-    if (!areaTask && patientId) {
-      try {
-        await supabaseApi.assignPatient({
-          patientId,
-          vhvId,
-          doctorId,
-        } as any)
-      } catch (e) {
-        console.warn('POST /api/tasks: assignment upsert warning', e)
-      }
-    }
-
     const result = await supabaseApi.createTask({
       title,
       description,

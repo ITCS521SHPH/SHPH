@@ -42,7 +42,6 @@ export function StructuredDataForm({
     hospitalNumber: patient.hospitalNumber || "",
 
     // Vital Signs
-    temperature: "",
     oxygenSaturation: "",
     bloodPressureSystolic: "",
     bloodPressureDiastolic: "",
@@ -87,14 +86,7 @@ export function StructuredDataForm({
       id: "vitalSigns",
       title: "Vital Signs",
       icon: Heart,
-      fields: [
-        "temperature",
-        "oxygenSaturation",
-        "bloodPressureSystolic",
-        "bloodPressureDiastolic",
-        "heartRate",
-        "bloodGlucose",
-      ],
+      fields: ["oxygenSaturation", "bloodPressureSystolic", "bloodPressureDiastolic", "heartRate", "bloodGlucose"],
       completed: completedSections.includes("vitalSigns"),
     },
     {
@@ -161,66 +153,9 @@ export function StructuredDataForm({
     
     try {
       console.log('Saving form data for intake:', intakeId)
-
-      // Map flat form fields to the intake payload structure expected by doctor dashboard
-      const [firstName, ...restLast] = (updatedData.patientFullName || '').toString().trim().split(' ')
-      const lastName = restLast.join(' ').trim()
-
-      const mappedPayload = {
-        visitMeta: {
-          visitDateTime: visitDate ? new Date(visitDate).toISOString() : new Date().toISOString(),
-          vhvId: undefined,
-          locationText: '',
-        },
-        patientBasics: {
-          firstName: (firstName || '').trim(),
-          lastName: (lastName || '').trim(),
-          dob: '',
-          contactPhone: '',
-        },
-        symptoms: {
-          chiefComplaint: (updatedData.patientConcerns || '').toString().trim(),
-        },
-        vitals: {
-          temp: updatedData.temperature !== '' ? Number(updatedData.temperature) : undefined,
-          systolic: updatedData.bloodPressureSystolic !== '' ? Number(updatedData.bloodPressureSystolic) : undefined,
-          diastolic: updatedData.bloodPressureDiastolic !== '' ? Number(updatedData.bloodPressureDiastolic) : undefined,
-          hr: updatedData.heartRate !== '' ? Number(updatedData.heartRate) : undefined,
-          spo2: updatedData.oxygenSaturation !== '' ? Number(updatedData.oxygenSaturation) : undefined,
-          glucose: updatedData.bloodGlucose !== '' ? Number(updatedData.bloodGlucose) : undefined,
-        },
-        assessments: {
-          physicalFunction: {
-            dyspneaScore: updatedData.dyspneaScore || '',
-            balanceScore: updatedData.balanceScore || '',
-            ipaqScore: updatedData.ipaqScore || '',
-            sitToStandReps: updatedData.sitToStandReps || '',
-            sixMinuteWalk: updatedData.sixMinuteWalk || '',
-            sppbScore: updatedData.sppbScore || '',
-            gripStrengthRight: updatedData.gripStrengthRight || '',
-            gripStrengthLeft: updatedData.gripStrengthLeft || '',
-          },
-          mentalCognitive: {
-            mocaScore: updatedData.mocaScore || '',
-            fatigueSeverityScale: updatedData.fatigueSeverityScale || '',
-            facitFatigueScale: updatedData.facitFatigueScale || '',
-            chalderFatigueScale: updatedData.chalderFatigueScale || '',
-            gad7Score: updatedData.gad7Score || '',
-            hadsAnxietyScore: updatedData.hadsAnxietyScore || '',
-            hadsDepressionScore: updatedData.hadsDepressionScore || '',
-            beckScore: updatedData.beckScore || '',
-            iesrScore: updatedData.iesrScore || '',
-          },
-        },
-        vhvNotes: {
-          patientConcerns: (updatedData.patientConcerns || '').toString().trim(),
-          vhvObservations: (updatedData.vhvObservations || '').toString().trim(),
-        },
-      }
-
       if (offlineStorage.isOnline()) {
-        await intakesApi.update(intakeId, { payload: mappedPayload, status: 'DRAFT' })
-        console.log('Form data saved to backend as structured payload')
+        await intakesApi.update(intakeId, updatedData)
+        console.log('Form data saved to backend')
       } else {
         // Save offline when no internet connection
         await saveFormDataOffline(patient.id.toString(), intakeId, updatedData, completedSections)
@@ -450,7 +385,7 @@ export function StructuredDataForm({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="oxygenSaturation">Oxygen Saturation (SpO2) %</Label>
+              <Label htmlFor="oxygenSaturation">Oxygen Saturation (SpO₂) %</Label>
               <Input
                 id="oxygenSaturation"
                 value={formData.oxygenSaturation}
@@ -497,17 +432,6 @@ export function StructuredDataForm({
                 onChange={(e) => updateFormData("heartRate", e.target.value)}
                 placeholder="e.g., 72"
                 type="number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="temperature">Temperature (°C)</Label>
-              <Input
-                id="temperature"
-                value={formData.temperature}
-                onChange={(e) => updateFormData("temperature", e.target.value)}
-                placeholder="e.g., 37.0"
-                type="number"
-                step="0.1"
               />
             </div>
           </div>

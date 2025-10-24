@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-// No checkbox needed; closed-ended uses radio buttons
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, FileText } from "lucide-react"
 
@@ -53,7 +53,16 @@ export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
     }))
   }
 
-  // Closed-ended inputs are single-select radios; no checkbox handler needed
+  const handleCheckboxChange = (fieldId: string, option: string, checked: boolean) => {
+    setFormData((prev) => {
+      const currentValues = Array.isArray(prev[fieldId]) ? prev[fieldId] : []
+      if (checked) {
+        return { ...prev, [fieldId]: [...currentValues, option] }
+      } else {
+        return { ...prev, [fieldId]: currentValues.filter((v: string) => v !== option) }
+      }
+    })
+  }
 
   const handleSubmit = async () => {
     if (!formSchema || !formSchema.questions || formSchema.questions.length === 0) return
@@ -136,20 +145,20 @@ export function TaskFormViewer({ task, onSubmit, onCancel }: Props) {
             {question.type === "close" && question.options && question.options.length > 0 && (
               <div className="space-y-2">
                 {question.options.map((option) => {
-                  const selected = (formData[question.id] as string) === option
+                  const currentValues = Array.isArray(formData[question.id]) ? formData[question.id] : []
+                  const isChecked = currentValues.includes(option)
 
                   return (
-                    <label key={option} className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name={question.id}
-                        value={option}
-                        checked={selected}
-                        onChange={() => handleFieldChange(question.id, option)}
-                        className="h-4 w-4 accent-primary"
+                    <div key={option} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${question.id}-${option}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => handleCheckboxChange(question.id, option, checked as boolean)}
                       />
-                      <span className="text-sm">{option}</span>
-                    </label>
+                      <Label htmlFor={`${question.id}-${option}`} className="font-normal cursor-pointer">
+                        {option}
+                      </Label>
+                    </div>
                   )
                 })}
               </div>

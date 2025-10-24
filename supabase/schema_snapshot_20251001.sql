@@ -805,45 +805,6 @@ BEGIN
   END IF;
 END $$;
 
--- Migration 016: Allow IN_REVIEW status in intake_submissions check constraint
-DO $$
-BEGIN
-  -- Drop old check constraint if it exists (uses text + CHECK)
-  IF EXISTS (
-    SELECT 1
-    FROM information_schema.table_constraints
-    WHERE table_schema = 'public'
-      AND table_name = 'intake_submissions'
-      AND constraint_name = 'intake_submissions_status_check'
-  ) THEN
-    ALTER TABLE public.intake_submissions
-      DROP CONSTRAINT intake_submissions_status_check;
-  END IF;
-
-  -- Recreate check constraint including IN_REVIEW
-  ALTER TABLE public.intake_submissions
-    ADD CONSTRAINT intake_submissions_status_check
-    CHECK (
-      status = ANY (
-        ARRAY['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'CHANGES_REQUESTED', 'REJECTED']
-      )
-    );
-END $$;
-
--- Migration 017: Add form_response column to tasks and area_tasks tables
--- This column will store the VHV's submitted form responses as JSON
-
--- Add to tasks table
-ALTER TABLE public.tasks 
-ADD COLUMN IF NOT EXISTS form_response JSONB;
-
--- Add to area_tasks table  
-ALTER TABLE public.area_tasks
-ADD COLUMN IF NOT EXISTS form_response JSONB;
-
--- Add comments for documentation
-COMMENT ON COLUMN public.tasks.form_response IS 'Stores VHV form submission data as JSON';
-COMMENT ON COLUMN public.area_tasks.form_response IS 'Stores VHV form submission data as JSON';
 
 
 RESET ALL;

@@ -143,6 +143,7 @@ export function EmergencyButton({
       setIsSubmitting(false)
     }
   }
+
   const handleCancelEmergency = async () => {
     if (!activeEmergency) return
 
@@ -154,6 +155,7 @@ export function EmergencyButton({
 
       setDescription("")
       setLocation("")
+
       console.log("[v0] Emergency alert cancelled successfully")
 
       alert("Emergency alert cancelled.")

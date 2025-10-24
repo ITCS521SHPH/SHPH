@@ -305,24 +305,8 @@ export const intakesApi = {
 
   getById: async (id: string) => {
     if (USE_SUPABASE) {
-      const response = await fetch(`/api/intakes?id=${id}`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to get intake')
-      }
-      return response.json()
-    }
-  },
-
-  // Fetch all intake submissions for a patient (used on patient dashboard)
-  getByPatient: async (patientId: string) => {
-    if (USE_SUPABASE) {
-      const response = await fetch(`/api/intakes?patientId=${patientId}`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to get patient intakes')
-      }
-      return response.json()
+      // For now, return null
+      return null
     }
   },
 

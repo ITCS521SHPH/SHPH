@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, ExternalLink, BookOpen } from "lucide-react"
-import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
@@ -517,12 +516,9 @@ export function PatientDashboard() {
                               Recorded on {new Date(record.createdAt).toLocaleDateString()}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="default" className="bg-green-500 text-xs">Approved</Badge>
-                            <Link href={`/patient/records/${record.id}`} className="text-xs inline-flex items-center gap-1 underline">
-                              View Details <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          </div>
+                          <Badge variant="default" className="bg-green-500 text-xs">
+                            Approved
+                          </Badge>
                         </div>
 
                         {/* Patient Basics */}
