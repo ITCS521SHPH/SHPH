@@ -19,4 +19,3 @@ BEGIN
     ADD CONSTRAINT intake_submissions_status_check
     CHECK (status = ANY (ARRAY['DRAFT','SUBMITTED','IN_REVIEW','APPROVED','CHANGES_REQUESTED','REJECTED']));
 END $$;
-

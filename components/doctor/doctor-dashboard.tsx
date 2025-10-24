@@ -1345,5 +1345,3 @@ export function DoctorDashboard() {
     </div>
   )
 }
-
-

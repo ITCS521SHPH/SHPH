@@ -1333,5 +1333,3 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     </div>
   )
 }
-
-
