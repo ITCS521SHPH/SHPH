@@ -216,7 +216,6 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
   try {
     console.log("[v0] Attempting login for:", credentials.email)
 
-    // Use the authenticate_user function to check all role tables
     const { data: authResult, error: authError } = await supabase.rpc("authenticate_user", {
       input_email: credentials.email,
       input_password: credentials.password,
@@ -226,7 +225,7 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
 
     if (authError) {
       console.error("[v0] RPC error:", authError)
-      throw new Error(authError.message)
+      throw new Error("Authentication service error. Please ensure the database is properly configured.")
     }
 
     if (!authResult || authResult.length === 0) {
@@ -234,36 +233,34 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
     }
 
     const userData = authResult[0]
-    console.log("[v0] User data from RPC:", userData)
+    console.log("[v0] User authenticated successfully:", { userId: userData.user_id, role: userData.user_type })
 
-    // Create a real Supabase session by signing in with email/password
-    // This will create a proper JWT token
-    const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
-    })
+    // This allows the app to work with custom authentication tables without requiring Supabase Auth users
+    let accessToken = `custom_auth_${userData.user_id}_${Date.now()}`
+    let refreshToken = `custom_refresh_${userData.user_id}_${Date.now()}`
 
-    console.log("[v0] Supabase auth result:", { authData, signInError })
+    try {
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      })
 
-    if (signInError) {
-      // If Supabase Auth fails, fall back to our custom authentication
-      // but still return the user data from our database
-      console.warn("[v0] Supabase Auth sign-in failed, using custom auth:", signInError.message)
-
-      const customToken = `custom_auth_${userData.user_id}_${Date.now()}`
-
-      return {
-        accessToken: customToken,
-        refreshToken: customToken,
-        role: userData.user_type as any,
-        userId: userData.user_id,
+      // If Supabase Auth succeeds, use its tokens (better security)
+      if (!signInError && authData.session) {
+        console.log("[v0] Supabase Auth session created successfully")
+        accessToken = authData.session.access_token
+        refreshToken = authData.session.refresh_token
+      } else {
+        console.log("[v0] Using custom authentication tokens (Supabase Auth not configured)")
       }
+    } catch (authException) {
+      // Silently fall back to custom tokens if Supabase Auth fails
+      console.log("[v0] Supabase Auth unavailable, using custom tokens")
     }
 
-    // Return the real Supabase session data
     return {
-      accessToken: authData.session?.access_token || "",
-      refreshToken: authData.session?.refresh_token || "",
+      accessToken,
+      refreshToken,
       role: userData.user_type as any,
       userId: userData.user_id,
     }
@@ -272,7 +269,7 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
     if (error instanceof Error) {
       throw error
     }
-    throw new Error(String(error))
+    throw new Error("Login failed")
   }
 }
 
@@ -1218,17 +1215,6 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
               isActive: assignment.patients.is_active,
               createdAt: new Date(),
               updatedAt: new Date(),
-              intakeSubmissions:
-                intakesData?.map((intake) => ({
-                  id: intake.id,
-                  patientId: intake.patient_id,
-                  vhvId: intake.vhv_id,
-                  status: intake.status,
-                  payload: intake.payload,
-                  attachments: intake.attachments,
-                  createdAt: new Date(intake.created_at),
-                  updatedAt: new Date(intake.updated_at),
-                })) || [],
             }
           : null,
         tasks: tasksData?.map(convertTaskRow) || [],
@@ -1323,11 +1309,7 @@ export const getIntakeById = async (id: string) => {
     return null
   }
 
-  const { data, error } = await supabase
-    .from("intake_submissions")
-    .select("*")
-    .eq("id", id)
-    .single()
+  const { data, error } = await supabase.from("intake_submissions").select("*").eq("id", id).single()
 
   if (error) {
     throw new Error(error.message)
@@ -1354,15 +1336,11 @@ export const updateIntake = async (id: string, updateData: any) => {
 
   // Build patch object only with provided fields to avoid wiping JSON with undefined/null
   const patch: any = { updated_at: new Date().toISOString() }
-  if (typeof updateData.status !== 'undefined') patch.status = updateData.status
-  if (typeof updateData.payload !== 'undefined') patch.payload = updateData.payload
-  if (typeof updateData.attachments !== 'undefined') patch.attachments = updateData.attachments
+  if (typeof updateData.status !== "undefined") patch.status = updateData.status
+  if (typeof updateData.payload !== "undefined") patch.payload = updateData.payload
+  if (typeof updateData.attachments !== "undefined") patch.attachments = updateData.attachments
 
-  const { data, error } = await supabase
-    .from("intake_submissions")
-    .update(patch)
-    .eq("id", id)
-    .select()
+  const { data, error } = await supabase.from("intake_submissions").update(patch).eq("id", id).select()
 
   if (error) {
     throw new Error(error.message)
