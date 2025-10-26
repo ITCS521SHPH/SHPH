@@ -375,9 +375,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
               await areaTasksApi.create({ ...base, vhvId: vid })
             }
           }
-        }
-
-        if (areaCount > 0) {
+        } else if (areaCount > 0) {
           for (const district of chosenDistricts) {
             const base = {
               title: taskForm.title,
@@ -849,7 +847,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                 options: [...prev.options, prev.optionInput.trim()],
                                 optionInput: "",
                               }))
-                          }}
+                            }}
                           >
                             Add Option
                           </Button>
@@ -891,7 +889,12 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                   variant="outline"
                                   onClick={() => {
                                     setEditingQuestionId(q.id)
-                                    setNewQuestion({ text: q.text, type: q.type, optionInput: "", options: q.options || [] })
+                                    setNewQuestion({
+                                      text: q.text,
+                                      type: q.type,
+                                      optionInput: "",
+                                      options: q.options || [],
+                                    })
                                   }}
                                 >
                                   Edit
