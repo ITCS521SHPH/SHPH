@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
 import { patientDataApi, intakesApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
+import { NotificationCenter } from "@/components/patient/notification-center"
 
 export function PatientDashboard() {
   const router = useRouter()
@@ -266,7 +267,7 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 h-auto">
             <TabsTrigger
               value="appointments"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
@@ -305,6 +306,14 @@ export function PatientDashboard() {
               <BookOpen className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Self-Care</span>
               <span className="sm:hidden">Care</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="notifications"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+            >
+              <Bell className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Notifications</span>
+              <span className="sm:hidden">Notif</span>
             </TabsTrigger>
           </TabsList>
 
@@ -518,8 +527,13 @@ export function PatientDashboard() {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="default" className="bg-green-500 text-xs">Approved</Badge>
-                            <Link href={`/patient/records/${record.id}`} className="text-xs inline-flex items-center gap-1 underline">
+                            <Badge variant="default" className="bg-green-500 text-xs">
+                              Approved
+                            </Badge>
+                            <Link
+                              href={`/patient/records/${record.id}`}
+                              className="text-xs inline-flex items-center gap-1 underline"
+                            >
                               View Details <ExternalLink className="h-3 w-3" />
                             </Link>
                           </div>
@@ -797,6 +811,10 @@ export function PatientDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-4">
+            <NotificationCenter userId={currentPatientId} userRole="PATIENT" />
           </TabsContent>
         </Tabs>
       </main>

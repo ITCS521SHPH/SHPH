@@ -308,7 +308,7 @@ export const intakesApi = {
       const response = await fetch(`/api/intakes?id=${id}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to get intake')
+        throw new Error(errorData.error || "Failed to get intake")
       }
       return response.json()
     }
@@ -320,10 +320,11 @@ export const intakesApi = {
       const response = await fetch(`/api/intakes?patientId=${patientId}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to get patient intakes')
+        throw new Error(errorData.error || "Failed to get patient intakes")
       }
       return response.json()
     }
+    return Promise.resolve([])
   },
 
   updateAttachments: async (id: string, attachments: string[]) => {
@@ -862,6 +863,196 @@ export const patientDataApi = {
     }
 
     return response.json()
+  },
+}
+
+export const notificationsApi = {
+  // Get notifications for a user
+  getByUser: async (userId: string, unreadOnly = false) => {
+    if (USE_SUPABASE) {
+      const params = new URLSearchParams()
+      params.append("userId", userId)
+      if (unreadOnly) params.append("unreadOnly", "true")
+
+      const response = await fetch(`/api/notifications?${params.toString()}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get notifications")
+      }
+      return response.json()
+    }
+    return Promise.resolve([])
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read" }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to mark notification as read")
+      }
+      return response.json()
+    }
+  },
+
+  // Mark all notifications as read for a user
+  markAllAsRead: async (userId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/notifications/mark-all-read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to mark all notifications as read")
+      }
+      return response.json()
+    }
+  },
+
+  // Delete a notification
+  delete: async (notificationId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to delete notification")
+      }
+      return response.json()
+    }
+  },
+
+  // Get unread count
+  getUnreadCount: async (userId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/notifications/unread-count?userId=${userId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get unread count")
+      }
+      const data = await response.json()
+      return data.count
+    }
+    return 0
+  },
+}
+
+export const householdsApi = {
+  // Get all households for a doctor
+  getByDoctor: async (doctorId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/households?doctorId=${doctorId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get households")
+      }
+      return response.json()
+    }
+    return Promise.resolve([])
+  },
+
+  // Get household by ID with all members
+  getById: async (householdId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/households/${householdId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get household")
+      }
+      return response.json()
+    }
+  },
+
+  // Create a new household
+  create: async (householdData: {
+    doctorId: string
+    district: string
+    address?: string
+    headOfHouseholdId?: string
+  }) => {
+    if (USE_SUPABASE) {
+      const response = await fetch("/api/households", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(householdData),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to create household")
+      }
+      return response.json()
+    }
+  },
+
+  // Update household
+  update: async (householdId: string, updateData: any) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/households/${householdId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update household")
+      }
+      return response.json()
+    }
+  },
+
+  // Add patient to household
+  addMember: async (householdId: string, patientId: string, relationshipType: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/households/${householdId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId, relationshipType }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to add household member")
+      }
+      return response.json()
+    }
+  },
+
+  // Remove patient from household
+  removeMember: async (householdId: string, patientId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/households/${householdId}/members/${patientId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to remove household member")
+      }
+      return response.json()
+    }
+  },
+
+  // Get disease cluster analysis
+  getClusterAnalysis: async (doctorId: string, district?: string) => {
+    if (USE_SUPABASE) {
+      const params = new URLSearchParams()
+      params.append("doctorId", doctorId)
+      if (district) params.append("district", district)
+
+      const response = await fetch(`/api/households/cluster-analysis?${params.toString()}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to get cluster analysis")
+      }
+      return response.json()
+    }
+    return Promise.resolve({ households: [], clusters: [] })
   },
 }
 
