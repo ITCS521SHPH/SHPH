@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,8 +30,11 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getDoctorAppointments } from "@/lib/supabase-api"
+import { getCurrentUserFromStorage } from "@/lib/auth"
 
 // Mock appointment data - will be replaced with real data
 const mockAppointments = [
@@ -130,8 +133,12 @@ const categoryColors = {
 }
 
 export function DoctorScheduler() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const currentUser = getCurrentUserFromStorage()
+
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [appointments, setAppointments] = useState(mockAppointments)
+  const [appointments, setAppointments] = useState<any[]>([])
   const [showNewAppointmentDialog, setShowNewAppointmentDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
@@ -148,6 +155,58 @@ export function DoctorScheduler() {
     notes: "",
     category: "consultation",
   })
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      if (!currentUser?.userId) {
+        setError("No user logged in")
+        setLoading(false)
+        return
+      }
+
+      console.log("[v0] Fetching appointments for doctor:", currentUser.userId)
+
+      try {
+        setLoading(true)
+        const data = await getDoctorAppointments(currentUser.userId)
+        console.log("[v0] Fetched appointments:", data)
+
+        // Transform the data to match the component's expected format
+        const transformedAppointments = data.map((apt: any) => ({
+          id: apt.id,
+          patientName: apt.patientName || "Unknown Patient",
+          patientId: apt.patientId,
+          type: apt.appointmentType || "Consultation",
+          date: apt.scheduledDate,
+          time: apt.scheduledTime,
+          duration: 30, // Default duration
+          location: "Medical Center", // Default location
+          status: apt.status,
+          notes: apt.notes || "",
+          category: getCategoryFromType(apt.appointmentType),
+        }))
+
+        setAppointments(transformedAppointments)
+        setError(null)
+      } catch (err) {
+        console.error("[v0] Error fetching appointments:", err)
+        setError(err instanceof Error ? err.message : "Failed to load appointments")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAppointments()
+  }, [currentUser?.userId])
+
+  const getCategoryFromType = (type: string): string => {
+    const lowerType = type?.toLowerCase() || ""
+    if (lowerType.includes("urgent")) return "urgent"
+    if (lowerType.includes("review") || lowerType.includes("results")) return "review"
+    if (lowerType.includes("procedure") || lowerType.includes("surgery")) return "procedure"
+    if (lowerType.includes("telemedicine") || lowerType.includes("virtual")) return "telemedicine"
+    return "consultation"
+  }
 
   // Filter appointments for selected date
   const selectedDateStr = selectedDate.toISOString().split("T")[0]
@@ -254,6 +313,32 @@ export function DoctorScheduler() {
       newDate.setMonth(selectedDate.getMonth() + (direction === "next" ? 1 : -1))
     }
     setSelectedDate(newDate)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading appointments...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <AlertCircle className="h-8 w-8 mx-auto mb-4 text-destructive" />
+          <p className="text-destructive font-medium mb-2">Error loading appointments</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
