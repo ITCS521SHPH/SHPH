@@ -798,7 +798,7 @@ export const createRescheduleRequest = async (requestData: {
         new_date: requestData.requestedDate,
         new_time: requestData.requestedTime,
         reason: requestData.reason,
-        status: "approved", // Auto-approve for testing
+        status: "pending",
         updated_at: new Date().toISOString(),
       })
       .eq("id", existingRequest.id)
@@ -819,7 +819,7 @@ export const createRescheduleRequest = async (requestData: {
         new_date: requestData.requestedDate,
         new_time: requestData.requestedTime,
         reason: requestData.reason,
-        status: "approved", // Auto-approve for testing
+        status: "pending",
       })
       .select()
       .single()
@@ -828,21 +828,6 @@ export const createRescheduleRequest = async (requestData: {
       throw new Error(error.message)
     }
     result = data
-  }
-
-  // Immediately update the appointment with the new date and time
-  const { error: updateError } = await supabase
-    .from("appointments")
-    .update({
-      scheduled_date: requestData.requestedDate,
-      scheduled_time: requestData.requestedTime,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", requestData.appointmentId)
-
-  if (updateError) {
-    console.error("Failed to update appointment:", updateError.message)
-    // Don't throw error here, just log it
   }
 
   return convertRescheduleRequestRow(result)
@@ -2436,6 +2421,188 @@ export const deleteAreaTask = async (id: string) => {
   if (error) throw new Error(error.message)
 }
 
+export const getDoctorAppointments = async (doctorId: string): Promise<any[]> => {
+  if (!supabase) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select(`
+      *,
+      patients:patient_id (
+        id,
+        first_name,
+        last_name,
+        phone,
+        email
+      )
+    `)
+    .eq("doctor_id", doctorId)
+    .order("scheduled_date", { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (
+    data?.map((row) => ({
+      id: row.id,
+      patientId: row.patient_id,
+      patientName: row.patients ? `${row.patients.first_name} ${row.patients.last_name}` : "Unknown Patient",
+      patientPhone: row.patients?.phone,
+      appointmentType: row.appointment_type || "Consultation",
+      scheduledDate: row.scheduled_date,
+      scheduledTime: row.scheduled_time,
+      status: row.status,
+      notes: row.notes,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    })) || []
+  )
+}
+
+export const getDoctorRescheduleRequests = async (doctorId: string): Promise<any[]> => {
+  if (!supabase) {
+    return []
+  }
+
+  // First get all appointments for this doctor
+  const { data: appointments, error: appointmentsError } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("doctor_id", doctorId)
+
+  if (appointmentsError) {
+    throw new Error(appointmentsError.message)
+  }
+
+  const appointmentIds = appointments?.map((a) => a.id) || []
+
+  if (appointmentIds.length === 0) {
+    return []
+  }
+
+  // Then get reschedule requests for these appointments
+  const { data, error } = await supabase
+    .from("reschedule_requests")
+    .select(`
+      *,
+      appointments:appointment_id (
+        scheduled_date,
+        scheduled_time,
+        patient_id,
+        patients:patient_id (
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .in("appointment_id", appointmentIds)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (
+    data?.map((row) => ({
+      id: row.id,
+      appointmentId: row.appointment_id,
+      patientId: row.patient_id,
+      patientName: row.appointments?.patients
+        ? `${row.appointments.patients.first_name} ${row.appointments.patients.last_name}`
+        : "Unknown Patient",
+      originalDate: row.appointments?.scheduled_date || "",
+      originalTime: row.appointments?.scheduled_time || "",
+      requestedDate: row.new_date,
+      requestedTime: row.new_time,
+      reason: row.reason,
+      status: row.status,
+      createdAt: new Date(row.created_at),
+    })) || []
+  )
+}
+
+export const updateAppointmentStatus = async (appointmentId: string, status: string, notes?: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  const updateData: any = {
+    status,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (notes) {
+    updateData.notes = notes
+  }
+
+  const { error } = await supabase.from("appointments").update(updateData).eq("id", appointmentId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export const approveRescheduleRequest = async (
+  requestId: string,
+  appointmentId: string,
+  newDate: string,
+  newTime: string,
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  // Update the reschedule request status
+  const { error: requestError } = await supabase
+    .from("reschedule_requests")
+    .update({
+      status: "approved",
+      processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", requestId)
+
+  if (requestError) {
+    throw new Error(requestError.message)
+  }
+
+  // Update the appointment with new date and time
+  const { error: appointmentError } = await supabase
+    .from("appointments")
+    .update({
+      scheduled_date: newDate,
+      scheduled_time: newTime,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", appointmentId)
+
+  if (appointmentError) {
+    throw new Error(appointmentError.message)
+  }
+}
+
+export const rejectRescheduleRequest = async (requestId: string): Promise<void> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  const { error } = await supabase
+    .from("reschedule_requests")
+    .update({
+      status: "rejected",
+      processed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", requestId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 // Export all functions as supabaseApi object
 export const supabaseApi = {
   // Authentication
@@ -2510,6 +2677,12 @@ export const supabaseApi = {
   getPatientMedications,
   getPatientVitalSigns,
   createRescheduleRequest,
+
+  getDoctorAppointments,
+  getDoctorRescheduleRequests,
+  updateAppointmentStatus,
+  approveRescheduleRequest,
+  rejectRescheduleRequest,
 
   // User creation (placeholder functions)
   createDoctor,
