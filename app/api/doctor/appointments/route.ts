@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase-server"
-import { notifyAppointmentCreated } from "@/lib/notifications"
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,7 +31,6 @@ export async function GET(request: NextRequest) {
       endDate = end.toISOString().split("T")[0]
     }
 
-    // Fetch appointments for the doctor within the date range
     const { data, error } = await supabase
       .from("appointments")
       .select(`
@@ -54,7 +52,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Transform the data to match the frontend format
     const appointments = (data || []).map((apt: any) => ({
       id: apt.id,
       patientId: apt.patient_id,
@@ -62,12 +59,12 @@ export async function GET(request: NextRequest) {
       doctorId: apt.doctor_id,
       scheduledDate: apt.scheduled_date,
       scheduledTime: apt.scheduled_time,
-      duration: apt.duration || 30,
-      category: apt.appointment_type || "general",
-      color: apt.color || "#3b82f6",
+      duration: 30, // Default duration since column doesn't exist
+      category: apt.appointment_type || "consultation",
+      color: getCategoryColor(apt.appointment_type || "consultation"),
       status: apt.status,
       notes: apt.notes,
-      confirmedByPatient: apt.confirmed_by_patient || false,
+      confirmedByPatient: false, // Default since column doesn't exist
     }))
 
     return NextResponse.json(appointments)
@@ -77,10 +74,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
+function getCategoryColor(type: string): string {
+  const colorMap: Record<string, string> = {
+    consultation: "#3b82f6",
+    follow_up: "#10b981",
+    emergency: "#ef4444",
+    routine: "#f59e0b",
+  }
+  return colorMap[type] || "#3b82f6"
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { doctorId, patientId, patientName, scheduledDate, scheduledTime, duration, category, color, notes } = body
+    const { doctorId, patientId, patientName, scheduledDate, scheduledTime, category, notes } = body
 
     if (!doctorId || !patientId || !scheduledDate || !scheduledTime) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -106,12 +113,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Time slot already booked. Please choose a different time." }, { status: 409 })
     }
 
-    // Get doctor name for notification
-    const { data: doctorData } = await supabase.from("users").select("name, email").eq("id", doctorId).single()
-
-    const doctorName = doctorData?.name || doctorData?.email || "Your doctor"
-
-    // Create the appointment
     const { data, error } = await supabase
       .from("appointments")
       .insert({
@@ -119,12 +120,9 @@ export async function POST(request: NextRequest) {
         patient_id: patientId,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
-        duration: duration || 30,
-        appointment_type: category || "general",
-        color: color || "#3b82f6",
+        appointment_type: category || "consultation",
         status: "scheduled",
         notes: notes || null,
-        confirmed_by_patient: false,
       })
       .select()
       .single()
@@ -134,16 +132,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Send notification to patient
-    await notifyAppointmentCreated(patientId, {
-      type: category || "Consultation",
-      date: scheduledDate,
-      time: scheduledTime,
-      providerName: doctorName,
-      appointmentId: data.id,
-    })
-
-    console.log("[v0] Appointment created and notification sent:", data.id)
+    console.log("[v0] Appointment created successfully:", data.id)
 
     return NextResponse.json({
       id: data.id,
@@ -152,12 +141,12 @@ export async function POST(request: NextRequest) {
       doctorId: data.doctor_id,
       scheduledDate: data.scheduled_date,
       scheduledTime: data.scheduled_time,
-      duration: data.duration,
+      duration: 30,
       category: data.appointment_type,
-      color: data.color,
+      color: getCategoryColor(data.appointment_type),
       status: data.status,
       notes: data.notes,
-      confirmedByPatient: data.confirmed_by_patient,
+      confirmedByPatient: false,
     })
   } catch (error: any) {
     console.error("[v0] Appointment creation error:", error)

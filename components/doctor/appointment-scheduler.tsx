@@ -22,15 +22,10 @@ import { CalendarIcon, Clock, Plus, Trash2, Check, ChevronLeft, ChevronRight, Us
 import { format, addDays, startOfWeek, addWeeks, isSameDay } from "date-fns"
 
 const APPOINTMENT_CATEGORIES = [
-  { value: "general", label: "General", color: "#3b82f6" },
-  { value: "consultation", label: "Consultation", color: "#8b5cf6" },
+  { value: "consultation", label: "Consultation", color: "#3b82f6" },
   { value: "follow_up", label: "Follow-up", color: "#10b981" },
   { value: "emergency", label: "Emergency", color: "#ef4444" },
-  { value: "routine_checkup", label: "Routine Checkup", color: "#f59e0b" },
-  { value: "vaccination", label: "Vaccination", color: "#06b6d4" },
-  { value: "lab_test", label: "Lab Test", color: "#ec4899" },
-  { value: "surgery", label: "Surgery", color: "#dc2626" },
-  { value: "therapy", label: "Therapy", color: "#14b8a6" },
+  { value: "routine", label: "Routine Checkup", color: "#f59e0b" },
 ]
 
 const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => {
@@ -49,9 +44,7 @@ interface Appointment {
   doctorId: string
   scheduledDate: string
   scheduledTime: string
-  duration: number
   category: string
-  color: string
   status: string
   notes?: string
   confirmedByPatient: boolean
@@ -77,7 +70,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
     scheduledDate: format(new Date(), "yyyy-MM-dd"),
     scheduledTime: "09:00",
     duration: 30,
-    category: "general",
+    category: "consultation",
     notes: "",
   })
 
@@ -120,9 +113,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
           patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
           scheduledDate: appointmentForm.scheduledDate,
           scheduledTime: appointmentForm.scheduledTime,
-          duration: appointmentForm.duration,
           category: appointmentForm.category,
-          color: category?.color || "#3b82f6",
           notes: appointmentForm.notes,
         }),
       })
@@ -132,14 +123,14 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
         throw new Error(error.error || "Failed to create appointment")
       }
 
-      alert("Appointment created successfully! Patient has been notified.")
+      alert("Appointment created successfully!")
       setShowAddDialog(false)
       setAppointmentForm({
         patientId: "",
         scheduledDate: format(new Date(), "yyyy-MM-dd"),
         scheduledTime: "09:00",
         duration: 30,
-        category: "general",
+        category: "consultation",
         notes: "",
       })
       fetchAppointments()
@@ -159,7 +150,6 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
         body: JSON.stringify({
           scheduledDate: appointmentForm.scheduledDate,
           scheduledTime: appointmentForm.scheduledTime,
-          duration: appointmentForm.duration,
           category: appointmentForm.category,
           notes: appointmentForm.notes,
         }),
@@ -285,7 +275,11 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                           draggable
                           onDragStart={() => handleDragStart(apt)}
                           className="text-xs p-1 rounded mb-1 cursor-move hover:opacity-80 transition-opacity overflow-hidden"
-                          style={{ backgroundColor: apt.color, color: "white" }}
+                          style={{
+                            backgroundColor:
+                              APPOINTMENT_CATEGORIES.find((c) => c.value === apt.category)?.color || "#3b82f6",
+                            color: "white",
+                          }}
                           onClick={(e) => {
                             e.stopPropagation()
                             setSelectedAppointment(apt)
@@ -357,7 +351,11 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                           draggable
                           onDragStart={() => handleDragStart(apt)}
                           className="cursor-move hover:shadow-md transition-shadow"
-                          style={{ borderLeftColor: apt.color, borderLeftWidth: "4px" }}
+                          style={{
+                            borderLeftColor:
+                              APPOINTMENT_CATEGORIES.find((c) => c.value === apt.category)?.color || "#3b82f6",
+                            borderLeftWidth: "4px",
+                          }}
                           onClick={(e) => {
                             e.stopPropagation()
                             setSelectedAppointment(apt)
@@ -390,7 +388,15 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                                     <Clock className="h-3 w-3" />
                                     {apt.duration} minutes
                                   </span>
-                                  <Badge variant="outline" style={{ backgroundColor: apt.color, color: "white" }}>
+                                  <Badge
+                                    variant="outline"
+                                    style={{
+                                      backgroundColor:
+                                        APPOINTMENT_CATEGORIES.find((c) => c.value === apt.category)?.color ||
+                                        "#3b82f6",
+                                      color: "white",
+                                    }}
+                                  >
                                     {APPOINTMENT_CATEGORIES.find((c) => c.value === apt.category)?.label}
                                   </Badge>
                                 </div>
