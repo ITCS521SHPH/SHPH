@@ -235,16 +235,16 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full overflow-hidden">
         {/* Week header */}
-        <div className="grid grid-cols-8 border-b">
-          <div className="p-2 border-r bg-muted/50">
+        <div className="grid grid-cols-8 border-b shrink-0">
+          <div className="p-2 border-r bg-muted/50 min-w-[60px]">
             <span className="text-sm font-medium">Time</span>
           </div>
           {weekDays.map((day) => (
             <div
               key={day.toISOString()}
-              className={`p-2 text-center border-r ${isSameDay(day, new Date()) ? "bg-primary/10" : ""}`}
+              className={`p-2 text-center border-r min-w-0 ${isSameDay(day, new Date()) ? "bg-primary/10" : ""}`}
             >
               <div className="text-sm font-medium">{format(day, "EEE")}</div>
               <div className={`text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
@@ -255,63 +255,65 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
         </div>
 
         {/* Time slots */}
-        <ScrollArea className="flex-1">
-          {TIME_SLOTS.map((time) => (
-            <div key={time} className="grid grid-cols-8 border-b min-h-[60px]">
-              <div className="p-2 border-r bg-muted/50 flex items-center">
-                <span className="text-xs font-medium">{time}</span>
-              </div>
-              {weekDays.map((day) => {
-                const slotAppointments = getAppointmentsForSlot(day, time)
-                return (
-                  <div
-                    key={`${day.toISOString()}-${time}`}
-                    className="p-1 border-r hover:bg-muted/50 cursor-pointer relative"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(format(day, "yyyy-MM-dd"), time)}
-                    onClick={() => {
-                      setAppointmentForm({
-                        ...appointmentForm,
-                        scheduledDate: format(day, "yyyy-MM-dd"),
-                        scheduledTime: time,
-                      })
-                      setShowAddDialog(true)
-                    }}
-                  >
-                    {slotAppointments.map((apt) => (
-                      <div
-                        key={apt.id}
-                        draggable
-                        onDragStart={() => handleDragStart(apt)}
-                        className="text-xs p-1 rounded mb-1 cursor-move hover:opacity-80 transition-opacity"
-                        style={{ backgroundColor: apt.color, color: "white" }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedAppointment(apt)
-                          setAppointmentForm({
-                            patientId: apt.patientId,
-                            scheduledDate: apt.scheduledDate,
-                            scheduledTime: apt.scheduledTime,
-                            duration: apt.duration,
-                            category: apt.category,
-                            notes: apt.notes || "",
-                          })
-                          setShowEditDialog(true)
-                        }}
-                      >
-                        <div className="font-medium truncate">{apt.patientName}</div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{apt.duration}min</span>
-                          {apt.confirmedByPatient && <Check className="h-3 w-3 ml-auto" />}
+        <ScrollArea className="flex-1 overflow-auto">
+          <div className="min-w-full">
+            {TIME_SLOTS.map((time) => (
+              <div key={time} className="grid grid-cols-8 border-b min-h-[60px]">
+                <div className="p-2 border-r bg-muted/50 flex items-center min-w-[60px]">
+                  <span className="text-xs font-medium">{time}</span>
+                </div>
+                {weekDays.map((day) => {
+                  const slotAppointments = getAppointmentsForSlot(day, time)
+                  return (
+                    <div
+                      key={`${day.toISOString()}-${time}`}
+                      className="p-1 border-r hover:bg-muted/50 cursor-pointer relative min-w-0"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => handleDrop(format(day, "yyyy-MM-dd"), time)}
+                      onClick={() => {
+                        setAppointmentForm({
+                          ...appointmentForm,
+                          scheduledDate: format(day, "yyyy-MM-dd"),
+                          scheduledTime: time,
+                        })
+                        setShowAddDialog(true)
+                      }}
+                    >
+                      {slotAppointments.map((apt) => (
+                        <div
+                          key={apt.id}
+                          draggable
+                          onDragStart={() => handleDragStart(apt)}
+                          className="text-xs p-1 rounded mb-1 cursor-move hover:opacity-80 transition-opacity overflow-hidden"
+                          style={{ backgroundColor: apt.color, color: "white" }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedAppointment(apt)
+                            setAppointmentForm({
+                              patientId: apt.patientId,
+                              scheduledDate: apt.scheduledDate,
+                              scheduledTime: apt.scheduledTime,
+                              duration: apt.duration,
+                              category: apt.category,
+                              notes: apt.notes || "",
+                            })
+                            setShowEditDialog(true)
+                          }}
+                        >
+                          <div className="font-medium truncate">{apt.patientName}</div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <span>{apt.duration}min</span>
+                            {apt.confirmedByPatient && <Check className="h-3 w-3 ml-auto" />}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         </ScrollArea>
       </div>
     )
@@ -612,8 +614,8 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
       </Card>
 
       {/* Calendar view */}
-      <Card className="h-[600px]">
-        <CardContent className="p-0 h-full">
+      <Card className="h-[600px] overflow-hidden">
+        <CardContent className="p-0 h-full overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Loading appointments...</p>
