@@ -443,11 +443,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     }
 
     try {
-      // Preserve embedded form schema if present on existing task
-      const existingSchema = parseFormSchema(editingTask?.description)
-      const nextDescription = existingSchema
-        ? buildDescriptionWithSchema(taskForm.description, existingSchema.questions || [])
-        : taskForm.description
+      const nextDescription =
+        questions.length > 0 ? buildDescriptionWithSchema(taskForm.description, questions) : taskForm.description
+
       const isAreaTask = !editingTask?.patientId
       if (isAreaTask) {
         await areaTasksApi.update(editingTask.id, {
@@ -462,6 +460,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       }
       setShowEditDialog(false)
       setEditingTask(null)
+      setQuestions([])
       refetchTasks()
     } catch (error) {
       console.error("Failed to update task:", error)
@@ -849,7 +848,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                 options: [...prev.options, prev.optionInput.trim()],
                                 optionInput: "",
                               }))
-                          }}
+                            }}
                           >
                             Add Option
                           </Button>
@@ -891,7 +890,12 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                   variant="outline"
                                   onClick={() => {
                                     setEditingQuestionId(q.id)
-                                    setNewQuestion({ text: q.text, type: q.type, optionInput: "", options: q.options || [] })
+                                    setNewQuestion({
+                                      text: q.text,
+                                      type: q.type,
+                                      optionInput: "",
+                                      options: q.options || [],
+                                    })
                                   }}
                                 >
                                   Edit
@@ -1268,10 +1272,10 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
 
       {/* Edit Task Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md md:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
-            <DialogDescription>Update the task details.</DialogDescription>
+            <DialogDescription>Update the task details and modify form questions.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
@@ -1293,6 +1297,160 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                 rows={3}
               />
             </div>
+
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Form Questions</div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4" />
+                <Label>Data to Collect</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Edit the questions that VHVs will answer when completing this task.
+              </p>
+
+              {/* Add / edit question */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+                <div className="md:col-span-3">
+                  <Input
+                    placeholder="Question text"
+                    value={newQuestion.text}
+                    onChange={(e) => setNewQuestion((prev) => ({ ...prev, text: e.target.value }))}
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <Select
+                    value={newQuestion.type}
+                    onValueChange={(v: any) => setNewQuestion((prev) => ({ ...prev, type: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open-ended</SelectItem>
+                      <SelectItem value="close">Close-ended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-1 flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!newQuestion.text.trim()) return
+                      if (editingQuestionId) {
+                        setQuestions((prev) =>
+                          prev.map((q) =>
+                            q.id === editingQuestionId
+                              ? {
+                                  ...q,
+                                  text: newQuestion.text,
+                                  type: newQuestion.type,
+                                  options: newQuestion.type === "close" ? [...newQuestion.options] : undefined,
+                                }
+                              : q,
+                          ),
+                        )
+                        setEditingQuestionId(null)
+                      } else {
+                        setQuestions((prev) => [
+                          ...prev,
+                          {
+                            id: `${Date.now()}`,
+                            text: newQuestion.text.trim(),
+                            type: newQuestion.type,
+                            options: newQuestion.type === "close" ? [...newQuestion.options] : undefined,
+                          },
+                        ])
+                      }
+                      setNewQuestion({ text: "", type: "open", optionInput: "", options: [] })
+                    }}
+                  >
+                    {editingQuestionId ? "Update Question" : "Add Question"}
+                  </Button>
+                </div>
+              </div>
+              {newQuestion.type === "close" && (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+                  <div className="md:col-span-3">
+                    <Input
+                      placeholder="Add option"
+                      value={newQuestion.optionInput}
+                      onChange={(e) => setNewQuestion((prev) => ({ ...prev, optionInput: e.target.value }))}
+                    />
+                  </div>
+                  <div className="md:col-span-1 flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!newQuestion.optionInput.trim()) return
+                        setNewQuestion((prev) => ({
+                          ...prev,
+                          options: [...prev.options, prev.optionInput.trim()],
+                          optionInput: "",
+                        }))
+                      }}
+                    >
+                      Add Option
+                    </Button>
+                  </div>
+                  {newQuestion.options.length > 0 && (
+                    <div className="md:col-span-5 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {newQuestion.options.map((opt: string, i: number) => (
+                        <span key={i} className="px-2 py-1 rounded border bg-muted/50">
+                          {opt}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Questions list */}
+              <div className="border rounded p-2">
+                {questions.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No questions added yet</div>
+                ) : (
+                  <div className="space-y-2">
+                    {questions.map((q, idx) => (
+                      <div key={q.id} className="flex items-start justify-between bg-muted/30 rounded p-2">
+                        <div className="text-sm">
+                          <div className="font-medium">
+                            {idx + 1}. {q.text}{" "}
+                            <span className="text-muted-foreground">
+                              ({q.type === "open" ? "Open-ended" : "Close-ended"})
+                            </span>
+                          </div>
+                          {q.type === "close" && q.options && q.options.length > 0 && (
+                            <div className="text-xs text-muted-foreground">Options: {q.options.join(", ")}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingQuestionId(q.id)
+                              setNewQuestion({ text: q.text, type: q.type, optionInput: "", options: q.options || [] })
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700 bg-transparent"
+                            onClick={() => setQuestions((prev) => prev.filter((x) => x.id !== q.id))}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editPriority">Priority</Label>
@@ -1323,7 +1481,15 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditDialog(false)
+                setQuestions([])
+                setEditingQuestionId(null)
+                setNewQuestion({ text: "", type: "open", optionInput: "", options: [] })
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditTask}>Update Task</Button>
