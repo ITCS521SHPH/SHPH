@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date")
     const viewMode = searchParams.get("viewMode") || "week"
 
+    console.log("[v0] Fetching appointments for doctor:", doctorId, "date:", date, "viewMode:", viewMode)
+
     if (!doctorId) {
       return NextResponse.json({ error: "Doctor ID is required" }, { status: 400 })
     }
@@ -31,6 +33,8 @@ export async function GET(request: NextRequest) {
       endDate = end.toISOString().split("T")[0]
     }
 
+    console.log("[v0] Date range:", startDate, "to", endDate)
+
     const { data, error } = await supabase
       .from("appointments")
       .select(`
@@ -52,6 +56,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    console.log("[v0] Raw appointments from database:", data?.length || 0, "appointments")
+    console.log("[v0] Raw data:", JSON.stringify(data, null, 2))
+
     const appointments = (data || []).map((apt: any) => ({
       id: apt.id,
       patientId: apt.patient_id,
@@ -66,6 +73,9 @@ export async function GET(request: NextRequest) {
       notes: apt.notes,
       confirmedByPatient: false, // Default since column doesn't exist
     }))
+
+    console.log("[v0] Mapped appointments:", appointments.length, "appointments")
+    console.log("[v0] Returning appointments:", JSON.stringify(appointments, null, 2))
 
     return NextResponse.json(appointments)
   } catch (error: any) {

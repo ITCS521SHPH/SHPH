@@ -77,11 +77,19 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
   const fetchAppointments = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(
-        `/api/doctor/appointments?doctorId=${doctorId}&date=${format(selectedDate, "yyyy-MM-dd")}&viewMode=${viewMode}`,
-      )
+      const url = `/api/doctor/appointments?doctorId=${doctorId}&date=${format(selectedDate, "yyyy-MM-dd")}&viewMode=${viewMode}`
+      console.log("[v0] Fetching appointments from:", url)
+
+      const response = await fetch(url)
+
+      console.log("[v0] Fetch response status:", response.status)
+
       if (!response.ok) throw new Error("Failed to fetch appointments")
+
       const data = await response.json()
+      console.log("[v0] Received appointments:", data.length, "appointments")
+      console.log("[v0] Appointments data:", JSON.stringify(data, null, 2))
+
       setAppointments(data)
     } catch (error) {
       console.error("[v0] Failed to fetch appointments:", error)
