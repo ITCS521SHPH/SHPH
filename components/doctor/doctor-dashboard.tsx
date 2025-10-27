@@ -59,6 +59,7 @@ import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import VhvMap from "@/components/doctor/vhv-map"
 import PatientMap from "@/components/doctor/patient-map"
 import { UserRole } from "@/lib/types"
+import { AppointmentScheduler } from "@/components/doctor/appointment-scheduler"
 
 export function DoctorDashboard() {
   const router = useRouter()
@@ -579,11 +580,7 @@ export function DoctorDashboard() {
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t">
             {submission.status === "SUBMITTED" && (
-              <Button
-                variant="outline"
-                onClick={() => startReview(submission.id)}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => startReview(submission.id)} className="flex-1">
                 <Clock className="h-4 w-4 mr-2" />
                 Start Review
               </Button>
@@ -808,7 +805,7 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="emergencies" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 h-auto">
             <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <Bell className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Emergencies</span>
@@ -818,6 +815,11 @@ export function DoctorDashboard() {
                   {activeEmergencyCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="scheduler" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Calendar className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Scheduler</span>
+              <span className="sm:hidden">Sched</span>
             </TabsTrigger>
             <TabsTrigger value="pending" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
@@ -848,6 +850,10 @@ export function DoctorDashboard() {
 
           <TabsContent value="emergencies" className="space-y-4">
             <EmergencyAlerts userId={currentUser?.id || "2"} userRole={UserRole.DOCTOR} />
+          </TabsContent>
+
+          <TabsContent value="scheduler" className="space-y-4">
+            <AppointmentScheduler doctorId={currentUser?.id || ""} patients={patients || []} />
           </TabsContent>
 
           {/* Assignments tab moved to its own page (/doctor/assignments) */}
