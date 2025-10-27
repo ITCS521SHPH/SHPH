@@ -59,20 +59,30 @@ export async function GET(request: NextRequest) {
     console.log("[v0] Raw appointments from database:", data?.length || 0, "appointments")
     console.log("[v0] Raw data:", JSON.stringify(data, null, 2))
 
-    const appointments = (data || []).map((apt: any) => ({
-      id: apt.id,
-      patientId: apt.patient_id,
-      patientName: apt.patient ? `${apt.patient.first_name} ${apt.patient.last_name}` : "Unknown Patient",
-      doctorId: apt.doctor_id,
-      scheduledDate: apt.scheduled_date,
-      scheduledTime: apt.scheduled_time,
-      duration: 30, // Default duration since column doesn't exist
-      category: apt.appointment_type || "consultation",
-      color: getCategoryColor(apt.appointment_type || "consultation"),
-      status: apt.status,
-      notes: apt.notes,
-      confirmedByPatient: false, // Default since column doesn't exist
-    }))
+    const toTimeHHmm = (t: any) =>
+      typeof t === "string" ? t.slice(0, 5) : "" // Normalize 'HH:mm:ss' -> 'HH:mm'
+
+    const appointments = (data || []).map((apt: any) => {
+      // Normalize category for UI. Prefer appointment_type (legacy UI values),
+      // otherwise map category 'routine_checkup' -> 'routine'.
+      const rawCategory = (apt.appointment_type || apt.category || "consultation") as string
+      const uiCategory = rawCategory === "routine_checkup" ? "routine" : rawCategory
+
+      return {
+        id: apt.id,
+        patientId: apt.patient_id,
+        patientName: apt.patient ? `${apt.patient.first_name} ${apt.patient.last_name}` : "Unknown Patient",
+        doctorId: apt.doctor_id,
+        scheduledDate: apt.scheduled_date,
+        scheduledTime: toTimeHHmm(apt.scheduled_time),
+        duration: apt.duration_minutes ?? 30,
+        category: uiCategory,
+        color: getCategoryColor(uiCategory),
+        status: apt.status,
+        notes: apt.notes,
+        confirmedByPatient: apt.confirmed_by_patient === true,
+      }
+    })
 
     console.log("[v0] Mapped appointments:", appointments.length, "appointments")
     console.log("[v0] Returning appointments:", JSON.stringify(appointments, null, 2))
@@ -97,7 +107,7 @@ function getCategoryColor(type: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { doctorId, patientId, patientName, scheduledDate, scheduledTime, category, notes } = body
+    const { doctorId, patientId, patientName, scheduledDate, scheduledTime, category, notes, duration } = body
 
     if (!doctorId || !patientId || !scheduledDate || !scheduledTime) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -123,6 +133,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Time slot already booked. Please choose a different time." }, { status: 409 })
     }
 
+    const chosenCategory: string = (category as string) || "consultation"
+    const dbCategory: string = chosenCategory === "routine" ? "routine_checkup" : chosenCategory
+    const chosenDuration: number = Number.isFinite(duration) ? Number(duration) : 30
+    const chosenColor = getCategoryColor(chosenCategory)
+
     const { data, error } = await supabase
       .from("appointments")
       .insert({
@@ -130,7 +145,11 @@ export async function POST(request: NextRequest) {
         patient_id: patientId,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
-        appointment_type: category || "consultation",
+        // Maintain backward compatibility while using new columns
+        appointment_type: chosenCategory,
+        category: dbCategory,
+        duration_minutes: chosenDuration,
+        color: chosenColor,
         status: "scheduled",
         notes: notes || null,
       })
@@ -144,19 +163,26 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Appointment created successfully:", data.id)
 
+    const toTimeHHmm = (t: any) => (typeof t === "string" ? t.slice(0, 5) : "")
+
+    // Normalize category for UI (collapse routine_checkup -> routine)
+    const uiCategory = ((data as any).category || data.appointment_type || chosenCategory) === "routine_checkup"
+      ? "routine"
+      : ((data as any).category || data.appointment_type || chosenCategory)
+
     return NextResponse.json({
       id: data.id,
       patientId: data.patient_id,
       patientName,
       doctorId: data.doctor_id,
       scheduledDate: data.scheduled_date,
-      scheduledTime: data.scheduled_time,
-      duration: 30,
-      category: data.appointment_type,
-      color: getCategoryColor(data.appointment_type),
+      scheduledTime: toTimeHHmm(data.scheduled_time),
+      duration: (data as any).duration_minutes ?? chosenDuration,
+      category: uiCategory,
+      color: (data as any).color || getCategoryColor(uiCategory),
       status: data.status,
       notes: data.notes,
-      confirmedByPatient: false,
+      confirmedByPatient: (data as any).confirmed_by_patient === true,
     })
   } catch (error: any) {
     console.error("[v0] Appointment creation error:", error)

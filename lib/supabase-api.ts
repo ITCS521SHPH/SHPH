@@ -849,20 +849,25 @@ export const createRescheduleRequest = async (requestData: {
 }
 
 // Conversion functions
-const convertAppointmentRow = (row: any): Appointment => ({
-  id: row.id,
-  patientId: row.patient_id,
-  providerId: row.doctor_id || row.provider_id, // Use doctor_id if available
-  providerName: row.provider_name || "Dr. Provider", // Default provider name
-  type: row.appointment_type || row.type || "Consultation", // Use appointment_type if available
-  scheduledDate: row.scheduled_date,
-  scheduledTime: row.scheduled_time,
-  location: row.location || "Medical Center", // Default location
-  status: row.status as any,
-  notes: row.notes,
-  createdAt: new Date(row.created_at),
-  updatedAt: new Date(row.updated_at),
-})
+const convertAppointmentRow = (row: any): Appointment & { confirmedByPatient?: boolean } => {
+  const toTimeHHmm = (t: any) => (typeof t === "string" ? t.slice(0, 5) : "")
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    providerId: row.doctor_id || row.provider_id, // Use doctor_id if available
+    providerName: row.provider_name || "Dr. Provider", // Default provider name
+    type: row.appointment_type || row.type || "Consultation", // Use appointment_type if available
+    scheduledDate: row.scheduled_date,
+    scheduledTime: toTimeHHmm(row.scheduled_time),
+    location: row.location || "Medical Center", // Default location
+    status: row.status as any,
+    notes: row.notes,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+    // Extra field used by patient UI to show confirmation badge
+    confirmedByPatient: row.confirmed_by_patient === true,
+  }
+}
 
 const convertVisitRow = (row: any): Visit => ({
   id: row.id,

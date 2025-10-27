@@ -12,6 +12,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from("appointments")
       .update({
         confirmed_by_patient: true,
+        confirmed_at: new Date().toISOString(),
+        status: "confirmed",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -28,6 +30,49 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     console.log("[v0] Appointment confirmed by patient:", data.id)
+
+    // Fetch patient and doctor info for notifications
+    const appointment = data as any
+    const { data: patientRow } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name")
+      .eq("id", appointment.patient_id)
+      .single()
+    const { data: doctorRow } = await supabase
+      .from("doctors")
+      .select("id, first_name, last_name")
+      .eq("id", appointment.doctor_id)
+      .single()
+
+    const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Patient"
+    const doctorName = doctorRow ? `${doctorRow.first_name} ${doctorRow.last_name}` : "Doctor"
+
+    const title = "Appointment Confirmed"
+    const message = `${patientName} confirmed the appointment on ${appointment.scheduled_date} at ${String(appointment.scheduled_time).slice(0,5)}.`
+
+    // Notify patient (ack) and doctor (info)
+    await supabase.from("notifications").insert([
+      {
+        user_id: appointment.patient_id,
+        user_type: "PATIENT",
+        notification_type: "appointment_confirmed",
+        title,
+        message: `You confirmed your appointment with Dr. ${doctorName} on ${appointment.scheduled_date} at ${String(appointment.scheduled_time).slice(0,5)}.`,
+        related_id: appointment.id,
+        related_type: "appointment",
+        is_read: false,
+      },
+      {
+        user_id: appointment.doctor_id,
+        user_type: "DOCTOR",
+        notification_type: "appointment_confirmed",
+        title,
+        message,
+        related_id: appointment.id,
+        related_type: "appointment",
+        is_read: false,
+      },
+    ])
 
     return NextResponse.json({
       success: true,

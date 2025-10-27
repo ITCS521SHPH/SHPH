@@ -121,6 +121,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
           patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
           scheduledDate: appointmentForm.scheduledDate,
           scheduledTime: appointmentForm.scheduledTime,
+          duration: appointmentForm.duration,
           category: appointmentForm.category,
           notes: appointmentForm.notes,
         }),
@@ -158,6 +159,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
         body: JSON.stringify({
           scheduledDate: appointmentForm.scheduledDate,
           scheduledTime: appointmentForm.scheduledTime,
+          duration: appointmentForm.duration,
           category: appointmentForm.category,
           notes: appointmentForm.notes,
         }),
@@ -323,12 +325,12 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
 
   const renderDayView = () => {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full overflow-hidden">
         <div className="p-4 border-b bg-muted/50">
           <h3 className="text-lg font-semibold">{format(selectedDate, "EEEE, MMMM d, yyyy")}</h3>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-auto">
           {TIME_SLOTS.map((time) => {
             const slotAppointments = getAppointmentsForSlot(selectedDate, time)
             return (

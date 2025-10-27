@@ -15,7 +15,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   try {
     const { id } = params
     const body = await request.json()
-    const { scheduledDate, scheduledTime, category, notes, status } = body
+    const { scheduledDate, scheduledTime, category, notes, status, duration } = body
 
     const supabase = await createClient()
 
@@ -26,7 +26,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     if (scheduledDate) updateData.scheduled_date = scheduledDate
     if (scheduledTime) updateData.scheduled_time = scheduledTime
-    if (category) updateData.appointment_type = category
+    if (category) {
+      updateData.appointment_type = category
+      updateData.category = category === "routine" ? "routine_checkup" : category
+      updateData.color = getCategoryColor(category)
+    }
+    if (typeof duration !== "undefined") updateData.duration_minutes = Number(duration)
     if (notes !== undefined) updateData.notes = notes
     if (status) updateData.status = status
 
@@ -44,18 +49,54 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     console.log("[v0] Appointment updated:", data.id)
 
+    const toTimeHHmm = (t: any) => (typeof t === "string" ? t.slice(0, 5) : "")
+
+    // Send notification to patient about reschedule/update and mark old reminders as read
+    try {
+      const uiCategory = (((data as any).category || data.appointment_type) === "routine_checkup")
+        ? "routine"
+        : ((data as any).category || data.appointment_type)
+
+      // mark previous reminders as read
+      await supabase
+        .from("notifications")
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq("related_id", data.id)
+        .eq("related_type", "appointment")
+        .eq("notification_type", "appointment_reminder")
+
+      await supabase.from("notifications").insert([
+        {
+          user_id: data.patient_id,
+          user_type: "PATIENT",
+          notification_type: "appointment_rescheduled",
+          title: "Appointment Updated",
+          message: `Your ${uiCategory} appointment has been updated to ${data.scheduled_date} at ${toTimeHHmm(data.scheduled_time)}.`,
+          related_id: data.id,
+          related_type: "appointment",
+          is_read: false,
+        },
+      ])
+    } catch (nerr) {
+      console.error("[v0] Failed to insert update notification:", nerr)
+    }
+
+    const uiCategory = (((data as any).category || data.appointment_type) === "routine_checkup")
+      ? "routine"
+      : ((data as any).category || data.appointment_type)
+
     return NextResponse.json({
       id: data.id,
       patientId: data.patient_id,
       doctorId: data.doctor_id,
       scheduledDate: data.scheduled_date,
-      scheduledTime: data.scheduled_time,
-      duration: 30, // Default value
-      category: data.appointment_type,
-      color: getCategoryColor(data.appointment_type),
+      scheduledTime: toTimeHHmm(data.scheduled_time),
+      duration: (data as any).duration_minutes ?? 30,
+      category: uiCategory,
+      color: getCategoryColor(uiCategory),
       status: data.status,
       notes: data.notes,
-      confirmedByPatient: false, // Default value
+      confirmedByPatient: (data as any).confirmed_by_patient === true,
     })
   } catch (error: any) {
     console.error("[v0] Appointment update error:", error)

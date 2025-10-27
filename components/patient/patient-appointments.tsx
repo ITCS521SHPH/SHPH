@@ -118,6 +118,20 @@ export function PatientAppointments({ patientId }: PatientAppointmentsProps) {
     }
   }
 
+  const handleCancelAppointment = async (appointmentId: string) => {
+    try {
+      const response = await fetch(`/api/patient/appointments/${appointmentId}/cancel`, {
+        method: "POST",
+      })
+      if (!response.ok) throw new Error("Failed to cancel appointment")
+      alert("Appointment cancelled.")
+      fetchAppointments()
+    } catch (error) {
+      console.error("[v0] Failed to cancel appointment:", error)
+      alert("Failed to cancel appointment. Please try again.")
+    }
+  }
+
   const handleJoinCall = (appointmentId: string) => {
     // TODO: Implement video call functionality
     console.log("[v0] Joining call for appointment:", appointmentId)
@@ -217,6 +231,13 @@ export function PatientAppointments({ patientId }: PatientAppointmentsProps) {
                         Confirm Appointment
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCancelAppointment(appointment.id)}
+                    >
+                      Cancel Appointment
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
