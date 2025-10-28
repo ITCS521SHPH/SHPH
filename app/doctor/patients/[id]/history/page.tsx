@@ -1,6 +1,6 @@
 "use client"
 
-import { use as usePromise, useEffect, useMemo, useState } from 'react'
+import { Suspense, use as usePromise, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ function isThenable(v: any): v is Promise<any> {
   return v && typeof v.then === 'function'
 }
 
-export default function PatientHistoryPage({ params }: { params: ParamsMaybePromise }) {
+function HistoryContent({ params }: { params: ParamsMaybePromise }) {
   const router = useRouter()
   const sp = useSearchParams()
   const patientId = isThenable(params) ? (usePromise(params) as { id: string }).id : (params as any).id
@@ -180,5 +180,13 @@ export default function PatientHistoryPage({ params }: { params: ParamsMaybeProm
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function PatientHistoryPage({ params }: { params: ParamsMaybePromise }) {
+  return (
+    <Suspense fallback={<div className="container mx-auto px-4 py-6">Loading history…</div>}>
+      <HistoryContent params={params} />
+    </Suspense>
   )
 }
