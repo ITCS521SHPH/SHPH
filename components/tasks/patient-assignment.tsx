@@ -207,7 +207,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                             {assignment.tasks.map((task: any) => (
                               <div key={task.id} className="flex items-center justify-between text-sm">
                                 <span>{task.title}</span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 ">
                                   <Badge variant={getPriorityColor(task.priority)} className="text-xs">
                                     {task.priority}
                                   </Badge>
@@ -261,7 +261,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                           <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
                           <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${patient.id}/history`)}>
                             View History
                           </Button>
