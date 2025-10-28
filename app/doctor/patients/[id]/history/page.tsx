@@ -111,19 +111,19 @@ export default function PatientHistoryPage({ params }: { params: { id: string } 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div>
               <Label>From</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-3" />
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div>
               <Label>To</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-3"/>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             <div className="md:col-span-2">
               <Label>Keyword</Label>
-              <Input placeholder="Search notes, diagnoses, meds" value={q} onChange={(e) => setQ(e.target.value)} className="mt-3" />
+              <Input placeholder="Search notes, diagnoses, meds" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             <div>
-              <Label className="mb-3">Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v === 'any' ? '' : v)} >
+              <Label>Priority</Label>
+              <Select value={priority} onValueChange={(v) => setPriority(v === 'any' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Any" />
                 </SelectTrigger>
