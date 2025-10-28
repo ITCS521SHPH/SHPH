@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseApi } from '@/lib/supabase-api'
+import * as supabaseApi from '@/lib/supabase-api'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,27 +13,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If email and password provided, use the admin create patient endpoint logic
-    if (email && password) {
-      const response = await fetch(`${request.nextUrl.origin}/api/admin/create-patient`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, ...patientData }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create patient')
-      }
-
-      return NextResponse.json(await response.json())
-    } else {
-      // Create patient without user account
-      const result = await supabaseApi.createPatient(patientData)
-      return NextResponse.json(result)
-    }
+    // Always create patient directly in the database (no Supabase Auth user)
+    // If email/password provided, we will store the hashed password in patients.password_hash
+    const result = await supabaseApi.createPatient({
+      ...patientData,
+      email,
+      password,
+    })
+    return NextResponse.json(result)
 
   } catch (error) {
     console.error('Create patient error:', error)

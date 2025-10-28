@@ -192,6 +192,13 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                             Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
                           </p>
                         </div>
+                        <div className="flex gap-2">
+                          {assignment.patient?.id && (
+                            <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${assignment.patient.id}/history`)}>
+                              View History
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       {assignment.tasks && assignment.tasks.length > 0 && (
                         <div className="mt-3 pt-3 border-t">
@@ -254,10 +261,15 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                           <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
                           <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
                         </div>
-                        <Button onClick={() => handleOpenAssignDialog(patient)}>
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Assign to VHV
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${patient.id}/history`)}>
+                            View History
+                          </Button>
+                          <Button onClick={() => handleOpenAssignDialog(patient)}>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Assign to VHV
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

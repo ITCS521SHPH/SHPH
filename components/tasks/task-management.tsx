@@ -147,10 +147,25 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   // Get available patients and VHVs for task creation
   const getAvailablePatients = useCallback(async () => {
     const effectiveDoctorId = doctorId || currentUser?.id
-    if (effectiveDoctorId) {
-      return patientsApi.getAssignments(effectiveDoctorId)
-    }
-    return []
+    if (!effectiveDoctorId) return []
+
+    // Include both assigned and unassigned patients so new patients appear
+    const [assignmentsList, allPatients] = await Promise.all([
+      patientsApi.getAssignments(effectiveDoctorId).catch(() => []),
+      patientsApi.getAll().catch(() => []),
+    ])
+
+    const assignedIds = new Set(
+      (assignmentsList || [])
+        .map((a: any) => a?.patient?.id)
+        .filter((id: any) => typeof id === "string" && id.length > 0),
+    )
+
+    const syntheticForUnassigned = (allPatients || [])
+      .filter((p: any) => p && !assignedIds.has(p.id))
+      .map((p: any) => ({ patient: p }))
+
+    return [...(assignmentsList || []), ...syntheticForUnassigned]
   }, [doctorId, currentUser?.id])
 
   const {
