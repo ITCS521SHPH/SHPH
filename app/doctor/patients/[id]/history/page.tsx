@@ -9,10 +9,16 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 
-export default function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
+type ParamsMaybePromise = { id: string } | Promise<{ id: string }>
+
+function isThenable(v: any): v is Promise<any> {
+  return v && typeof v.then === 'function'
+}
+
+export default function PatientHistoryPage({ params }: { params: ParamsMaybePromise }) {
   const router = useRouter()
   const sp = useSearchParams()
-  const { id: patientId } = usePromise(params) as { id: string }
+  const patientId = isThenable(params) ? (usePromise(params) as { id: string }).id : (params as any).id
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [records, setRecords] = useState<any[]>([])
