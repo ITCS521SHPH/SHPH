@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { use as usePromise, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 
-export default function PatientHistoryPage({ params }: { params: { id: string } }) {
+export default function PatientHistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const sp = useSearchParams()
+  const { id: patientId } = usePromise(params) as { id: string }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [records, setRecords] = useState<any[]>([])
@@ -33,7 +34,7 @@ export default function PatientHistoryPage({ params }: { params: { id: string } 
       if (to) p.set('to', to)
       if (q) p.set('q', q)
       if (priority) p.set('priority', priority)
-      const res = await fetch(`/api/doctor/patients/${params.id}/history?${p.toString()}`)
+      const res = await fetch(`/api/doctor/patients/${patientId}/history?${p.toString()}`)
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
         throw new Error(e.error || 'Failed to load history')
@@ -110,19 +111,19 @@ export default function PatientHistoryPage({ params }: { params: { id: string } 
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div>
-              <Label>From</Label>
+              <Label className="mb-3">From</Label>
               <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div>
-              <Label>To</Label>
+              <Label className="mb-3">To</Label>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             <div className="md:col-span-2">
-              <Label>Keyword</Label>
+              <Label className="mb-3">Keyword</Label>
               <Input placeholder="Search notes, diagnoses, meds" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             <div>
-              <Label>Priority</Label>
+              <Label className="mb-3">Priority</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v === 'any' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Any" />
