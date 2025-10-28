@@ -23,4 +23,3 @@ export async function sendSMS({ to, body }: { to: string; body: string }) {
     body: params.toString(),
   })
 }
-

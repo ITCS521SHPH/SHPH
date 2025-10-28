@@ -24,4 +24,3 @@ export async function sendEmail(mail: Mail) {
   }
   await tx.sendMail({ from, to: mail.to, subject: mail.subject, text: mail.text })
 }
-

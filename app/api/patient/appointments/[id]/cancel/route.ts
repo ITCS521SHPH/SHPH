@@ -88,4 +88,3 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
 }
-
