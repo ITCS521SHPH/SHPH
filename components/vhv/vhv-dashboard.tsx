@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PatientReview } from "./patient-review"
 import { StructuredDataForm } from "./structured-data-form"
 import { TaskFormViewer } from "./task-form-viewer"
+import { EmergencyProtocols } from "./emergency-protocols"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +28,7 @@ import {
   AlertCircle,
   Target,
   Bell,
+  Shield,
 } from "lucide-react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
@@ -871,7 +873,7 @@ export function VHVDashboard() {
         </div>
 
         <Tabs defaultValue="emergencies" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <Bell className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Emergencies</span>
@@ -881,6 +883,11 @@ export function VHVDashboard() {
                   {activeEmergencyCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="protocols" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Shield className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Protocols</span>
+              <span className="sm:hidden">Proto</span>
             </TabsTrigger>
             <TabsTrigger value="patients" className="text-xs md:text-sm">
               <span className="hidden sm:inline">Assigned Patients</span>
@@ -900,6 +907,20 @@ export function VHVDashboard() {
 
           <TabsContent value="emergencies" className="space-y-4">
             <EmergencyAlerts userId={currentUser?.id || "3"} userRole={UserRole.VHV} />
+          </TabsContent>
+
+          <TabsContent value="protocols" className="space-y-4">
+            <EmergencyProtocols
+              patientId={expandedPatient || undefined}
+              patientName={
+                expandedPatient
+                  ? (() => {
+                      const patient = assignedPatients?.find((a: any) => a.patient?.id === expandedPatient)?.patient
+                      return patient ? `${patient.firstName} ${patient.lastName}` : undefined
+                    })()
+                  : undefined
+              }
+            />
           </TabsContent>
 
           <TabsContent value="patients" className="space-y-4">

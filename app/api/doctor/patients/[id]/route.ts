@@ -1,14 +1,46 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase-server"
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> } | { params: { id: string } },
+) {
   try {
     const supabase = createClient()
     const body = await request.json()
 
-    console.log("[v0] Updating patient:", params.id)
+    const { id } = await (context as any).params
+    console.log("[v0] Updating patient:", id)
 
-    const { data, error } = await supabase.from("patients").update(body).eq("id", params.id).select().single()
+    // Whitelist and map camelCase fields to DB columns
+    const updates: Record<string, any> = {}
+    const mapIfPresent = (srcKey: string, dstKey: string = srcKey) => {
+      if (Object.prototype.hasOwnProperty.call(body, srcKey)) {
+        updates[dstKey] = body[srcKey]
+      }
+    }
+
+    mapIfPresent("email", "email")
+    mapIfPresent("firstName", "first_name")
+    mapIfPresent("lastName", "last_name")
+    mapIfPresent("dob", "dob")
+    mapIfPresent("address", "address")
+    mapIfPresent("phone", "phone")
+    mapIfPresent("district", "district")
+    mapIfPresent("nationalId", "national_id")
+    mapIfPresent("medicalCondition", "medical_condition")
+    mapIfPresent("lastVisit", "last_visit")
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
+    }
+
+    const { data, error } = await supabase
+      .from("patients")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single()
 
     if (error) throw error
 
@@ -16,17 +48,22 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json(data)
   } catch (error) {
     console.error("[v0] Error updating patient:", error)
-    return NextResponse.json({ error: "Failed to update patient" }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Failed to update patient"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> } | { params: { id: string } },
+) {
   try {
     const supabase = createClient()
 
-    console.log("[v0] Deleting patient:", params.id)
+    const { id } = await (context as any).params
+    console.log("[v0] Deleting patient:", id)
 
-    const { error } = await supabase.from("patients").delete().eq("id", params.id)
+    const { error } = await supabase.from("patients").delete().eq("id", id)
 
     if (error) throw error
 

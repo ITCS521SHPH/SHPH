@@ -379,12 +379,14 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
   const dummyEmail = `noemail_${Date.now()}_${Math.random().toString(36).substring(7)}@temp.local`
 
   // Generate a placeholder password hash to satisfy NOT NULL constraints when present
-  let placeholderHash: string | null = null
+  let computedHash: string | null = null
   try {
-    const tempPassword = `Temp_${Math.random().toString(36).slice(2, 10)}!`
-    const { data: hashed, error: hashErr } = await supabase.rpc("hash_password", { password: tempPassword })
+    const passwordToHash = patientData.password && `${patientData.password}`.trim().length > 0
+      ? patientData.password
+      : `Temp_${Math.random().toString(36).slice(2, 10)}!`
+    const { data: hashed, error: hashErr } = await supabase.rpc("hash_password", { password: passwordToHash })
     if (!hashErr && typeof hashed === "string") {
-      placeholderHash = hashed
+      computedHash = hashed
     }
   } catch (_) {
     // ignore; we'll fallback to a static string if needed
@@ -402,7 +404,7 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
     district: patientData.district || null,
     medical_condition: patientData.medicalCondition || null,
     last_visit: patientData.lastVisit || null,
-    password_hash: placeholderHash || "placeholder_password_hash",
+    password_hash: computedHash || "placeholder_password_hash",
   }
 
   const minimalPayload: any = {
@@ -410,18 +412,45 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
     first_name: patientData.firstName,
     last_name: patientData.lastName,
     dob: patientData.dob,
-    password_hash: placeholderHash || "placeholder_password_hash",
+    password_hash: computedHash || "placeholder_password_hash",
   }
 
   // First try with optional fields
   let insertResp = await supabase.from("patients").insert(optionalPayload).select().single()
 
-  // If unknown column errors (42703) or schema cache messages, retry with minimal
+  // If unknown column errors (42703) or schema cache messages, progressively fallback
   if (insertResp.error) {
     const code = (insertResp.error as any).code || ""
     const msg = (insertResp.error as any).message || ""
+
     if (code === "42703" || /schema cache/i.test(msg) || /column/i.test(msg)) {
-      insertResp = await supabase.from("patients").insert(minimalPayload).select().single()
+      // Retry without columns that may not exist yet
+      const reducedPayload = { ...optionalPayload }
+      delete (reducedPayload as any).medical_condition
+      delete (reducedPayload as any).last_visit
+
+      insertResp = await supabase.from("patients").insert(reducedPayload).select().single()
+
+      if (insertResp.error) {
+        const code2 = (insertResp.error as any).code || ""
+        const msg2 = (insertResp.error as any).message || ""
+        if (code2 === "42703" || /column/i.test(msg2)) {
+          // Final fallback: keep all known base columns so address/phone/national_id are preserved
+          const basePayload: any = {
+            email: (optionalPayload as any).email,
+            first_name: (optionalPayload as any).first_name,
+            last_name: (optionalPayload as any).last_name,
+            dob: (optionalPayload as any).dob,
+            phone: (optionalPayload as any).phone ?? null,
+            address: (optionalPayload as any).address ?? null,
+            national_id: (optionalPayload as any).national_id ?? null,
+            district: (optionalPayload as any).district ?? null,
+            password_hash: (optionalPayload as any).password_hash,
+          }
+
+          insertResp = await supabase.from("patients").insert(basePayload).select().single()
+        }
+      }
     }
   }
 
@@ -849,20 +878,25 @@ export const createRescheduleRequest = async (requestData: {
 }
 
 // Conversion functions
-const convertAppointmentRow = (row: any): Appointment => ({
-  id: row.id,
-  patientId: row.patient_id,
-  providerId: row.doctor_id || row.provider_id, // Use doctor_id if available
-  providerName: row.provider_name || "Dr. Provider", // Default provider name
-  type: row.appointment_type || row.type || "Consultation", // Use appointment_type if available
-  scheduledDate: row.scheduled_date,
-  scheduledTime: row.scheduled_time,
-  location: row.location || "Medical Center", // Default location
-  status: row.status as any,
-  notes: row.notes,
-  createdAt: new Date(row.created_at),
-  updatedAt: new Date(row.updated_at),
-})
+const convertAppointmentRow = (row: any): Appointment & { confirmedByPatient?: boolean } => {
+  const toTimeHHmm = (t: any) => (typeof t === "string" ? t.slice(0, 5) : "")
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    providerId: row.doctor_id || row.provider_id, // Use doctor_id if available
+    providerName: row.provider_name || "Dr. Provider", // Default provider name
+    type: row.appointment_type || row.type || "Consultation", // Use appointment_type if available
+    scheduledDate: row.scheduled_date,
+    scheduledTime: toTimeHHmm(row.scheduled_time),
+    location: row.location || "Medical Center", // Default location
+    status: row.status as any,
+    notes: row.notes,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+    // Extra field used by patient UI to show confirmation badge
+    confirmedByPatient: row.confirmed_by_patient === true,
+  }
+}
 
 const convertVisitRow = (row: any): Visit => ({
   id: row.id,
