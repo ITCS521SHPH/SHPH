@@ -1121,7 +1121,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-4 mb-4 flex-wrap">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
               <Label>Filters:</Label>
@@ -1253,7 +1253,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
+                        <div className="flex items-center gap-2 ">
                           {tStatus !== "completed" && (
                             <>
                               <Button variant="outline" size="sm" onClick={() => openEditDialog(task)}>
