@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { MapPin, Phone, User } from "lucide-react"
+import { AlertTriangle, MapPin, Phone, User } from "lucide-react"
 
 // React Leaflet components via dynamic import to avoid SSR issues
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
@@ -72,39 +72,48 @@ export function PatientMap({ patients }: Props) {
     })
   }, [patients, search, districtFilter])
 
-  const districtGroups = useMemo(() => {
-    const map = new Map<
+  const { districtGroups, patientsMissingLocation } = useMemo(() => {
+    const groups = new Map<
       string,
       {
         displayName: string
-        rawDistrict: string | undefined
+        rawDistrict: string
         items: Patient[]
       }
     >()
+    const missing: Patient[] = []
 
     filtered.forEach((patient) => {
-      const rawDistrict = patient.district?.trim()
-      const displayName = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "Unknown district"
-      const key = rawDistrict && rawDistrict.length > 0 ? rawDistrict : "__UNKNOWN__"
-      const existing = map.get(key)
+      const rawDistrict = (patient.district || "").trim()
+      if (!rawDistrict) {
+        missing.push(patient)
+        return
+      }
+      const displayName = rawDistrict
+      const key = rawDistrict.toLowerCase()
+      const existing = groups.get(key)
       if (existing) {
         existing.items.push(patient)
       } else {
-        map.set(key, { displayName, rawDistrict, items: [patient] })
+        groups.set(key, { displayName, rawDistrict, items: [patient] })
       }
     })
 
-    return Array.from(map.entries()).map(([key, value]) => {
-      const anchor = getDistrictAnchor(value.rawDistrict ?? "")
-      const colorSource = value.rawDistrict && value.rawDistrict.length > 0 ? value.rawDistrict : value.displayName
+    const mappedGroups = Array.from(groups.values()).map((value) => {
+      const anchor = getDistrictAnchor(value.rawDistrict)
       return {
-        key,
+        key: value.rawDistrict,
         displayName: value.displayName,
-        color: colorForDistrict(colorSource),
+        color: colorForDistrict(value.rawDistrict),
         anchor,
         items: value.items,
       }
     })
+
+    return {
+      districtGroups: mappedGroups,
+      patientsMissingLocation: missing,
+    }
   }, [filtered])
 
   // Fit bounds to filtered markers
@@ -170,6 +179,12 @@ export function PatientMap({ patients }: Props) {
               }}
             >
               {districtFilter}
+            </Badge>
+          )}
+          {patientsMissingLocation.length > 0 && (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Missing location: {patientsMissingLocation.length}
             </Badge>
           )}
         </div>
@@ -270,6 +285,41 @@ export function PatientMap({ patients }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {patientsMissingLocation.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="space-y-4 pt-4">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              <div>
+                <div className="font-semibold">Patients Missing Location</div>
+                <p className="text-sm text-muted-foreground">
+                  Ask these patients to update their current district from the patient portal so they appear on the map.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {patientsMissingLocation.map((patient) => (
+                <div key={patient.id} className="rounded border border-destructive/30 bg-background p-3 space-y-1">
+                  <div className="font-medium">{getPatientLabel(patient)}</div>
+                  {patient.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      {patient.phone}
+                    </div>
+                  )}
+                  {patient.address && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {patient.address}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

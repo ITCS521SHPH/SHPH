@@ -1,4 +1,10 @@
-import type { LoginRequest, LoginResponse, CreateEmergencyAlertRequest, UpdateEmergencyAlertRequest } from "./types"
+import type {
+  LoginRequest,
+  LoginResponse,
+  CreateEmergencyAlertRequest,
+  UpdateEmergencyAlertRequest,
+  UpdatePatientProfileRequest,
+} from "./types"
 import * as supabaseApi from "./supabase-api"
 
 // Always use Supabase database
@@ -192,6 +198,35 @@ export const patientsApi = {
     if (!response.ok) {
       throw new Error("Failed to fetch assignments")
     }
+    return response.json()
+  },
+
+  getProfile: async (patientId: string) => {
+    const response = await fetch(`/api/patient/profile?patientId=${patientId}`)
+    if (response.status === 404) {
+      return null
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || "Failed to fetch patient profile")
+    }
+    return response.json()
+  },
+
+  updateProfile: async (patientId: string, updates: UpdatePatientProfileRequest) => {
+    const response = await fetch("/api/patient/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ patientId, ...updates }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || "Failed to update patient profile")
+    }
+
     return response.json()
   },
 

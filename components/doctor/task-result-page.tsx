@@ -419,9 +419,7 @@ export default function TaskResultPage({ params }: { params: ParamsMaybePromise 
     [task?.description],
   )
 
-  const dueDateLabel = formatDate(task?.dueDate, { dateStyle: "medium" })
   const createdLabel = formatDate(task?.createdAt)
-  const updatedLabel = formatDate(task?.updatedAt)
   const completedLabel = formatDate(task?.completedAt)
   const lastSubmittedLabel = lastSubmittedAt ? formatDate(lastSubmittedAt) : null
 
@@ -441,37 +439,18 @@ export default function TaskResultPage({ params }: { params: ParamsMaybePromise 
   const priorityDisplay = priorityLabel ? toTitleCase(priorityLabel) : ""
 
   const summaryDetails = useMemo(() => {
-    if (!task) return [] as Array<{ label: string; value: ReactNode; hint?: string }>
     const items: Array<{ label: string; value: ReactNode; hint?: string }> = []
-    items.push({ label: "Task ID", value: task.id })
-    if (isAreaTask) {
-      items.push({ label: "District", value: task?.district || "—" })
-    } else if (kind === "patient") {
-      items.push({ label: "Patient ID", value: task?.patientId || "—" })
-    }
-    if (task?.vhvId) {
-      items.push({ label: "Assigned VHV", value: task.vhvId })
-    }
-    if (task?.doctorId) {
-      items.push({ label: "Doctor ID", value: task.doctorId })
-    }
     if (createdLabel) {
       items.push({ label: "Created", value: createdLabel })
     }
-    if (updatedLabel && updatedLabel !== createdLabel) {
-      items.push({ label: "Last Updated", value: updatedLabel })
-    }
-    if (dueDateLabel) {
-      items.push({ label: "Due Date", value: dueDateLabel })
-    }
     if (completedLabel) {
-      items.push({ label: "Completed", value: completedLabel })
+      items.push({ label: "Submitted", value: completedLabel })
     }
     if (lastSubmittedLabel) {
       items.push({ label: "Last Submission", value: lastSubmittedLabel })
     }
     return items
-  }, [task, isAreaTask, kind, createdLabel, updatedLabel, dueDateLabel, completedLabel, lastSubmittedLabel])
+  }, [createdLabel, completedLabel, lastSubmittedLabel])
 
   const coverage = questionCount > 0 ? Math.round((answeredCount / questionCount) * 100) : 0
 
@@ -590,22 +569,6 @@ export default function TaskResultPage({ params }: { params: ParamsMaybePromise 
         </CardHeader>
         <CardContent className="space-y-6">
           {cleanedDescription && <p className="text-sm text-muted-foreground max-w-3xl">{cleanedDescription}</p>}
-
-          {summaryDetails.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Task Overview</div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {summaryDetails.map((item) => (
-                  <div key={item.label} className="rounded-md border bg-muted/40 p-3">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{item.value}</div>
-                    {item.hint ? <div className="text-xs text-muted-foreground mt-1">{item.hint}</div> : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {!loading && !error && statCards.length > 0 && (
             <div className="space-y-2">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Highlights</div>

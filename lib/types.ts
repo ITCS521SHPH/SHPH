@@ -323,6 +323,12 @@ export interface UpdateVHVProfileRequest {
   district?: string | null
 }
 
+export interface UpdatePatientProfileRequest {
+  phone?: string | null
+  district?: string | null
+  address?: string | null
+}
+
 // DTOs for task management
 export interface CreateTaskRequest {
   title: string
