@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { markNotificationAsRead } from "@/lib/notifications"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await ctx.params
 
     const success = await markNotificationAsRead(id)
 

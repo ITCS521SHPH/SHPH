@@ -11,9 +11,9 @@ function getCategoryColor(type: string): string {
   return colorMap[type] || "#3b82f6"
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await ctx.params
     const body = await request.json()
     const { scheduledDate, scheduledTime, category, notes, status, duration } = body
 
@@ -104,9 +104,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await ctx.params
 
     const supabase = await createClient()
 

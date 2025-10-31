@@ -133,6 +133,7 @@ export interface Task extends BaseEntity {
   status: "pending" | "in_progress" | "completed" | "cancelled"
   dueDate?: Date
   completedAt?: Date
+  formResponse?: any
 }
 
 // Enhanced Assignment interface with task support
@@ -346,6 +347,7 @@ export interface AreaTask extends BaseEntity {
   status: "pending" | "in_progress" | "completed" | "cancelled"
   dueDate?: Date
   completedAt?: Date
+  formResponse?: any
 }
 
 export interface CreateAreaTaskRequest {

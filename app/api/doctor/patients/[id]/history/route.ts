@@ -58,6 +58,32 @@ export async function GET(
       return 'LOW'
     })()
 
+    // Helpers for cleaning embedded schemas from task descriptions
+    const stripFormSchema = (text?: string) => {
+      if (!text) return ''
+      try {
+        return text.replace(/<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/gi, '').trim()
+      } catch {
+        return text
+      }
+    }
+    const extractFormSummary = (text?: string) => {
+      if (!text) return ''
+      try {
+        const m = text.match(/<FORM_SCHEMA>([\s\S]*?)<\/FORM_SCHEMA>/i)
+        if (m && m[1]) {
+          const parsed = JSON.parse(m[1].trim())
+          const qs = Array.isArray(parsed?.questions) ? parsed.questions : []
+          if (qs.length > 0 && qs[0]?.text) return `Form: ${qs[0].text}`
+          if (qs.length > 0) return `Form with ${qs.length} question${qs.length > 1 ? 's' : ''}`
+          return 'Form task'
+        }
+      } catch {
+        // ignore parse errors
+      }
+      return ''
+    }
+
     // Normalize to unified records
     type Rec = {
       id: string
@@ -67,6 +93,7 @@ export async function GET(
       summary?: string
       priority?: 'low' | 'medium' | 'high' | 'urgent'
       approved?: boolean
+      hasForm?: boolean
     }
 
     const records: Rec[] = []
@@ -121,13 +148,18 @@ export async function GET(
     for (const t of tasks || []) {
       const dt = (t as any).createdAt
       const pr = ((t as any).priority || 'medium').toString().toLowerCase() as Rec['priority']
+      const rawDesc = (t as any).description || ''
+      const clean = stripFormSchema(rawDesc)
+      const formNote = extractFormSummary(rawDesc)
+      const hasForm = /<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/i.test(rawDesc)
       records.push({
         id: (t as any).id,
         type: 'task',
         date: new Date(dt).toISOString(),
         title: (t as any).title || 'Task',
-        summary: (t as any).description || '',
+        summary: (clean || formNote || '').trim(),
         priority: pr,
+        hasForm,
       })
     }
     for (const s of approvedIntakes || []) {

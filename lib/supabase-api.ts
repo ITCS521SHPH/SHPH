@@ -133,6 +133,7 @@ const convertTaskRow = (row: TaskRow): Task => {
     completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
     createdAt: new Date(row.created_at),
     updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+    formResponse: (row as any).form_response || undefined,
   }
 }
 
@@ -1047,6 +1048,17 @@ export const deleteTask = async (id: string): Promise<void> => {
   }
 }
 
+export const getTaskById = async (id: string): Promise<Task> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+  const { data, error } = await supabase.from("tasks").select("*").eq("id", id).single()
+  if (error) {
+    throw new Error(error.message)
+  }
+  return convertTaskRow(data as any)
+}
+
 // Assignments API
 export const getAssignments = async (): Promise<Assignment[]> => {
   if (!supabase) {
@@ -1123,6 +1135,10 @@ export const getAssignmentsWithDetails = async (doctorId: string) => {
           email: a.vhvs.email,
           passwordHash: "",
           role: "VHV" as any,
+          firstName: a.vhvs.first_name,
+          lastName: a.vhvs.last_name,
+          name: `${a.vhvs.first_name} ${a.vhvs.last_name}`.trim(),
+          district: a.vhvs.district || undefined,
           createdAt: new Date(a.vhvs.created_at),
           updatedAt: a.vhvs.updated_at ? new Date(a.vhvs.updated_at) : undefined,
         }
@@ -2303,6 +2319,10 @@ export const getAvailableVHVs = async (): Promise<User[]> => {
       email: row.email,
       passwordHash: "",
       role: "VHV" as any,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      name: `${row.first_name} ${row.last_name}`.trim(),
+      district: row.district || undefined,
       createdAt: new Date(row.created_at),
       updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
     })) || []
@@ -2400,6 +2420,7 @@ const convertAreaTaskRow = (row: any) => ({
   completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
   createdAt: new Date(row.created_at),
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  formResponse: (row as any).form_response || undefined,
 })
 
 export const getAreaTasksByVHV = async (vhvId: string) => {
@@ -2412,6 +2433,17 @@ export const getAreaTasksByVHV = async (vhvId: string) => {
     .order("created_at", { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(convertAreaTaskRow)
+}
+
+export const getAreaTaskById = async (id: string) => {
+  if (!supabase) throw new Error("Supabase not configured")
+  const { data, error } = await supabase
+    .from("area_tasks")
+    .select("*")
+    .eq("id", id)
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
 }
 
 export const getAreaTasksByDoctor = async (doctorId: string) => {
