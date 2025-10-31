@@ -1,3 +1,5 @@
 "use client"
 
-export { default } from "@/components/doctor/task-result-page"
+import TaskResultPage from "@/components/doctor/task-result-page"
+
+export default TaskResultPage
