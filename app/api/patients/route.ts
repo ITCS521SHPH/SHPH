@@ -24,8 +24,41 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Create patient error:', error)
+    
+    // Provide user-friendly error messages for common database errors
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create patient'
+    
+    // Check for specific database constraint violations
+    if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+      if (errorMessage.includes('national_id')) {
+        return NextResponse.json(
+          { 
+            error: 'A patient with this National ID already exists. Please use a different National ID or leave it empty.',
+            code: 'DUPLICATE_NATIONAL_ID'
+          },
+          { status: 409 }
+        )
+      }
+      if (errorMessage.includes('email')) {
+        return NextResponse.json(
+          { 
+            error: 'A patient with this email already exists. Please use a different email address.',
+            code: 'DUPLICATE_EMAIL'
+          },
+          { status: 409 }
+        )
+      }
+      return NextResponse.json(
+        { 
+          error: 'This patient already exists in the system. Please check the information and try again.',
+          code: 'DUPLICATE_ENTRY'
+        },
+        { status: 409 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create patient' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
