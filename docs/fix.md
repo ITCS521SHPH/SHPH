@@ -1,5 +1,3 @@
-
-
 ### **【一次性修复Doctor Dashboard缺陷的完整Prompt】**
 
 **角色与目标：**
@@ -68,4 +66,3 @@
     - 提交时，请按模块（如`fix-patient-creation`, `fix-appointment-overlap`）分类说明代码变更。
 
 ---
-

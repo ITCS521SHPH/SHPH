@@ -19,4 +19,3 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: error?.message || "Failed to load task" }, { status: 500 })
   }
 }
-
