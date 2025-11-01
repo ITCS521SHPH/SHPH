@@ -532,6 +532,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                           type="date"
                           value={appointmentForm.scheduledDate}
                           onChange={(e) => setAppointmentForm({ ...appointmentForm, scheduledDate: e.target.value })}
+                           min={new Date().toISOString().split('T')[0]}
                         />
                       </div>
                       <div className="space-y-2">

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin, Grip } from "lucide-react"
 import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -281,7 +281,7 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+          <TabsList className="grid w-full grid-cols-3  h-auto" >
             <TabsTrigger
               value="appointments"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
@@ -290,24 +290,24 @@ export function PatientDashboard() {
               <span className="hidden sm:inline">Appointments</span>
               <span className="sm:hidden">Appts</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+            {/* <TabsTrigger value="history" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
               <FileText className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Visit History</span>
               <span className="sm:hidden">History</span>
-            </TabsTrigger>
-            <TabsTrigger
+            </TabsTrigger> */}
+            {/* <TabsTrigger
               value="medications"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
             >
               <Heart className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Medications</span>
               <span className="sm:hidden">Meds</span>
-            </TabsTrigger>
-            <TabsTrigger value="vitals" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+            </TabsTrigger> */}
+            {/* <TabsTrigger value="vitals" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
               <Heart className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Vital Signs</span>
               <span className="sm:hidden">Vitals</span>
-            </TabsTrigger>
+            </TabsTrigger> */}
             <TabsTrigger
               value="health_records"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
@@ -410,7 +410,7 @@ export function PatientDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-
+{/* 
           <TabsContent value="vitals" className="space-y-4">
             <Card>
               <CardHeader>
@@ -446,7 +446,7 @@ export function PatientDashboard() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="health_records" className="space-y-4">
             <Card>
