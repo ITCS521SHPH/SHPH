@@ -115,13 +115,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Check for conflicting appointments
-    const { data: conflicts, error: conflictError } = await supabase
+    // Check for conflicting appointments - considering duration overlap
+    const appointmentDuration = Number.isFinite(duration) ? Number(duration) : 30 // Default 30 minutes
+    const appointmentTime = new Date(`${scheduledDate}T${scheduledTime}`)
+    const appointmentEndTime = new Date(appointmentTime.getTime() + appointmentDuration * 60000)
+
+    // Query all appointments for this doctor on the same date that are not cancelled
+    const { data: existingAppointments, error: conflictError } = await supabase
       .from("appointments")
-      .select("*")
+      .select("scheduled_time, duration_minutes, id")
       .eq("doctor_id", doctorId)
       .eq("scheduled_date", scheduledDate)
-      .eq("scheduled_time", scheduledTime)
       .neq("status", "cancelled")
 
     if (conflictError) {
@@ -129,8 +133,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to check for conflicts" }, { status: 500 })
     }
 
-    if (conflicts && conflicts.length > 0) {
-      return NextResponse.json({ error: "Time slot already booked. Please choose a different time." }, { status: 409 })
+    // Check for time overlaps
+    if (existingAppointments && existingAppointments.length > 0) {
+      for (const existing of existingAppointments) {
+        const existingTime = new Date(`${scheduledDate}T${existing.scheduled_time}`)
+        const existingDuration = existing.duration_minutes || 30
+        const existingEndTime = new Date(existingTime.getTime() + existingDuration * 60000)
+
+        // Check if the new appointment overlaps with existing appointment
+        // Overlap occurs if:
+        // - New appointment starts before existing ends AND new appointment ends after existing starts
+        const overlaps = appointmentTime < existingEndTime && appointmentEndTime > existingTime
+
+        if (overlaps) {
+          const existingTimeStr = existing.scheduled_time.toString().slice(0, 5) // HH:mm format
+          return NextResponse.json({ 
+            error: `Time slot conflicts with existing appointment at ${existingTimeStr}. Please choose a different time.` 
+          }, { status: 409 })
+        }
+      }
     }
 
     const chosenCategory: string = (category as string) || "consultation"
