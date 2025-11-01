@@ -61,7 +61,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
     return []
   }, [doctorId, currentUser?.id])
 
-  const { data: assignments, loading: assignmentsLoading, refetch: refetchAssignments } = useApiData(getAssignments, [])
+  const { data: assignments, refetch: refetchAssignments } = useApiData(getAssignments, [])
 
   // Only show real patient assignments in the top list (exclude area placeholders)
   const isAreaPlaceholder = (patient: any) => {
@@ -166,9 +166,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {assignmentsLoading ? (
-                <div className="text-center py-4 text-muted-foreground">Loading assignments...</div>
-              ) : displayAssignments?.length === 0 ? (
+              {displayAssignments?.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">No patients assigned yet</div>
               ) : (
                 displayAssignments?.map((assignment: any) => (
@@ -194,13 +192,6 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                             Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="flex gap-2">
-                          {assignment.patient?.id && (
-                            <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${assignment.patient.id}/history`)}>
-                              View History
-                            </Button>
-                          )}
-                        </div>
                       </div>
                       {assignment.tasks && assignment.tasks.length > 0 && (
                         <div className="mt-3 pt-3 border-t">
@@ -209,7 +200,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                             {assignment.tasks.map((task: any) => (
                               <div key={task.id} className="flex items-center justify-between text-sm">
                                 <span>{task.title}</span>
-                                <div className="flex items-center gap-2 ">
+                                <div className="flex items-center gap-2">
                                   <Badge variant={getPriorityColor(task.priority)} className="text-xs">
                                     {task.priority}
                                   </Badge>
@@ -240,7 +231,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {patientsLoading || assignmentsLoading ? (
+              {patientsLoading ? (
                 <div className="text-center py-4">Loading patients...</div>
               ) : unassignedPatients.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">All patients are assigned</div>
@@ -263,15 +254,10 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                           <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
                           <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
                         </div>
-                        <div className="flex gap-2 flex-wrap">
-                          <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${patient.id}/history`)}>
-                            View History
-                          </Button>
-                          <Button onClick={() => handleOpenAssignDialog(patient)}>
-                            <UserPlus className="h-4 w-4 mr-2" />
-                            Assign to VHV
-                          </Button>
-                        </div>
+                        <Button onClick={() => handleOpenAssignDialog(patient)}>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Assign to VHV
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>

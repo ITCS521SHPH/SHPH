@@ -59,7 +59,6 @@ import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import VhvMap from "@/components/doctor/vhv-map"
 import PatientMap from "@/components/doctor/patient-map"
 import { UserRole } from "@/lib/types"
-import { AppointmentScheduler } from "@/components/doctor/appointment-scheduler"
 
 export function DoctorDashboard() {
   const router = useRouter()
@@ -69,29 +68,6 @@ export function DoctorDashboard() {
   const [showEditPatientDialog, setShowEditPatientDialog] = useState(false)
   const [showDeletePatientDialog, setShowDeletePatientDialog] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
-  
-  // Get default tab from URL query parameter to support navigation from review detail page
-  const [defaultTab, setDefaultTab] = useState<string>("emergencies")
-  const [activeTab, setActiveTab] = useState<string>("emergencies")
-  
-  useEffect(() => {
-    // Check URL for tab parameter
-    const searchParams = new URLSearchParams(window.location.search)
-    const tabParam = searchParams.get("tab")
-    if (tabParam) {
-      setDefaultTab(tabParam)
-      setActiveTab(tabParam)
-    }
-  }, [])
-  
-  // Handle tab change to update URL without navigation
-  const handleTabChange = (value: string) => {
-    setActiveTab(value)
-    // Update URL without triggering navigation
-    const url = new URL(window.location.href)
-    url.searchParams.set("tab", value)
-    window.history.replaceState({}, "", url.toString())
-  }
 
   // Check and fix user ID if it's a hardcoded string
   useEffect(() => {
@@ -237,7 +213,7 @@ export function DoctorDashboard() {
           dob: newPatientForm.dob,
           address: newPatientForm.address,
           phone: newPatientForm.phone,
-          nationalId: newPatientForm.nationalId?.trim() || undefined, // Only send if provided and not empty
+          nationalId: newPatientForm.nationalId,
           email: newPatientForm.email,
           password: newPatientForm.password,
           medicalCondition: newPatientForm.medicalCondition,
@@ -262,25 +238,7 @@ export function DoctorDashboard() {
         alert("Patient created successfully! They can now log in with their email and password.")
       } catch (error) {
         console.error("[API] Failed to add patient:", error)
-        
-        // Extract user-friendly error message
-        let errorMessage = "Failed to create patient. Please try again."
-        if (error instanceof Error) {
-          errorMessage = error.message
-          
-          // Handle specific error codes from API
-          if (error.message.includes("National ID already exists") || 
-              error.message.includes("national_id")) {
-            errorMessage = "A patient with this National ID already exists. Please use a different National ID or leave it empty."
-          } else if (error.message.includes("email already exists") || 
-                     error.message.includes("email")) {
-            errorMessage = "A patient with this email already exists. Please use a different email address."
-          } else if (error.message.includes("duplicate")) {
-            errorMessage = "This patient information already exists in the system. Please check and try again."
-          }
-        }
-        
-        alert(`❌ ${errorMessage}`)
+        alert("Failed to create patient. Please try again.")
       }
     } else {
       alert("Please fill in all required fields including email, password, and medical condition.")
@@ -288,9 +246,12 @@ export function DoctorDashboard() {
   }, [newPatientForm, refetchPatients])
 
   const startReview = async (submissionId: string) => {
-    // Just navigate to review page - don't change status yet
-    // Status will only change when doctor actually performs an action (approve/request changes)
-    router.push(`/doctor/reviews/${submissionId}`)
+    try {
+      await handleValidateData(submissionId, "in_review")
+      router.push(`/doctor/reviews/${submissionId}`)
+    } catch (e) {
+      console.error("Failed to start review:", e)
+    }
   }
 
   const handleAssignVisit = useCallback(async () => {
@@ -335,7 +296,6 @@ export function DoctorDashboard() {
       if (!selectedPatient) return
 
       console.log("[v0] Editing patient:", selectedPatient)
-      console.log("[v0] Medical condition value:", selectedPatient.medicalCondition)
 
       const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
         method: "PUT",
@@ -348,27 +308,19 @@ export function DoctorDashboard() {
           phone: selectedPatient.phone,
           nationalId: selectedPatient.nationalId,
           email: selectedPatient.email,
-          medicalCondition: selectedPatient.medicalCondition || null, // Send null if empty string
+          medicalCondition: selectedPatient.medicalCondition,
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
-        console.error("[v0] Update error response:", errorData)
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to update patient`)
-      }
+      if (!response.ok) throw new Error("Failed to update patient")
 
-      const result = await response.json()
-      console.log("[v0] Patient updated successfully:", result)
-      
       alert("Patient updated successfully!")
       setShowEditPatientDialog(false)
       setSelectedPatient(null)
       refetchPatients()
     } catch (error) {
       console.error("[v0] Failed to update patient:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to update patient"
-      alert(`Failed to update patient: ${errorMessage}`)
+      alert("Failed to update patient. Please try again.")
     }
   }
 
@@ -382,30 +334,15 @@ export function DoctorDashboard() {
         method: "DELETE",
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to delete patient" }))
-        if (response.status === 409) {
-          // Soft delete occurred
-          alert(errorData.message || "Patient deactivated due to associated records.")
-        } else {
-          throw new Error(errorData.error || "Failed to delete patient")
-        }
-      } else {
-        const result = await response.json().catch(() => ({ success: true }))
-        if (result.softDeleted) {
-          alert(result.message || "Patient deactivated due to associated records.")
-        } else {
-          alert("Patient deleted successfully!")
-        }
-      }
+      if (!response.ok) throw new Error("Failed to delete patient")
 
+      alert("Patient deleted successfully!")
       setShowDeletePatientDialog(false)
       setSelectedPatient(null)
       refetchPatients()
     } catch (error) {
       console.error("[v0] Failed to delete patient:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete patient. Please try again."
-      alert(errorMessage)
+      alert("Failed to delete patient. Please try again.")
     }
   }
 
@@ -642,7 +579,11 @@ export function DoctorDashboard() {
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t">
             {submission.status === "SUBMITTED" && (
-              <Button variant="outline" onClick={() => startReview(submission.id)} className="flex-1">
+              <Button
+                variant="outline"
+                onClick={() => startReview(submission.id)}
+                className="flex-1"
+              >
                 <Clock className="h-4 w-4 mr-2" />
                 Start Review
               </Button>
@@ -866,8 +807,8 @@ export function DoctorDashboard() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 h-auto">
+        <Tabs defaultValue="emergencies" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
             <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <Bell className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Emergencies</span>
@@ -877,11 +818,6 @@ export function DoctorDashboard() {
                   {activeEmergencyCount}
                 </Badge>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="scheduler" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
-              <Calendar className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Scheduler</span>
-              <span className="sm:hidden">Sched</span>
             </TabsTrigger>
             <TabsTrigger value="pending" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
@@ -914,47 +850,13 @@ export function DoctorDashboard() {
             <EmergencyAlerts userId={currentUser?.id || "2"} userRole={UserRole.DOCTOR} />
           </TabsContent>
 
-          <TabsContent value="scheduler" className="space-y-4">
-            <AppointmentScheduler doctorId={currentUser?.id || ""} patients={patients || []} />
-          </TabsContent>
-
           {/* Assignments tab moved to its own page (/doctor/assignments) */}
 
           <TabsContent value="pending" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Data Requiring Validation</CardTitle>
-                    <CardDescription>Review patient data collected by VHVs and provide diagnostic guidance</CardDescription>
-                  </div>
-
-                   {/* auto add test  for validation */}
-                  {/* <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        const response = await fetch("/api/admin/create-test-review-data", {
-                          method: "POST",
-                        })
-                        const result = await response.json()
-                        if (response.ok) {
-                          alert(`✅ Created ${result.count} test review submissions!`)
-                          refetchReviews()
-                        } else {
-                          alert(`❌ Failed: ${result.error}`)
-                        }
-                      } catch (error) {
-                        console.error("Failed to create test data:", error)
-                        alert("Failed to create test data. Please check console.")
-                      }
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create 10 Test Reviews
-                  </Button> */}
-                </div>
+                <CardTitle>Data Requiring Validation</CardTitle>
+                <CardDescription>Review patient data collected by VHVs and provide diagnostic guidance</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Status Filter Tabs */}
@@ -1118,14 +1020,13 @@ export function DoctorDashboard() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="nationalId" className="text-right">
-                            National ID <span className="text-muted-foreground text-xs">(Optional)</span>
+                            National ID
                           </Label>
                           <Input
                             id="nationalId"
                             className="col-span-3"
                             value={newPatientForm.nationalId}
                             onChange={(e) => setNewPatientForm((prev) => ({ ...prev, nationalId: e.target.value }))}
-                            placeholder="Leave empty if not available"
                           />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -1250,20 +1151,7 @@ export function DoctorDashboard() {
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation()
-                              // Ensure medicalCondition is set from medicalHistory or medical_condition if present
-                              // Also check if medicalCondition exists directly from API response
-                              // Ensure medicalCondition is properly set, handling null/undefined
-                              const medicalConditionValue = 
-                                (patient.medicalCondition !== null && patient.medicalCondition !== undefined) ? patient.medicalCondition :
-                                (patient.medicalHistory !== null && patient.medicalHistory !== undefined) ? patient.medicalHistory :
-                                ((patient as any).medical_condition !== null && (patient as any).medical_condition !== undefined) ? (patient as any).medical_condition :
-                                ""
-                              
-                              const patientWithMedicalCondition = {
-                                ...patient,
-                                medicalCondition: medicalConditionValue,
-                              }
-                              setSelectedPatient(patientWithMedicalCondition)
+                              setSelectedPatient(patient)
                               setShowEditPatientDialog(true)
                             }}
                           >
@@ -1417,9 +1305,8 @@ export function DoctorDashboard() {
               <div className="space-y-2">
                 <Label>Medical Condition</Label>
                 <Input
-                  value={selectedPatient.medicalCondition ?? ""}
+                  value={selectedPatient.medicalCondition || ""}
                   onChange={(e) => setSelectedPatient({ ...selectedPatient, medicalCondition: e.target.value })}
-                  placeholder="Enter medical condition"
                 />
               </div>
             </div>

@@ -10,14 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, MapPin, Clock, ExternalLink, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { EmergencyButton } from "@/components/emergency/emergency-button"
 import { patientDataApi, intakesApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
-import { PatientAppointments } from "@/components/patient/patient-appointments"
 
 export function PatientDashboard() {
   const router = useRouter()
@@ -198,20 +197,12 @@ export function PatientDashboard() {
               <User className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
                 <h1 className="text-xl md:text-2xl font-bold">My Health Dashboard</h1>
-                <p className="text-sm text-muted-foreground">{currentUser?.name || currentUser?.email || "Patient"}</p>
+                <p className="text-sm text-muted-foreground">Sarah Johnson</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/patient/profile" className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Update Location
-                </Link>
-              </Button>
-              <Button variant="outline" onClick={handleSignOut} size="sm">
-                Sign Out
-              </Button>
-            </div>
+            <Button variant="outline" onClick={handleSignOut} size="sm">
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
@@ -223,11 +214,7 @@ export function PatientDashboard() {
           </p>
         )}
         <div className="mb-6 md:mb-8">
-          <EmergencyButton
-            patientId={currentPatientId}
-            patientName={currentUser?.name || "Patient"}
-            disabled={!hasValidPatientId}
-          />
+          <EmergencyButton patientId={currentPatientId} patientName="Sarah Johnson" disabled={!hasValidPatientId} />
         </div>
 
         {/* Quick Stats */}
@@ -238,8 +225,8 @@ export function PatientDashboard() {
               <Calendar className="h-3 w-3 md:h-4 md:w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl md:text-2xl font-bold">Soon</div>
-              <p className="text-xs text-muted-foreground">Check appointments tab</p>
+              <div className="text-xl md:text-2xl font-bold">Jan 20</div>
+              <p className="text-xs text-muted-foreground">Dr. Michael Chen</p>
             </CardContent>
           </Card>
 
@@ -249,7 +236,7 @@ export function PatientDashboard() {
               <Heart className="h-3 w-3 md:h-4 md:w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl md:text-2xl font-bold">{currentMedications.length}</div>
+              <div className="text-xl md:text-2xl font-bold">2</div>
               <p className="text-xs text-muted-foreground">Current prescriptions</p>
             </CardContent>
           </Card>
@@ -260,10 +247,8 @@ export function PatientDashboard() {
               <FileText className="h-3 w-3 md:h-4 md:w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl md:text-2xl font-bold">{recentVisits.length > 0 ? "Recent" : "None"}</div>
-              <p className="text-xs text-muted-foreground">
-                {recentVisits.length > 0 ? "Check history" : "No visits yet"}
-              </p>
+              <div className="text-xl md:text-2xl font-bold">5 days</div>
+              <p className="text-xs text-muted-foreground">ago</p>
             </CardContent>
           </Card>
 
@@ -324,7 +309,57 @@ export function PatientDashboard() {
           </TabsList>
 
           <TabsContent value="appointments" className="space-y-4">
-            <PatientAppointments patientId={currentPatientId} />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base md:text-lg">Upcoming Appointments</CardTitle>
+                <CardDescription className="text-xs md:text-sm">Your scheduled visits and check-ups</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {upcomingAppointments.map((appointment: any) => (
+                  <Card key={appointment.id} className="border-l-4 border-l-blue-500">
+                    <CardContent className="pt-4">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-sm md:text-base">{appointment.type}</h4>
+                        <Badge variant="outline" className="text-xs">
+                          {appointment.scheduledDate}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2 text-xs md:text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <User className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                          <span className="break-words">{appointment.providerName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                          {appointment.scheduledTime}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                          <span className="break-words">{appointment.location}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                        <Button
+                          size="sm"
+                          onClick={() => handleJoinCall(appointment.id)}
+                          className="w-full sm:w-auto text-xs md:text-sm"
+                        >
+                          Join Call
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReschedule(appointment as any)}
+                          className="w-full sm:w-auto text-xs md:text-sm"
+                        >
+                          Reschedule
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
@@ -483,13 +518,8 @@ export function PatientDashboard() {
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="default" className="bg-green-500 text-xs">
-                              Approved
-                            </Badge>
-                            <Link
-                              href={`/patient/records/${record.id}`}
-                              className="text-xs inline-flex items-center gap-1 underline"
-                            >
+                            <Badge variant="default" className="bg-green-500 text-xs">Approved</Badge>
+                            <Link href={`/patient/records/${record.id}`} className="text-xs inline-flex items-center gap-1 underline">
                               View Details <ExternalLink className="h-3 w-3" />
                             </Link>
                           </div>

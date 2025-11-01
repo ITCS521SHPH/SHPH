@@ -60,19 +60,14 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
           <Button
             variant="ghost"
             onClick={() => {
-              setSelectedProtocol(null);
-              setCurrentStep(0);
+              setSelectedProtocol(null)
+              setCurrentStep(0)
             }}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Protocols
           </Button>
-          <Button
-            variant="destructive"
-            size="lg"
-            onClick={handleEmergencyCall}
-            className="gap-2"
-          >
+          <Button variant="destructive" size="lg" onClick={handleEmergencyCall} className="gap-2">
             <Phone className="h-5 w-5" />
             Call {EMERGENCY_HOTLINE}
           </Button>
@@ -84,22 +79,12 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
             <div className="flex items-start justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-2xl">
-                    {selectedProtocol.title}
-                  </CardTitle>
-                  <Badge
-                    variant={
-                      selectedProtocol.severity === "critical"
-                        ? "destructive"
-                        : "default"
-                    }
-                  >
+                  <CardTitle className="text-2xl">{selectedProtocol.title}</CardTitle>
+                  <Badge variant={selectedProtocol.severity === "critical" ? "destructive" : "default"}>
                     {selectedProtocol.severity.toUpperCase()}
                   </Badge>
                 </div>
-                <CardDescription className="text-base">
-                  {selectedProtocol.description}
-                </CardDescription>
+                <CardDescription className="text-base">{selectedProtocol.description}</CardDescription>
               </div>
             </div>
 
@@ -111,15 +96,11 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Package className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {selectedProtocol.requiredEquipment.length} items needed
-                </span>
+                <span>{selectedProtocol.requiredEquipment.length} items needed</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {selectedProtocol.warningSignals.length} warning signs
-                </span>
+                <span>{selectedProtocol.warningSignals.length} warning signs</span>
               </div>
             </div>
           </CardHeader>
@@ -165,7 +146,7 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
         </Card>
 
         {/* Video guidance */}
-        {/* {selectedProtocol.videoUrl && (
+        {selectedProtocol.videoUrl && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -183,39 +164,13 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
               </div>
             </CardContent>
           </Card>
-        )} */}
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5" />
-              Video Guidance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-              <iframe
-                width="100%"
-                height="100%"
-                src="https://www.youtube.com/embed/7lMiXJH_bw4?si=f-WOq3fCDUzECf0Y"
-                title="Video Guidance"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-                className="rounded-lg"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        )}
 
         {/* Step-by-step instructions */}
         <Card>
           <CardHeader>
             <CardTitle>Step-by-Step Instructions</CardTitle>
-            <CardDescription>
-              Follow these steps carefully. Read all critical notes.
-            </CardDescription>
+            <CardDescription>Follow these steps carefully. Read all critical notes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {selectedProtocol.steps.map((step, index) => (
@@ -223,45 +178,29 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
                 <div className="flex items-start gap-4">
                   <div
                     className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                      index <= currentStep
-                        ? "bg-green-500 text-white"
-                        : "bg-muted text-muted-foreground"
+                      index <= currentStep ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {index < currentStep ? (
-                      <CheckCircle2 className="h-5 w-5" />
-                    ) : (
-                      step.stepNumber
-                    )}
+                    {index < currentStep ? <CheckCircle2 className="h-5 w-5" /> : step.stepNumber}
                   </div>
                   <div className="flex-1 space-y-2">
                     <h4 className="font-semibold text-lg">{step.title}</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {step.instruction}
-                    </p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{step.instruction}</p>
                     {step.criticalNote && (
                       <Alert variant="destructive" className="mt-2">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription className="font-medium">
-                          {step.criticalNote}
-                        </AlertDescription>
+                        <AlertDescription className="font-medium">{step.criticalNote}</AlertDescription>
                       </Alert>
                     )}
-                    {index === currentStep &&
-                      index < selectedProtocol.steps.length - 1 && (
-                        <Button
-                          onClick={() => setCurrentStep(currentStep + 1)}
-                          className="mt-2"
-                        >
-                          Next Step
-                          <ChevronRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      )}
+                    {index === currentStep && index < selectedProtocol.steps.length - 1 && (
+                      <Button onClick={() => setCurrentStep(currentStep + 1)} className="mt-2">
+                        Next Step
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-                {index < selectedProtocol.steps.length - 1 && (
-                  <Separator className="ml-4" />
-                )}
+                {index < selectedProtocol.steps.length - 1 && <Separator className="ml-4" />}
               </div>
             ))}
           </CardContent>
@@ -273,16 +212,9 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-center md:text-left">
                 <p className="font-semibold text-lg">Need immediate help?</p>
-                <p className="text-sm text-muted-foreground">
-                  Call emergency services if situation worsens
-                </p>
+                <p className="text-sm text-muted-foreground">Call emergency services if situation worsens</p>
               </div>
-              <Button
-                variant="destructive"
-                size="lg"
-                onClick={handleEmergencyCall}
-                className="gap-2 w-full md:w-auto"
-              >
+              <Button variant="destructive" size="lg" onClick={handleEmergencyCall} className="gap-2 w-full md:w-auto">
                 <Phone className="h-5 w-5" />
                 Emergency Call {EMERGENCY_HOTLINE}
               </Button>
@@ -290,7 +222,7 @@ export function EmergencyProtocols({ patientId, patientName }: EmergencyProtocol
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   return (

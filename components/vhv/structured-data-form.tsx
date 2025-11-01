@@ -828,17 +828,7 @@ export function StructuredDataForm({
               <p className="text-green-700">
                 All required data has been collected. You can now proceed to review and submit the data.
               </p>
-              <Button
-                onClick={async () => {
-                  try {
-                    await saveToBackend(formData)
-                  } catch (error) {
-                    console.error("Failed to persist data before review:", error)
-                  }
-                  onFormComplete()
-                }}
-                className="bg-green-600 hover:bg-green-700"
-              >
+              <Button onClick={onFormComplete} className="bg-green-600 hover:bg-green-700">
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Complete Data Collection
               </Button>

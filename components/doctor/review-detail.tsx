@@ -30,32 +30,12 @@ export function ReviewDetail({ submissionId }: { submissionId: string }) {
   }, [submissionId])
 
   const approve = async () => {
-    try {
-      await reviewsApi.approve(submissionId)
-      // Return to pending validations tab with state preservation
-      router.push("/doctor/dashboard?tab=pending")
-    } catch (error) {
-      console.error("Failed to approve:", error)
-      alert("Failed to approve submission. Please try again.")
-    }
+    await reviewsApi.approve(submissionId)
+    router.push("/doctor/dashboard")
   }
-  
   const requestChanges = async () => {
-    try {
-      await reviewsApi.requestChanges(submissionId, "Please clarify details in the form.")
-      // Return to pending validations tab with state preservation
-      router.push("/doctor/dashboard?tab=pending")
-    } catch (error) {
-      console.error("Failed to request changes:", error)
-      alert("Failed to request changes. Please try again.")
-    }
-  }
-  
-  // Handle back button - just navigate back without any data changes
-  const handleBack = () => {
-    // Simply navigate back to pending validations tab
-    // Don't change any submission status - just return to the list
-    router.push("/doctor/dashboard?tab=pending")
+    await reviewsApi.requestChanges(submissionId, "Please clarify details in the form.")
+    router.push("/doctor/dashboard")
   }
 
   if (loading) return <div className="p-6 text-sm">Loading submission...</div>
@@ -107,11 +87,7 @@ export function ReviewDetail({ submissionId }: { submissionId: string }) {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleBack}
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>

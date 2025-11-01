@@ -32,6 +32,7 @@ import {
   CopyPlus,
   Search,
   MapPin,
+  FileText,
 } from "lucide-react"
 import { tasksApi, patientsApi, areaTasksApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
@@ -73,7 +74,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     description: "",
     patientId: patientId || "",
     vhvId: vhvId || "",
-    priority: "medium" as "low" | "medium" | "high" | "urgent", // Default to "medium"
+    priority: "medium" as "low" | "medium" | "high" | "urgent",
     dueDate: "",
   })
 
@@ -146,25 +147,10 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
   // Get available patients and VHVs for task creation
   const getAvailablePatients = useCallback(async () => {
     const effectiveDoctorId = doctorId || currentUser?.id
-    if (!effectiveDoctorId) return []
-
-    // Include both assigned and unassigned patients so new patients appear
-    const [assignmentsList, allPatients] = await Promise.all([
-      patientsApi.getAssignments(effectiveDoctorId).catch(() => []),
-      patientsApi.getAll().catch(() => []),
-    ])
-
-    const assignedIds = new Set(
-      (assignmentsList || [])
-        .map((a: any) => a?.patient?.id)
-        .filter((id: any) => typeof id === "string" && id.length > 0),
-    )
-
-    const syntheticForUnassigned = (allPatients || [])
-      .filter((p: any) => p && !assignedIds.has(p.id))
-      .map((p: any) => ({ patient: p }))
-
-    return [...(assignmentsList || []), ...syntheticForUnassigned]
+    if (effectiveDoctorId) {
+      return patientsApi.getAssignments(effectiveDoctorId)
+    }
+    return []
   }, [doctorId, currentUser?.id])
 
   const {
@@ -389,7 +375,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
               await areaTasksApi.create({ ...base, vhvId: vid })
             }
           }
-        } else if (areaCount > 0) {
+        }
+
+        if (areaCount > 0) {
           for (const district of chosenDistricts) {
             const base = {
               title: taskForm.title,
@@ -458,20 +446,17 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       const nextDescription =
         questions.length > 0 ? buildDescriptionWithSchema(taskForm.description, questions) : taskForm.description
 
-      // Ensure priority has a default value if not set
-      const priorityValue = taskForm.priority || "medium"
-
       const isAreaTask = !editingTask?.patientId
       if (isAreaTask) {
         await areaTasksApi.update(editingTask.id, {
           title: taskForm.title,
           description: nextDescription,
-          priority: priorityValue,
+          priority: taskForm.priority,
           dueDate: taskForm.dueDate,
           district: selectedDistrict || editingTask.district,
         })
       } else {
-        await tasksApi.update(editingTask.id, { ...taskForm, description: nextDescription, priority: priorityValue })
+        await tasksApi.update(editingTask.id, { ...taskForm, description: nextDescription })
       }
       setShowEditDialog(false)
       setEditingTask(null)
@@ -543,78 +528,15 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       description: stripFormSchema(remainder),
       patientId: isAreaTask ? "" : task.patientId,
       vhvId: task.vhvId,
-      priority: (task.priority || "medium") as "low" | "medium" | "high" | "urgent", // Default to "medium" if not set
+      priority: task.priority,
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
     })
     setShowEditDialog(true)
   }
 
   // Filter tasks based on status and priority
-  const statusRank = (status: any) => {
-    const norm = (status || "").toString().toLowerCase()
-    switch (norm) {
-      case "pending":
-        return 0
-      case "in_progress":
-        return 1
-      case "completed":
-        return 2
-      default:
-        return 3
-    }
-  }
-
-  const dedupedTasks = useMemo(() => {
-    if (!Array.isArray(tasks)) return []
-    const areaMap = new Map<string, any>()
-    const result: any[] = []
-
-    for (const task of tasks) {
-      const isArea = !task?.patientId
-      if (!isArea) {
-        result.push(task)
-        continue
-      }
-
-      const key = [task?.title || "", task?.district || "", task?.doctorId || ""].join("::")
-      const existing = areaMap.get(key)
-
-      if (!existing) {
-        const clone = {
-          ...task,
-          vhvIds: task?.vhvId ? [task.vhvId] : [],
-          groupedCount: 1,
-          completedCount: (task?.status || "").toString().toLowerCase() === "completed" ? 1 : 0,
-        }
-        areaMap.set(key, clone)
-        result.push(clone)
-      } else {
-        if (task?.vhvId && !existing.vhvIds.includes(task.vhvId)) {
-          existing.vhvIds = [...existing.vhvIds, task.vhvId]
-        }
-        existing.groupedCount = (existing.groupedCount || 1) + 1
-        if ((task?.status || "").toString().toLowerCase() === "completed") {
-          existing.completedCount = (existing.completedCount || 0) + 1
-        }
-        if (statusRank(task?.status) < statusRank(existing.status)) {
-          existing.status = task?.status
-        }
-        // prefer most recent timestamps
-        const existingUpdated = new Date(existing.updatedAt || existing.createdAt || 0).getTime()
-        const candidateUpdated = new Date(task?.updatedAt || task?.createdAt || 0).getTime()
-        if (candidateUpdated > existingUpdated) {
-          existing.updatedAt = task?.updatedAt || task?.createdAt
-          existing.description = task?.description
-          existing.dueDate = task?.dueDate
-        }
-      }
-    }
-
-    return result
-  }, [tasks])
-
   const filteredTasks =
-    dedupedTasks?.filter((task: any) => {
+    tasks?.filter((task: any) => {
       const normStatus = (task.status || "").toString().toLowerCase()
       const normPriority = (task.priority || "").toString().toLowerCase()
       const statusMatch = filterStatus === "all" || normStatus === filterStatus
@@ -648,28 +570,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     return `${p.firstName} ${p.lastName}`
   }
 
-  const getVHVDisplay = (task: any) => {
-    const ids: string[] = Array.isArray(task?.vhvIds) && task.vhvIds.length
-      ? task.vhvIds
-      : task?.vhvId
-        ? [task.vhvId]
-        : []
-
-    if (!ids.length) return "Unknown VHV"
-
-    const names = ids
-      .map((id) => {
-        const vhv = availableVHVs?.find((v: any) => v.id === id)
-        if (!vhv) return null
-        const full = (vhv as any).name || [vhv.firstName || "", vhv.lastName || ""].join(" ").trim()
-        return full || vhv.email?.split("@")[0]
-      })
-      .filter(Boolean) as string[]
-
-    if (!names.length) return "Unknown VHV"
-    if (names.length === 1) return names[0]
-    const [first, second, ...rest] = names
-    return rest.length ? `${first}, ${second} +${rest.length}` : `${first}, ${second}`
+  const getVHVName = (vhvId: string) => {
+    const vhv = availableVHVs?.find((v: any) => v.id === vhvId)
+    return vhv?.email?.split("@")[0] || "Unknown VHV"
   }
 
   const getPriorityColor = (priority: string) => {
@@ -1051,17 +954,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                       <Label>{taskType === "area" ? "Areas & VHVs" : "Assign to VHVs"}</Label>
                       {vhvId ? (
                         <Input
-                          value={(() => {
-                            const v = availableVHVs?.find((x: any) => x.id === vhvId)
-                            if (!v) return "Selected VHV"
-                            const full = (v as any).name || [
-                              (v as any).firstName || "",
-                              (v as any).lastName || "",
-                            ]
-                              .join(" ")
-                              .trim()
-                            return full || v.email?.split("@")[0] || "Selected VHV"
-                          })()}
+                          value={
+                            availableVHVs?.find((v: any) => v.id === vhvId)?.email?.split("@")[0] || "Selected VHV"
+                          }
                           disabled
                         />
                       ) : (
@@ -1213,7 +1108,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex items-center gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
               <Label>Filters:</Label>
@@ -1298,39 +1193,54 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                           </div>
                           <p className="text-sm text-muted-foreground">{cleanDescription}</p>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  {isAreaTask ? (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      Area: {areaDistrict || "Unknown"}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      Patient: {getPatientName(task.patientId)}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    VHV: {getVHVDisplay(task)}
-                  </div>
-                  {task.dueDate && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Due: {new Date(task.dueDate).toLocaleDateString()}
-                    </div>
-                  )}
-                  {isAreaTask && task.groupedCount > 1 && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Badge variant="outline">Assigned VHVs: {task.groupedCount}</Badge>
-                      {typeof task.completedCount === "number" && (
-                        <Badge variant="outline">Completed: {task.completedCount}</Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
+                            {isAreaTask ? (
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                Area: {areaDistrict || "Unknown"}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                Patient: {getPatientName(task.patientId)}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              VHV: {getVHVName(task.vhvId)}
+                            </div>
+                            {task.dueDate && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Due: {new Date(task.dueDate).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
 
+                          {/* VHV Form Responses for completed tasks */}
+                          {tStatus === "completed" && task.formResponse && (
+                            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
+                              <h4 className="font-semibold text-sm flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                VHV Form Responses
+                              </h4>
+                              {schema?.questions &&
+                                schema.questions.map((question: any) => {
+                                  const answer = task.formResponse[question.id]
+                                  if (!answer) return null
+
+                                  return (
+                                    <div key={question.id} className="space-y-1">
+                                      <p className="text-sm font-medium">{question.text}</p>
+                                      <p className="text-sm text-muted-foreground pl-4">
+                                        {Array.isArray(answer) ? answer.join(", ") : answer}
+                                      </p>
+                                    </div>
+                                  )
+                                })}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 ">
+                        <div className="flex items-center gap-2 ml-4">
                           {tStatus !== "completed" && (
                             <>
                               <Button variant="outline" size="sm" onClick={() => openEditDialog(task)}>
@@ -1340,17 +1250,6 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                 <CheckCircle className="h-4 w-4" />
                               </Button>
                             </>
-                          )}
-                          {tStatus === "completed" && task.formResponse && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                try { window.location.assign(`/doctor/tasks/${task.id}/results`) } catch {}
-                              }}
-                            >
-                              View Results
-                            </Button>
                           )}
                           <Button
                             variant="outline"

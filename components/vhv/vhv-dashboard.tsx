@@ -51,108 +51,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-const toDisplayString = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return ""
-  }
-  return typeof value === "number" ? value.toString() : `${value}`
-}
-
-const normalizeIntakePayloadToFormData = (payload: any | null) => {
-  if (!payload) {
-    return null
-  }
-
-  const patientBasics = payload.patientBasics || {}
-  const vitals = payload.vitals || {}
-  const symptoms = payload.symptoms || {}
-  const vhvNotes = payload.vhvNotes || {}
-  const assessments = payload.assessments || {}
-  const physical = assessments.physicalFunction || {}
-  const mental = assessments.mentalCognitive || {}
-
-  const fullName = [patientBasics.firstName, patientBasics.lastName].filter(Boolean).join(" ").trim()
-
-  return {
-    patientFullName: fullName,
-    hospitalNumber: toDisplayString(patientBasics.hospitalNumber ?? ""),
-    temperature: toDisplayString(vitals.temp),
-    oxygenSaturation: toDisplayString(vitals.spo2),
-    bloodPressureSystolic: toDisplayString(vitals.systolic),
-    bloodPressureDiastolic: toDisplayString(vitals.diastolic),
-    heartRate: toDisplayString(vitals.hr),
-    bloodGlucose: toDisplayString(vitals.glucose),
-    dyspneaScore: toDisplayString(physical.dyspneaScore),
-    balanceScore: toDisplayString(physical.balanceScore),
-    ipaqScore: toDisplayString(physical.ipaqScore),
-    sitToStandReps: toDisplayString(physical.sitToStandReps),
-    sixMinuteWalk: toDisplayString(physical.sixMinuteWalk),
-    sppbScore: toDisplayString(physical.sppbScore),
-    gripStrengthRight: toDisplayString(physical.gripStrengthRight),
-    gripStrengthLeft: toDisplayString(physical.gripStrengthLeft),
-    mocaScore: toDisplayString(mental.mocaScore),
-    fatigueSeverityScale: toDisplayString(mental.fatigueSeverityScale),
-    facitFatigueScale: toDisplayString(mental.facitFatigueScale),
-    chalderFatigueScale: toDisplayString(mental.chalderFatigueScale),
-    gad7Score: toDisplayString(mental.gad7Score),
-    hadsAnxietyScore: toDisplayString(mental.hadsAnxietyScore),
-    hadsDepressionScore: toDisplayString(mental.hadsDepressionScore),
-    beckScore: toDisplayString(mental.beckScore),
-    iesrScore: toDisplayString(mental.iesrScore),
-    patientConcerns: toDisplayString(vhvNotes.patientConcerns || symptoms.chiefComplaint || ""),
-    vhvObservations: toDisplayString(vhvNotes.vhvObservations || ""),
-  }
-}
-
-const getIntakeReviewBadge = (status?: string | null) => {
-  if (!status) {
-    return null
-  }
-
-  switch (status) {
-    case "SUBMITTED":
-    case "IN_REVIEW":
-      return {
-        label: "Not Validated",
-        className: "border-amber-200 bg-amber-50 text-amber-700",
-      }
-    case "CHANGES_REQUESTED":
-    case "REJECTED":
-      return {
-        label: "Changes Requested",
-        className: "border-red-200 bg-red-50 text-red-700",
-      }
-    case "APPROVED":
-      return {
-        label: "Validated",
-        className: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      }
-    default:
-      return null
-  }
-}
-
-const calculateAgeFromDob = (dob?: string | Date | null) => {
-  if (!dob) {
-    return undefined
-  }
-
-  const birthDate = typeof dob === "string" ? new Date(dob) : dob
-  if (!birthDate || Number.isNaN(birthDate.getTime())) {
-    return undefined
-  }
-
-  const today = new Date()
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const monthDiff = today.getMonth() - birthDate.getMonth()
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1
-  }
-
-  return age
-}
-
 export function VHVDashboard() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState(getCurrentUserFromStorage())
@@ -175,9 +73,6 @@ export function VHVDashboard() {
   const [reviewFormData, setReviewFormData] = useState<any>(null)
   const [reviewIntakeId, setReviewIntakeId] = useState<string | null>(null)
   const [showReviewPage, setShowReviewPage] = useState(false)
-  const [canSubmitReview, setCanSubmitReview] = useState(false)
-  const [reviewIntakeStatus, setReviewIntakeStatus] = useState<string | null>(null)
-  const submittableStatuses = useMemo(() => ["DRAFT", "CHANGES_REQUESTED"], [])
   const [showDataForm, setShowDataForm] = useState(false)
   const [selectedPatientForForm, setSelectedPatientForForm] = useState<any>(null)
   const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
@@ -408,8 +303,6 @@ export function VHVDashboard() {
       setCurrentIntakeId(newIntake.id)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      setCanSubmitReview(false)
-      setReviewIntakeStatus(null)
 
       // Refresh assigned patients data to show updated intake status
       refetchPatients()
@@ -449,8 +342,6 @@ export function VHVDashboard() {
       setCurrentIntakeId(intakeId)
       setSelectedPatientForForm(patient)
       setShowDataForm(true)
-      setCanSubmitReview(false)
-      setReviewIntakeStatus(null)
 
       // Refresh assigned patients data
       refetchPatients()
@@ -473,59 +364,29 @@ export function VHVDashboard() {
 
   const handleOpenPatientReview = async (patient: any, intake: any) => {
     try {
-      let normalizedFormData = intake?.payload ? normalizeIntakePayloadToFormData(intake.payload) : null
-      let intakeStatus = intake?.status || null
-
-      if (!normalizedFormData) {
-        if (intake?.id) {
-          try {
-            const intakeResponse = await intakesApi.getById(intake.id)
-            if (intakeResponse?.payload) {
-              normalizedFormData = normalizeIntakePayloadToFormData(intakeResponse.payload)
-            }
-            intakeStatus = intakeResponse?.status || intakeStatus
-          } catch (error) {
-            console.error("Failed to fetch intake payload:", error)
-          }
-        } else if (patient?.id) {
-          const offlineData = await getOfflineFormData(patient.id.toString())
-          normalizedFormData = offlineData?.formData || null
-        }
-      }
-
-      const reviewPatient = {
-        ...patient,
-        name:
-          patient?.name || `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim(),
-        age: patient?.age ?? calculateAgeFromDob(patient?.dob),
-      }
-
-      const statusToUse = intakeStatus || "DRAFT"
-
-      setShowDataForm(false)
-      setSelectedPatientForForm(null)
-      setCompletedSections([])
-      setSelectedPatientForReview(reviewPatient)
-      setReviewFormData(normalizedFormData)
-      setReviewIntakeId(intake?.id || null)
-      setReviewIntakeStatus(statusToUse)
-      setCanSubmitReview(submittableStatuses.includes(statusToUse))
+      setSelectedPatientForReview(patient)
+      setReviewIntakeId(intake.id)
       setShowReviewPage(true)
 
+      // Refresh assigned patients data
       refetchPatients()
     } catch (error) {
       console.error("Failed to open patient review:", error)
-      alert("Unable to open the review page. Please try again.")
     }
   }
 
   const handleFormComplete = async () => {
-    if (!selectedPatientForForm) {
-      console.warn("No patient selected when trying to complete data collection")
-      return
+    if (currentIntakeId) {
+      try {
+        // Submit the intake for doctor review
+        await intakesApi.submit(currentIntakeId)
+        console.log("Intake submitted for doctor review")
+      } catch (error) {
+        console.error("Failed to submit intake:", error)
+      }
     }
 
-    await handleCompleteDataCollection(selectedPatientForForm)
+    handleCloseDataForm()
     refetchPatients()
   }
 
@@ -535,74 +396,21 @@ export function VHVDashboard() {
   }
 
   const handleCompleteDataCollection = async (patient: any) => {
-    if (!patient) {
-      return
-    }
-
     try {
-      const patientId = patient.id ? patient.id.toString() : undefined
-      const offlineData = patientId ? await getOfflineFormData(patientId) : null
+      // Load the saved form data for this patient
+      const offlineData = await getOfflineFormData(patient.id.toString())
+      console.log("Loading form data for review:", offlineData)
 
-      let intakeId = currentIntakeId || offlineData?.intakeId || null
-      let intakeStatus: string | null = null
-      let normalizedFormData = offlineData?.formData ? { ...offlineData.formData } : null
-
-      if (!intakeId && patient?.intakeSubmissions?.length) {
-        const latestIntake = patient.intakeSubmissions[0]
-        intakeId = latestIntake?.id || intakeId
-        intakeStatus = latestIntake?.status || intakeStatus
-        if (!normalizedFormData && latestIntake?.payload) {
-          normalizedFormData = normalizeIntakePayloadToFormData(latestIntake.payload)
-        }
-      }
-
-      if (intakeId) {
-        try {
-          const intakeResponse = await intakesApi.getById(intakeId)
-          if (intakeResponse) {
-            intakeStatus = intakeResponse.status || intakeStatus
-            if (!normalizedFormData && intakeResponse.payload) {
-              normalizedFormData = normalizeIntakePayloadToFormData(intakeResponse.payload)
-            }
-          }
-        } catch (error) {
-          console.error("Failed to fetch intake payload for review:", error)
-        }
-      }
-
-      const reviewPatient = {
-        ...patient,
-        name:
-          patient?.name || `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim(),
-        age: patient?.age ?? calculateAgeFromDob(patient?.dob),
-      }
-
-      const statusToUse = intakeStatus || "DRAFT"
-
-      setShowDataForm(false)
-      setSelectedPatientForForm(null)
-      setCompletedSections([])
-      setSelectedPatientForReview(reviewPatient)
-      setReviewFormData(normalizedFormData)
-      setReviewIntakeId(intakeId)
-      setCurrentIntakeId(intakeId ?? currentIntakeId ?? null)
-      setReviewIntakeStatus(statusToUse)
-      setCanSubmitReview(submittableStatuses.includes(statusToUse) || !intakeStatus)
+      setSelectedPatientForReview(patient)
+      setReviewFormData(offlineData?.formData || null)
+      setReviewIntakeId(offlineData?.intakeId || null)
       setShowReviewPage(true)
     } catch (error) {
       console.error("Failed to load form data for review:", error)
-      setShowDataForm(false)
-      setSelectedPatientForForm(null)
-      setCompletedSections([])
-      setSelectedPatientForReview({
-        ...patient,
-        name: patient?.name || `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim(),
-        age: patient?.age ?? calculateAgeFromDob(patient?.dob),
-      })
+      // Show review page anyway, even if we can't load the data
+      setSelectedPatientForReview(patient)
       setReviewFormData(null)
-      setReviewIntakeId(currentIntakeId)
-      setReviewIntakeStatus(null)
-      setCanSubmitReview(true)
+      setReviewIntakeId(null)
       setShowReviewPage(true)
     }
   }
@@ -612,34 +420,6 @@ export function VHVDashboard() {
     setSelectedPatientForReview(null)
     setReviewFormData(null)
     setReviewIntakeId(null)
-    setReviewIntakeStatus(null)
-    setCanSubmitReview(false)
-  }
-
-  const handleChangeDataFromReview = async () => {
-    const patient = selectedPatientForReview
-    const intakeId = reviewIntakeId
-
-    setShowReviewPage(false)
-    setCanSubmitReview(false)
-    setSelectedPatientForReview(null)
-    setReviewFormData(null)
-    setReviewIntakeStatus(null)
-
-    if (!patient) {
-      return
-    }
-
-    try {
-      if (intakeId) {
-        await handleContinueDataForm(patient, intakeId)
-      } else {
-        await handleOpenDataForm(patient)
-      }
-    } catch (error) {
-      console.error("Failed to reopen form from review:", error)
-      alert("Unable to reopen the form. Please try again.")
-    }
   }
 
   const handleConfirmSubmission = async () => {
@@ -658,15 +438,11 @@ export function VHVDashboard() {
       console.log("Intake successfully submitted for doctor review")
       alert("Success! Patient data has been submitted for doctor review.")
 
-      setReviewIntakeStatus("SUBMITTED")
-      setCanSubmitReview(false)
-
       // Clean up state
       setShowReviewPage(false)
       setSelectedPatientForReview(null)
       setReviewFormData(null)
       setReviewIntakeId(null)
-      setCurrentIntakeId(null)
 
       // Refresh the patient list to reflect updated status
       refetchPatients()
@@ -905,10 +681,7 @@ export function VHVDashboard() {
       <PatientReview
         patient={selectedPatientForReview}
         formData={reviewFormData}
-        intakeStatus={reviewIntakeStatus}
-        allowSubmit={canSubmitReview}
         onBack={handleBackFromReview}
-        onChangeData={handleChangeDataFromReview}
         onConfirm={handleConfirmSubmission}
       />
     )
@@ -1189,9 +962,6 @@ export function VHVDashboard() {
                     const patient = assignment.patient
                     if (!patient) return null
 
-                    const latestIntake = patient.intakeSubmissions?.[0]
-                    const dataStatusBadge = getIntakeReviewBadge(latestIntake?.status)
-
                     return (
                       <Card key={assignment.id} className="border-l-4 border-l-blue-500">
                         <CardContent className="pt-4">
@@ -1205,44 +975,36 @@ export function VHVDashboard() {
                               ) : (
                                 <ChevronRight className="h-4 w-4 flex-shrink-0 mt-1" />
                               )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-sm md:text-base">
-                                      {patient.firstName} {patient.lastName}
-                                    </h3>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-sm md:text-base">
+                                    {patient.firstName} {patient.lastName}
+                                  </h3>
                                   <Badge
                                     variant={assignment.status === "active" ? "default" : "secondary"}
                                     className="text-xs"
                                   >
                                     {assignment.status || "active"}
                                   </Badge>
-                                    {patient.intakeSubmissions &&
-                                      patient.intakeSubmissions.length > 0 &&
-                                      patient.intakeSubmissions.some(
-                                        (intake: any) =>
-                                          intake.status === "SUBMITTED" ||
-                                          intake.status === "APPROVED" ||
-                                          intake.status === "REJECTED",
-                                      ) && (
-                                        <Badge variant="default" className="text-xs">
-                                          complete
-                                        </Badge>
-                                      )}
-                                    {dataStatusBadge && (
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-xs ${dataStatusBadge.className}`}
-                                      >
-                                        {dataStatusBadge.label}
+                                  {patient.intakeSubmissions &&
+                                    patient.intakeSubmissions.length > 0 &&
+                                    patient.intakeSubmissions.some(
+                                      (intake: any) =>
+                                        intake.status === "SUBMITTED" ||
+                                        intake.status === "APPROVED" ||
+                                        intake.status === "REJECTED",
+                                    ) && (
+                                      <Badge variant="default" className="text-xs">
+                                        complete
                                       </Badge>
                                     )}
-                                    {assignment.tasks && assignment.tasks.length > 0 && (
-                                      <Badge variant="outline" className="text-xs">
-                                        {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-xs md:text-sm text-muted-foreground">
+                                  {assignment.tasks && assignment.tasks.length > 0 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {assignment.tasks.length} task{assignment.tasks.length !== 1 ? "s" : ""}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs md:text-sm text-muted-foreground">
                                   Assigned:{" "}
                                   {assignment.assignedAt
                                     ? new Date(assignment.assignedAt).toLocaleDateString()
@@ -1252,7 +1014,17 @@ export function VHVDashboard() {
                             </div>
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               {(() => {
-                                if (!latestIntake) {
+                                const latestIntake = patient.intakeSubmissions?.[0]
+                                const hasActiveIntake =
+                                  latestIntake &&
+                                  (latestIntake.status === "DRAFT" || latestIntake.status === "SUBMITTED")
+                                const hasCompletableIntake =
+                                  latestIntake &&
+                                  latestIntake.status === "DRAFT" &&
+                                  latestIntake.payload &&
+                                  Object.keys(latestIntake.payload).length > 0
+
+                                if (!hasActiveIntake) {
                                   return (
                                     <Button
                                       variant="outline"
@@ -1268,16 +1040,7 @@ export function VHVDashboard() {
                                       <span className="sm:hidden">Start</span>
                                     </Button>
                                   )
-                                }
-
-                                const canContinue =
-                                  latestIntake.status === "DRAFT" || latestIntake.status === "CHANGES_REQUESTED"
-                                const hasCompletableIntake =
-                                  canContinue &&
-                                  latestIntake.payload &&
-                                  Object.keys(latestIntake.payload).length > 0
-
-                                if (canContinue) {
+                                } else if (latestIntake.status === "DRAFT") {
                                   return (
                                     <>
                                       <Button

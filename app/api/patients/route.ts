@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as supabaseApi from '@/lib/supabase-api'
+import { supabaseApi } from '@/lib/supabase-api'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,52 +13,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Always create patient directly in the database (no Supabase Auth user)
-    // If email/password provided, we will store the hashed password in patients.password_hash
-    const result = await supabaseApi.createPatient({
-      ...patientData,
-      email,
-      password,
-    })
-    return NextResponse.json(result)
+    // If email and password provided, use the admin create patient endpoint logic
+    if (email && password) {
+      const response = await fetch(`${request.nextUrl.origin}/api/admin/create-patient`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, ...patientData }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create patient')
+      }
+
+      return NextResponse.json(await response.json())
+    } else {
+      // Create patient without user account
+      const result = await supabaseApi.createPatient(patientData)
+      return NextResponse.json(result)
+    }
 
   } catch (error) {
     console.error('Create patient error:', error)
-    
-    // Provide user-friendly error messages for common database errors
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create patient'
-    
-    // Check for specific database constraint violations
-    if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
-      if (errorMessage.includes('national_id')) {
-        return NextResponse.json(
-          { 
-            error: 'A patient with this National ID already exists. Please use a different National ID or leave it empty.',
-            code: 'DUPLICATE_NATIONAL_ID'
-          },
-          { status: 409 }
-        )
-      }
-      if (errorMessage.includes('email')) {
-        return NextResponse.json(
-          { 
-            error: 'A patient with this email already exists. Please use a different email address.',
-            code: 'DUPLICATE_EMAIL'
-          },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json(
-        { 
-          error: 'This patient already exists in the system. Please check the information and try again.',
-          code: 'DUPLICATE_ENTRY'
-        },
-        { status: 409 }
-      )
-    }
-    
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error instanceof Error ? error.message : 'Failed to create patient' },
       { status: 500 }
     )
   }
