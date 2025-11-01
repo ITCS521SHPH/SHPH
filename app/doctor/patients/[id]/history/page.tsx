@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { PatientTaskResults } from '@/components/doctor/task-results'
 
 type ParamsMaybePromise = { id: string } | Promise<{ id: string }>
 
@@ -171,6 +172,7 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
                 <div className="mt-1 text-sm">{r.title}</div>
                 {r.summary && <div className="text-sm text-muted-foreground mt-1">{r.summary}</div>}
                 <div className="mt-2 flex gap-2">
+                  {r.hasForm && <Badge variant="outline">Form Task</Badge>}
                   {r.priority && <Badge variant="secondary">Priority: {r.priority}</Badge>}
                   {r.approved && <Badge>Approved</Badge>}
                 </div>
@@ -179,6 +181,9 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Results aggregated from completed tasks */}
+      <PatientTaskResults patientId={patientId} />
     </div>
   )
 }

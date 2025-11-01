@@ -36,6 +36,7 @@ import type {
   DoctorProfile,
   VHVProfile,
   UpdateVHVProfileRequest,
+  UpdatePatientProfileRequest,
   CreateTaskRequest,
   AssignPatientRequest,
   CreateEmergencyAlertRequest,
@@ -133,6 +134,7 @@ const convertTaskRow = (row: TaskRow): Task => {
     completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
     createdAt: new Date(row.created_at),
     updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+    formResponse: (row as any).form_response || undefined,
   }
 }
 
@@ -341,6 +343,7 @@ export const getPatients = async (): Promise<any[]> => {
         nationalId: row.national_id,
         dob: row.dob,
         address: row.address,
+        district: row.district,
         emergencyContactName: row.emergency_contact_name,
         emergencyContactPhone: row.emergency_contact_phone,
         medicalCondition: (row as any).medical_condition ?? (row as any).medical_history ?? null, // Use medical_condition if exists, otherwise medical_history
@@ -368,6 +371,54 @@ export const getPatientById = async (id: string): Promise<Patient | null> => {
   }
 
   return convertPatientRow(data)
+}
+
+export const getPatientProfile = async (patientId: string): Promise<Patient | null> => {
+  return getPatientById(patientId)
+}
+
+export const updatePatientProfile = async (
+  patientId: string,
+  updates: UpdatePatientProfileRequest,
+): Promise<Patient> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  const payload: Record<string, any> = {}
+  if (updates.phone !== undefined) {
+    payload.phone = updates.phone ?? null
+  }
+  if (updates.district !== undefined) {
+    payload.district = updates.district ?? null
+  }
+  if (updates.address !== undefined) {
+    payload.address = updates.address ?? null
+  }
+
+  if (Object.keys(payload).length === 0) {
+    const existing = await getPatientProfile(patientId)
+    if (!existing) {
+      throw new Error("Patient profile not found")
+    }
+    return existing
+  }
+
+  const { data, error } = await supabase
+    .from("patients")
+    .update(payload)
+    .eq("id", patientId)
+    .select("*")
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+  if (!data) {
+    throw new Error("Patient profile not found")
+  }
+
+  return convertPatientRow(data as PatientRow)
 }
 
 export const createPatient = async (patientData: CreatePatient): Promise<Patient> => {
@@ -1123,6 +1174,17 @@ export const deleteTask = async (id: string): Promise<void> => {
   }
 }
 
+export const getTaskById = async (id: string): Promise<Task> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+  const { data, error } = await supabase.from("tasks").select("*").eq("id", id).single()
+  if (error) {
+    throw new Error(error.message)
+  }
+  return convertTaskRow(data as any)
+}
+
 // Assignments API
 export const getAssignments = async (): Promise<Assignment[]> => {
   if (!supabase) {
@@ -1199,6 +1261,10 @@ export const getAssignmentsWithDetails = async (doctorId: string) => {
           email: a.vhvs.email,
           passwordHash: "",
           role: "VHV" as any,
+          firstName: a.vhvs.first_name,
+          lastName: a.vhvs.last_name,
+          name: `${a.vhvs.first_name} ${a.vhvs.last_name}`.trim(),
+          district: a.vhvs.district || undefined,
           createdAt: new Date(a.vhvs.created_at),
           updatedAt: a.vhvs.updated_at ? new Date(a.vhvs.updated_at) : undefined,
         }
@@ -2379,6 +2445,10 @@ export const getAvailableVHVs = async (): Promise<User[]> => {
       email: row.email,
       passwordHash: "",
       role: "VHV" as any,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      name: `${row.first_name} ${row.last_name}`.trim(),
+      district: row.district || undefined,
       createdAt: new Date(row.created_at),
       updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
     })) || []
@@ -2476,6 +2546,7 @@ const convertAreaTaskRow = (row: any) => ({
   completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
   createdAt: new Date(row.created_at),
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  formResponse: (row as any).form_response || undefined,
 })
 
 export const getAreaTasksByVHV = async (vhvId: string) => {
@@ -2488,6 +2559,17 @@ export const getAreaTasksByVHV = async (vhvId: string) => {
     .order("created_at", { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(convertAreaTaskRow)
+}
+
+export const getAreaTaskById = async (id: string) => {
+  if (!supabase) throw new Error("Supabase not configured")
+  const { data, error } = await supabase
+    .from("area_tasks")
+    .select("*")
+    .eq("id", id)
+    .single()
+  if (error) throw new Error(error.message)
+  return convertAreaTaskRow(data)
 }
 
 export const getAreaTasksByDoctor = async (doctorId: string) => {
@@ -2585,6 +2667,8 @@ export const supabaseApi = {
   // Patient management
   getPatients,
   getPatientById,
+  getPatientProfile,
+  updatePatientProfile,
   createPatient,
   assignPatient,
   getAssignments,
