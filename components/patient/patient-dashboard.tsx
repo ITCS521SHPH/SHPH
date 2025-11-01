@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin } from "lucide-react"
 import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -201,9 +201,17 @@ export function PatientDashboard() {
                 <p className="text-sm text-muted-foreground">{currentUser?.name || currentUser?.email || "Patient"}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleSignOut} size="sm">
-              Sign Out
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/patient/profile" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Update Location
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={handleSignOut} size="sm">
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>

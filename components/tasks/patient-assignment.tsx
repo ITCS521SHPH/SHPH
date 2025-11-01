@@ -61,7 +61,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
     return []
   }, [doctorId, currentUser?.id])
 
-  const { data: assignments, refetch: refetchAssignments } = useApiData(getAssignments, [])
+  const { data: assignments, loading: assignmentsLoading, refetch: refetchAssignments } = useApiData(getAssignments, [])
 
   // Only show real patient assignments in the top list (exclude area placeholders)
   const isAreaPlaceholder = (patient: any) => {
@@ -166,7 +166,9 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {displayAssignments?.length === 0 ? (
+              {assignmentsLoading ? (
+                <div className="text-center py-4 text-muted-foreground">Loading assignments...</div>
+              ) : displayAssignments?.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">No patients assigned yet</div>
               ) : (
                 displayAssignments?.map((assignment: any) => (
@@ -238,7 +240,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {patientsLoading ? (
+              {patientsLoading || assignmentsLoading ? (
                 <div className="text-center py-4">Loading patients...</div>
               ) : unassignedPatients.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">All patients are assigned</div>

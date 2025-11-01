@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseApi } from '@/lib/supabase-api'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json()
     const { action, userId, notes } = body
-    const alertId = params.id
+    const { id: alertId } = await ctx.params
 
     if (!action || !userId) {
       return NextResponse.json(

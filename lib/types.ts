@@ -133,6 +133,7 @@ export interface Task extends BaseEntity {
   status: "pending" | "in_progress" | "completed" | "cancelled"
   dueDate?: Date
   completedAt?: Date
+  formResponse?: any
 }
 
 // Enhanced Assignment interface with task support
@@ -322,6 +323,12 @@ export interface UpdateVHVProfileRequest {
   district?: string | null
 }
 
+export interface UpdatePatientProfileRequest {
+  phone?: string | null
+  district?: string | null
+  address?: string | null
+}
+
 // DTOs for task management
 export interface CreateTaskRequest {
   title: string
@@ -346,6 +353,7 @@ export interface AreaTask extends BaseEntity {
   status: "pending" | "in_progress" | "completed" | "cancelled"
   dueDate?: Date
   completedAt?: Date
+  formResponse?: any
 }
 
 export interface CreateAreaTaskRequest {
