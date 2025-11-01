@@ -281,7 +281,7 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-[repeat(5,minmax(100px,1fr))] h-auto" >
+          <TabsList className="grid w-full grid-cols-3  h-auto" >
             <TabsTrigger
               value="appointments"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
@@ -290,19 +290,19 @@ export function PatientDashboard() {
               <span className="hidden sm:inline">Appointments</span>
               <span className="sm:hidden">Appts</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
+            {/* <TabsTrigger value="history" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
               <FileText className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Visit History</span>
               <span className="sm:hidden">History</span>
-            </TabsTrigger>
-            <TabsTrigger
+            </TabsTrigger> */}
+            {/* <TabsTrigger
               value="medications"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
             >
               <Heart className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Medications</span>
               <span className="sm:hidden">Meds</span>
-            </TabsTrigger>
+            </TabsTrigger> */}
             {/* <TabsTrigger value="vitals" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
               <Heart className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Vital Signs</span>
