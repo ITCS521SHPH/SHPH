@@ -874,6 +874,17 @@ export const patientDataApi = {
     }
     return Promise.resolve([])
   },
+  getAssignedVHV: async (patientId: string) => {
+    if (USE_SUPABASE) {
+      const response = await fetch(`/api/patient/assigned-vhv?patientId=${patientId}`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to get assigned VHV")
+      }
+      return response.json()
+    }
+    return Promise.resolve(null)
+  },
   createRescheduleRequest: async (requestData: {
     appointmentId: string
     patientId: string

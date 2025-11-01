@@ -1415,6 +1415,119 @@ export const getAssignmentsByVHV = async (vhvId: string) => {
   return enhancedAssignments
 }
 
+export const getAssignedVHVForPatient = async (
+  patientId: string,
+): Promise<{
+  assignmentId: string
+  status: string
+  assignedAt?: string | null
+  vhv: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    phone: string | null
+    district?: string | null
+  } | null
+} | null> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  const baseSelect = `
+        id,
+        status,
+        assigned_at,
+        created_at,
+        vhvs:vhv_id (
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          district
+        )
+      `
+
+  let data: any[] | null = null
+  let error: any = null
+
+  const { data: withDistrict, error: withDistrictError } = await supabase
+    .from("assignments")
+    .select(baseSelect)
+    .eq("patient_id", patientId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  if (withDistrictError && withDistrictError.code === "42703") {
+    const fallbackSelect = `
+        id,
+        status,
+        assigned_at,
+        created_at,
+        vhvs:vhv_id (
+          id,
+          first_name,
+          last_name,
+          email,
+          phone
+        )
+      `
+
+    const { data: withoutDistrict, error: fallbackError } = await supabase
+      .from("assignments")
+      .select(fallbackSelect)
+      .eq("patient_id", patientId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+
+    data = withoutDistrict
+    error = fallbackError
+  } else {
+    data = withDistrict
+    error = withDistrictError
+  }
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const assignment = data?.[0]
+  if (!assignment) {
+    return null
+  }
+
+  const vhvRow = assignment.vhvs as
+    | {
+        id: string
+        first_name: string | null
+        last_name: string | null
+        email: string | null
+        phone: string | null
+        district?: string | null
+      }
+    | null
+    | undefined
+
+  return {
+    assignmentId: assignment.id,
+    status: assignment.status,
+    assignedAt: assignment.assigned_at ?? null,
+    vhv: vhvRow
+      ? {
+          id: vhvRow.id,
+          firstName: vhvRow.first_name,
+          lastName: vhvRow.last_name,
+          email: vhvRow.email,
+          phone: vhvRow.phone,
+          district: vhvRow.district,
+        }
+      : null,
+  }
+}
+
 export const createIntake = async (patientId: string, vhvId?: string) => {
   if (!supabase) {
     throw new Error("Supabase not configured")
@@ -2674,6 +2787,7 @@ export const supabaseApi = {
   getAssignments,
   getAssignmentsWithDetails,
   getAssignmentsByVHV,
+  getAssignedVHVForPatient,
 
   // Intake management
   createIntake,
