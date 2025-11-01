@@ -15,9 +15,62 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
   try {
     const { id } = await ctx.params
     const body = await request.json()
-    const { scheduledDate, scheduledTime, category, notes, status, duration } = body
+    const { scheduledDate, scheduledTime, category, notes, status, duration, doctorId } = body
 
     const supabase = await createClient()
+
+    // Get current appointment to check doctor_id if not provided
+    const { data: currentAppointment } = await supabase
+      .from("appointments")
+      .select("doctor_id, scheduled_date, scheduled_time, duration_minutes")
+      .eq("id", id)
+      .single()
+
+    const effectiveDoctorId = doctorId || currentAppointment?.doctor_id
+
+    // If date or time is being updated, check for conflicts
+    if ((scheduledDate || scheduledTime) && effectiveDoctorId) {
+      const targetDate = scheduledDate || currentAppointment?.scheduled_date
+      const targetTime = scheduledTime || currentAppointment?.scheduled_time
+      const targetDuration = typeof duration !== "undefined" ? Number(duration) : (currentAppointment?.duration_minutes || 30)
+
+      // Check for conflicting appointments - considering duration overlap
+      const appointmentTime = new Date(`${targetDate}T${targetTime}`)
+      const appointmentEndTime = new Date(appointmentTime.getTime() + targetDuration * 60000)
+
+      // Query all appointments for this doctor on the same date that are not cancelled (excluding current appointment)
+      const { data: existingAppointments, error: conflictError } = await supabase
+        .from("appointments")
+        .select("scheduled_time, duration_minutes, id")
+        .eq("doctor_id", effectiveDoctorId)
+        .eq("scheduled_date", targetDate)
+        .neq("status", "cancelled")
+        .neq("id", id) // Exclude the current appointment being updated
+
+      if (conflictError) {
+        console.error("[v0] Conflict check error:", conflictError)
+        return NextResponse.json({ error: "Failed to check for conflicts" }, { status: 500 })
+      }
+
+      // Check for time overlaps
+      if (existingAppointments && existingAppointments.length > 0) {
+        for (const existing of existingAppointments) {
+          const existingTime = new Date(`${targetDate}T${existing.scheduled_time}`)
+          const existingDuration = existing.duration_minutes || 30
+          const existingEndTime = new Date(existingTime.getTime() + existingDuration * 60000)
+
+          // Check if the updated appointment overlaps with existing appointment
+          const overlaps = appointmentTime < existingEndTime && appointmentEndTime > existingTime
+
+          if (overlaps) {
+            const existingTimeStr = existing.scheduled_time.toString().slice(0, 5) // HH:mm format
+            return NextResponse.json({ 
+              error: `Time slot conflicts with existing appointment at ${existingTimeStr}. Please choose a different time.` 
+            }, { status: 409 })
+          }
+        }
+      }
+    }
 
     // Build update object with only existing columns
     const updateData: any = {

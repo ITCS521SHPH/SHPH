@@ -73,7 +73,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
     description: "",
     patientId: patientId || "",
     vhvId: vhvId || "",
-    priority: "medium" as "low" | "medium" | "high" | "urgent",
+    priority: "medium" as "low" | "medium" | "high" | "urgent", // Default to "medium"
     dueDate: "",
   })
 
@@ -458,17 +458,20 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       const nextDescription =
         questions.length > 0 ? buildDescriptionWithSchema(taskForm.description, questions) : taskForm.description
 
+      // Ensure priority has a default value if not set
+      const priorityValue = taskForm.priority || "medium"
+
       const isAreaTask = !editingTask?.patientId
       if (isAreaTask) {
         await areaTasksApi.update(editingTask.id, {
           title: taskForm.title,
           description: nextDescription,
-          priority: taskForm.priority,
+          priority: priorityValue,
           dueDate: taskForm.dueDate,
           district: selectedDistrict || editingTask.district,
         })
       } else {
-        await tasksApi.update(editingTask.id, { ...taskForm, description: nextDescription })
+        await tasksApi.update(editingTask.id, { ...taskForm, description: nextDescription, priority: priorityValue })
       }
       setShowEditDialog(false)
       setEditingTask(null)
@@ -540,7 +543,7 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       description: stripFormSchema(remainder),
       patientId: isAreaTask ? "" : task.patientId,
       vhvId: task.vhvId,
-      priority: task.priority,
+      priority: (task.priority || "medium") as "low" | "medium" | "high" | "urgent", // Default to "medium" if not set
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
     })
     setShowEditDialog(true)

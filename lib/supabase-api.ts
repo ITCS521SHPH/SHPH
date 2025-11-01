@@ -76,7 +76,7 @@ const convertPatientRow = (row: PatientRow): Patient => ({
   phone: row.phone || undefined,
   address: row.address || undefined,
   district: row.district || undefined,
-  medicalCondition: (row as any).medical_condition || undefined,
+  medicalCondition: (row as any).medical_condition ?? (row as any).medical_history ?? undefined, // Use medical_condition if exists, otherwise medical_history
   lastVisit: (row as any).last_visit ? new Date((row as any).last_visit) : undefined,
   createdAt: new Date(row.created_at),
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
@@ -331,30 +331,29 @@ export const getPatients = async (): Promise<any[]> => {
       throw new Error(`Patients query failed: ${error.message}`)
     }
 
-      return (
-        data?.map((row) => ({
-          id: row.id,
-          email: row.email,
-          firstName: row.first_name,
-          lastName: row.last_name,
-          name: `${row.first_name} ${row.last_name}`,
-          status: row.is_active ? "active" : "inactive",
-          phone: row.phone,
-          nationalId: row.national_id,
-          dob: row.dob,
-          address: row.address,
-          district: row.district,
-          emergencyContactName: row.emergency_contact_name,
-          emergencyContactPhone: row.emergency_contact_phone,
-          medicalHistory: row.medical_history,
-          allergies: row.allergies,
-          medicalCondition: (row as any).medical_condition,
-          lastVisit: (row as any).last_visit,
-          createdAt: new Date(row.created_at),
-          updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-        })) || []
-      )
-    } catch (error) {
+    return (
+      data?.map((row) => ({
+        id: row.id,
+        email: row.email,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        name: `${row.first_name} ${row.last_name}`,
+        status: row.is_active ? "active" : "inactive",
+        phone: row.phone,
+        nationalId: row.national_id,
+        dob: row.dob,
+        address: row.address,
+        district: row.district,
+        emergencyContactName: row.emergency_contact_name,
+        emergencyContactPhone: row.emergency_contact_phone,
+        medicalCondition: (row as any).medical_condition ?? (row as any).medical_history ?? null, // Use medical_condition if exists, otherwise medical_history
+        medicalHistory: (row as any).medical_history ?? null, // Keep medicalHistory for backward compatibility
+        allergies: row.allergies,
+        createdAt: new Date(row.created_at),
+        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+      })) || []
+    )
+  } catch (error) {
     console.error("Error fetching patients:", error)
     throw new Error("Failed to fetch patients")
   }
@@ -456,8 +455,14 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
     address: patientData.address || null,
     district: patientData.district || null,
     medical_condition: patientData.medicalCondition || null,
-    last_visit: patientData.lastVisit || null,
+    medical_history: patientData.medicalCondition || null, // Also set medical_history for compatibility
+    // Note: last_visit may not exist in schema, handle it separately
     password_hash: computedHash || "placeholder_password_hash",
+  }
+
+  // Only include last_visit if provided and we'll handle errors gracefully
+  if (patientData.lastVisit) {
+    optionalPayload.last_visit = patientData.lastVisit
   }
 
   const minimalPayload: any = {
@@ -471,24 +476,54 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
   // First try with optional fields
   let insertResp = await supabase.from("patients").insert(optionalPayload).select().single()
 
+  // Track which fields caused errors so we can exclude them
+  const problematicFields = new Set<string>()
+
   // If unknown column errors (42703) or schema cache messages, progressively fallback
   if (insertResp.error) {
     const code = (insertResp.error as any).code || ""
     const msg = (insertResp.error as any).message || ""
 
     if (code === "42703" || /schema cache/i.test(msg) || /column/i.test(msg)) {
-      // Retry without columns that may not exist yet
+      // Identify which fields are causing problems
+      const errorMsg = msg.toLowerCase()
+      if (errorMsg.includes("medical_condition")) {
+        problematicFields.add("medical_condition")
+      }
+      if (errorMsg.includes("last_visit")) {
+        problematicFields.add("last_visit")
+      }
+
+      // Retry without problematic columns
+      // Also check for medical_history errors
+      if (errorMsg.includes("medical_history")) {
+        problematicFields.add("medical_history")
+      }
+      
       const reducedPayload = { ...optionalPayload }
-      delete (reducedPayload as any).medical_condition
-      delete (reducedPayload as any).last_visit
+      problematicFields.forEach(field => {
+        delete (reducedPayload as any)[field]
+      })
 
       insertResp = await supabase.from("patients").insert(reducedPayload).select().single()
 
       if (insertResp.error) {
         const code2 = (insertResp.error as any).code || ""
         const msg2 = (insertResp.error as any).message || ""
+        
+        // Check for additional problematic fields
+        if (msg2.toLowerCase().includes("medical_condition")) {
+          problematicFields.add("medical_condition")
+        }
+        if (msg2.toLowerCase().includes("medical_history")) {
+          problematicFields.add("medical_history")
+        }
+        if (msg2.toLowerCase().includes("last_visit")) {
+          problematicFields.add("last_visit")
+        }
+        
         if (code2 === "42703" || /column/i.test(msg2)) {
-          // Final fallback: keep all known base columns so address/phone/national_id are preserved
+          // Final fallback: keep all known base columns, exclude problematic ones
           const basePayload: any = {
             email: (optionalPayload as any).email,
             first_name: (optionalPayload as any).first_name,
@@ -500,9 +535,48 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
             district: (optionalPayload as any).district ?? null,
             password_hash: (optionalPayload as any).password_hash,
           }
+          
+          // Only add medical_condition and medical_history if they weren't problematic
+          if (!problematicFields.has("medical_condition") && (optionalPayload as any).medical_condition != null) {
+            basePayload.medical_condition = (optionalPayload as any).medical_condition
+          }
+          if (!problematicFields.has("medical_history") && (optionalPayload as any).medical_history != null) {
+            basePayload.medical_history = (optionalPayload as any).medical_history
+          }
+          // Don't add last_visit in final fallback if it was problematic
 
           insertResp = await supabase.from("patients").insert(basePayload).select().single()
         }
+      } else {
+        // Success on reduced payload - try to update medical fields separately if they were excluded
+        if (insertResp.data && (optionalPayload as any).medical_condition != null) {
+          const medicalValue = (optionalPayload as any).medical_condition
+          const updateData: any = {}
+          
+          // Try to update medical_condition if it wasn't problematic
+          if (!problematicFields.has("medical_condition")) {
+            updateData.medical_condition = medicalValue
+          }
+          
+          // Try to update medical_history if it wasn't problematic
+          if (!problematicFields.has("medical_history")) {
+            updateData.medical_history = medicalValue
+          }
+          
+          // Update both fields if available
+          if (Object.keys(updateData).length > 0) {
+            try {
+              await supabase
+                .from("patients")
+                .update(updateData)
+                .eq("id", insertResp.data.id)
+            } catch (updateErr) {
+              // If update fails (column doesn't exist), that's okay - we tried
+              console.warn("Could not update medical fields after insert:", updateErr)
+            }
+          }
+        }
+        // Note: We don't try to update last_visit as it's likely not in the schema
       }
     }
   }
