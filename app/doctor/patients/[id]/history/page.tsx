@@ -182,8 +182,8 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
         </CardContent>
       </Card>
 
-      {/* Results aggregated from completed tasks */}
-      <PatientTaskResults patientId={patientId} />
+      {/* Results aggregated from completed tasks
+      <PatientTaskResults patientId={patientId} /> */}
     </div>
   )
 }
