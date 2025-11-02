@@ -9,6 +9,7 @@ import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, MapPin, Phone, User } from "lucide-react"
+import { formatMedicalConditionSummary } from "@/lib/medical-condition-categories"
 
 // React Leaflet components via dynamic import to avoid SSR issues
 const MapContainer: any = dynamic(async () => (await import("react-leaflet")).MapContainer as any, { ssr: false })
@@ -29,6 +30,8 @@ type Patient = {
   address?: string
   district?: string
   medicalCondition?: string
+  medicalConditionCategory?: string
+  medicalConditionNotes?: string
   lastVisit?: string
 }
 
@@ -65,9 +68,11 @@ export function PatientMap({ patients }: Props) {
       const inDistrict = districtFilter === ALL_DISTRICTS ? true : (p.district || "") === districtFilter
       if (!inDistrict) return false
       if (!term) return true
-      const full = `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.name ?? ""} ${
-        p.email ?? ""
-      } ${p.phone ?? ""} ${p.district ?? ""} ${p.address ?? ""}`.toLowerCase()
+      const full = `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.name ?? ""} ${p.email ?? ""} ${p.phone ?? ""} ${
+        p.district ?? ""
+      } ${p.address ?? ""} ${p.medicalCondition ?? ""} ${p.medicalConditionCategory ?? ""} ${
+        p.medicalConditionNotes ?? ""
+      }`.toLowerCase()
       return full.includes(term)
     })
   }, [patients, search, districtFilter])
@@ -261,12 +266,12 @@ export function PatientMap({ patients }: Props) {
                                     {p.address}
                                   </div>
                                 )}
-                                {p.medicalCondition && (
-                                  <div className="text-sm mt-1">
-                                    <span className="text-muted-foreground">Condition: </span>
-                                    <span className="font-medium">{p.medicalCondition}</span>
-                                  </div>
-                                )}
+                                <div className="text-sm mt-1">
+                                  <span className="text-muted-foreground">Condition: </span>
+                                  <span className="font-medium">
+                                    {formatMedicalConditionSummary(p.medicalConditionCategory, p.medicalConditionNotes)}
+                                  </span>
+                                </div>
                                 {p.lastVisit && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     Last visit: {new Date(p.lastVisit).toLocaleDateString()}

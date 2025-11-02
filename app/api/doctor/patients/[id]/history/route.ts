@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as supabaseApi from '@/lib/supabase-api'
+import {
+  MEDICAL_CONDITION_CATEGORIES,
+  MEDICAL_CONDITION_CATEGORY_LOOKUP,
+  type MedicalConditionCategoryId,
+  formatMedicalConditionSummary,
+} from '@/lib/medical-condition-categories'
 
 function parseDate(input?: string | null): Date | null {
   if (!input) return null
@@ -12,6 +18,28 @@ function inRange(d: Date | undefined, from?: Date | null, to?: Date | null): boo
   if (from && d < from) return false
   if (to && d > to) return false
   return true
+}
+
+const RECENT_ALERT_WINDOW_DAYS = 30
+
+const normalizeCategoryKey = (value?: string | null): MedicalConditionCategoryId | null => {
+  if (!value || typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const directKey = trimmed.toUpperCase() as MedicalConditionCategoryId
+  if (directKey in MEDICAL_CONDITION_CATEGORY_LOOKUP) {
+    return directKey
+  }
+  const normalized = trimmed
+    .toUpperCase()
+    .replace(/[\s\-\/]+/g, '_') as MedicalConditionCategoryId
+  if (normalized in MEDICAL_CONDITION_CATEGORY_LOOKUP) {
+    return normalized
+  }
+  const matched = MEDICAL_CONDITION_CATEGORIES.find(
+    (category) => category.label.toLowerCase() === trimmed.toLowerCase(),
+  )
+  return matched ? matched.id : null
 }
 
 export async function GET(
@@ -45,16 +73,103 @@ export async function GET(
     // Only approved intake submissions
     const approvedIntakes = (intakes || []).filter((i: any) => (i.status || '').toString() === 'APPROVED')
 
-    // Compute risk level: simple heuristic
-    // High if allergies present, chronic/medical condition present, or recent approved intake with risk flag
-    const hasAllergies = !!(patient as any)?.allergies || !!(patient as any)?.medicalHistory
-    const hasMedicalCondition = !!(patient as any)?.medicalCondition
     const latestApprovedIntake = approvedIntakes
       .slice()
-      .sort((a: any, b: any) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))[0]
-    const intakeHasChronic = !!(latestApprovedIntake?.payload?.riskFlags?.hasChronic)
-    const riskLevel = ((): 'LOW' | 'MEDIUM' | 'HIGH' => {
-      if (hasAllergies || hasMedicalCondition || intakeHasChronic) return 'HIGH'
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+    const rawConditionCategory = (patient as any)?.medicalConditionCategory
+    const conditionCategoryId = normalizeCategoryKey(rawConditionCategory)
+    const conditionMeta = conditionCategoryId ? MEDICAL_CONDITION_CATEGORY_LOOKUP[conditionCategoryId] : undefined
+    const conditionNotes = ((patient as any)?.medicalConditionNotes || (patient as any)?.medicalCondition || '')
+      .toString()
+      .trim()
+    const conditionSummary =
+      conditionCategoryId || conditionNotes
+        ? formatMedicalConditionSummary(conditionCategoryId ?? undefined, conditionNotes || undefined)
+        : null
+
+    const hasAllergies = !!(patient as any)?.allergies || !!(patient as any)?.medicalHistory
+
+    const intakeFlags = (latestApprovedIntake?.payload?.riskFlags || {}) as Record<string, any>
+    const intakeChronicList =
+      (latestApprovedIntake?.payload?.chronicConditions?.conditions || []) as Array<{ condition?: string }>
+
+    const now = Date.now()
+    const recentHighPriorityAlert = (alerts || []).some((alert: any) => {
+      const createdAt = new Date(alert?.createdAt ?? alert?.created_at ?? '').getTime()
+      if (!Number.isFinite(createdAt)) return false
+      const withinWindow = now - createdAt <= RECENT_ALERT_WINDOW_DAYS * 24 * 60 * 60 * 1000
+      if (!withinWindow) return false
+      const priority = (alert?.priority || '').toString().toLowerCase()
+      return priority === 'high' || priority === 'urgent'
+    })
+
+    const highPriorityTask = (tasks || []).some((task: any) => {
+      const priority = (task?.priority || '').toString().toLowerCase()
+      return priority === 'high' || priority === 'urgent'
+    })
+
+    let riskScore = 0
+    const riskFactors: string[] = []
+
+    if (conditionMeta) {
+      if (conditionMeta.riskFlag === 'HIGH') {
+        riskScore += 4
+        riskFactors.push(`${conditionMeta.label} documented as high priority condition`)
+      } else if (conditionMeta.riskFlag === 'MEDIUM') {
+        riskScore += 2
+        riskFactors.push(`${conditionMeta.label} documented as elevated condition`)
+      }
+    }
+
+    if (conditionNotes) {
+      riskScore += 1
+      riskFactors.push('Additional condition notes recorded')
+    }
+
+    if (hasAllergies) {
+      riskScore += 2
+      riskFactors.push('Patient has documented allergies or medical history flags')
+    }
+
+    if (intakeFlags?.hasChronic) {
+      riskScore += 2
+      riskFactors.push('Chronic condition flagged in latest approved intake')
+    }
+
+    if (Array.isArray(intakeChronicList) && intakeChronicList.length > 0) {
+      riskScore += 1
+      riskFactors.push('Chronic condition list recorded in intake')
+    }
+
+    if (intakeFlags?.recentEmergency) {
+      riskScore += 3
+      riskFactors.push('Recent emergency noted in intake report')
+    }
+
+    if (intakeFlags?.isPregnant) {
+      riskScore += 2
+      riskFactors.push('Pregnancy risk flagged in intake')
+    }
+
+    if (intakeFlags?.isAge60Plus) {
+      riskScore += 1
+      riskFactors.push('Patient aged 60+')
+    }
+
+    if (recentHighPriorityAlert) {
+      riskScore += 3
+      riskFactors.push('Recent high-priority emergency alert')
+    }
+
+    if (highPriorityTask) {
+      riskScore += 2
+      riskFactors.push('Open high-priority task assigned')
+    }
+
+    const riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = (() => {
+      if (recentHighPriorityAlert || riskScore >= 6) return 'HIGH'
+      if (riskScore >= 3) return 'MEDIUM'
       return 'LOW'
     })()
 
@@ -203,15 +318,34 @@ export async function GET(
       return true
     })
 
+    const normalizedConditionSummary =
+      conditionSummary && conditionSummary !== 'Not specified' ? conditionSummary : null
+
+    const conditionDetails = {
+      categoryId: conditionCategoryId,
+      label: conditionMeta?.label ?? null,
+      riskFlag: conditionMeta?.riskFlag ?? null,
+      color: conditionMeta?.color ?? null,
+      notes: conditionNotes || null,
+      summary: normalizedConditionSummary,
+    }
+
     return NextResponse.json({
       patient: patient || null,
       riskLevel,
+      riskDetails: {
+        score: riskScore,
+        factors: riskFactors,
+      },
+      condition: conditionDetails,
       summaries: {
         allergies: (patient as any)?.allergies || null,
         chronicConditions:
           (latestApprovedIntake?.payload?.chronicConditions?.conditions || [])
             .map((c: any) => c?.condition || c)
             .filter(Boolean) || [],
+        conditionSummary: normalizedConditionSummary,
+        conditionLabel: conditionMeta?.label ?? null,
       },
       records: filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     })

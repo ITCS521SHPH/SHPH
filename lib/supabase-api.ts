@@ -1,5 +1,6 @@
-import { createClient } from "@supabase/supabase-js"
+﻿import { createClient } from "@supabase/supabase-js"
 import type { Database } from "./supabase"
+import { formatMedicalConditionSummary, decodeMedicalConditionPayload, encodeMedicalConditionPayload } from "./medical-condition-categories"
 
 // Create Supabase client with service role key for server-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,6 +22,93 @@ const supabase =
         },
       })
     : null
+
+const doctorIdCache = new Map<string, string>()
+
+const resolveDoctorRecordId = async (doctorIdentifier: string): Promise<string> => {
+  if (!supabase) {
+    throw new Error("Supabase not configured")
+  }
+
+  const trimmed = doctorIdentifier.trim()
+  if (doctorIdCache.has(trimmed)) {
+    return doctorIdCache.get(trimmed)!
+  }
+
+  const cacheAndReturn = (resolved: string) => {
+    doctorIdCache.set(trimmed, resolved)
+    if (!doctorIdCache.has(resolved)) {
+      doctorIdCache.set(resolved, resolved)
+    }
+    return resolved
+  }
+
+  const { data: doctorById, error: doctorByIdError } = await supabase
+    .from("doctors")
+    .select("id")
+    .eq("id", trimmed)
+    .maybeSingle()
+
+  if (doctorByIdError) {
+    throw new Error(doctorByIdError.message)
+  }
+
+  let resolved = doctorById?.id
+
+  if (!resolved) {
+    try {
+      const { data: doctorByUserId, error: doctorByUserIdError } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("user_id", trimmed)
+        .maybeSingle()
+
+      if (doctorByUserIdError) {
+        const message = doctorByUserIdError.message || ""
+        if (!message.includes('column "user_id"')) {
+          throw new Error(doctorByUserIdError.message)
+        }
+      } else if (doctorByUserId?.id) {
+        resolved = doctorByUserId.id
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error(String(error))
+    }
+  }
+
+  if (!resolved) {
+    const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(trimmed)
+    if (authUserError && authUserError.message && !authUserError.message.toLowerCase().includes("not found")) {
+      throw new Error(authUserError.message)
+    }
+
+    const email = authUser?.user?.email
+    if (email) {
+      const { data: doctorByEmail, error: doctorByEmailError } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle()
+
+      if (doctorByEmailError) {
+        throw new Error(doctorByEmailError.message)
+      }
+
+      if (doctorByEmail?.id) {
+        resolved = doctorByEmail.id
+      }
+    }
+  }
+
+  if (!resolved) {
+    throw new Error("Doctor profile not found for the provided identifier")
+  }
+
+  return cacheAndReturn(resolved)
+}
 import type {
   User,
   Patient,
@@ -66,21 +154,39 @@ type EmergencyAlertRow = Database["public"]["Tables"]["emergency_alerts"]["Row"]
 
 // Convert Supabase rows to our types
 
-const convertPatientRow = (row: PatientRow): Patient => ({
-  id: row.id,
-  userId: row.user_id || undefined,
-  nationalId: row.national_id || undefined,
-  firstName: row.first_name,
-  lastName: row.last_name,
-  dob: new Date(row.dob),
-  phone: row.phone || undefined,
-  address: row.address || undefined,
-  district: row.district || undefined,
-  medicalCondition: (row as any).medical_condition ?? (row as any).medical_history ?? undefined, // Use medical_condition if exists, otherwise medical_history
-  lastVisit: (row as any).last_visit ? new Date((row as any).last_visit) : undefined,
-  createdAt: new Date(row.created_at),
-  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-})
+const convertPatientRow = (row: PatientRow): Patient => {
+  const rawHistory = ((row as any).medical_history as string | null) ?? null
+  const decodedHistory = decodeMedicalConditionPayload(rawHistory)
+  let medicalConditionCategory = ((row as any).medical_condition as string | null) ?? null
+  if (!medicalConditionCategory && decodedHistory.category) {
+    medicalConditionCategory = decodedHistory.category
+  }
+  const medicalConditionNotes = decodedHistory.notes ?? null
+
+  const hasConditionData = !!medicalConditionCategory || !!medicalConditionNotes
+  const displayCondition = hasConditionData
+    ? formatMedicalConditionSummary(medicalConditionCategory ?? undefined, medicalConditionNotes ?? undefined)
+    : undefined
+
+  return {
+    id: row.id,
+    userId: row.user_id || undefined,
+    nationalId: row.national_id || undefined,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    dob: new Date(row.dob),
+    phone: row.phone || undefined,
+    address: row.address || undefined,
+    district: row.district || undefined,
+    medicalCondition: displayCondition,
+    medicalConditionCategory,
+    medicalConditionNotes,
+    medicalHistory: medicalConditionNotes,
+    lastVisit: (row as any).last_visit ? new Date((row as any).last_visit) : undefined,
+    createdAt: new Date(row.created_at),
+    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  }
+}
 
 const convertIntakeRow = (row: IntakeRow): IntakeSubmission => ({
   id: row.id,
@@ -332,26 +438,42 @@ export const getPatients = async (): Promise<any[]> => {
     }
 
     return (
-      data?.map((row) => ({
-        id: row.id,
-        email: row.email,
-        firstName: row.first_name,
-        lastName: row.last_name,
-        name: `${row.first_name} ${row.last_name}`,
-        status: row.is_active ? "active" : "inactive",
-        phone: row.phone,
-        nationalId: row.national_id,
-        dob: row.dob,
-        address: row.address,
-        district: row.district,
-        emergencyContactName: row.emergency_contact_name,
-        emergencyContactPhone: row.emergency_contact_phone,
-        medicalCondition: (row as any).medical_condition ?? (row as any).medical_history ?? null, // Use medical_condition if exists, otherwise medical_history
-        medicalHistory: (row as any).medical_history ?? null, // Keep medicalHistory for backward compatibility
-        allergies: row.allergies,
-        createdAt: new Date(row.created_at),
-        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
-      })) || []
+      data?.map((row) => {
+        const rawHistory = ((row as any).medical_history as string | null) ?? null
+        const decodedHistory = decodeMedicalConditionPayload(rawHistory)
+        let medicalConditionCategory = ((row as any).medical_condition as string | null) ?? null
+        if (!medicalConditionCategory && decodedHistory.category) {
+          medicalConditionCategory = decodedHistory.category
+        }
+        const medicalConditionNotes = decodedHistory.notes ?? null
+        const hasConditionData = !!medicalConditionCategory || !!medicalConditionNotes
+        const displayCondition = hasConditionData
+          ? formatMedicalConditionSummary(medicalConditionCategory ?? undefined, medicalConditionNotes ?? undefined)
+          : null
+
+        return {
+          id: row.id,
+          email: row.email,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          name: `${row.first_name} ${row.last_name}`,
+          status: row.is_active ? "active" : "inactive",
+          phone: row.phone,
+          nationalId: row.national_id,
+          dob: row.dob,
+          address: row.address,
+          district: row.district,
+          emergencyContactName: row.emergency_contact_name,
+          emergencyContactPhone: row.emergency_contact_phone,
+          medicalCondition: displayCondition,
+          medicalConditionCategory,
+          medicalConditionNotes,
+          medicalHistory: medicalConditionNotes, // Maintain legacy field for compatibility
+          allergies: row.allergies,
+          createdAt: new Date(row.created_at),
+          updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+        }
+      }) || []
     )
   } catch (error) {
     console.error("Error fetching patients:", error)
@@ -445,6 +567,15 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
   }
 
   // Attempt insert including optional columns; fall back to minimal payload if schema lacks columns
+  const legacyCondition = patientData.medicalCondition?.trim() || null
+  const selectedCategory = patientData.medicalConditionCategory?.trim().toUpperCase() || null
+  const detailedNotes =
+    patientData.medicalConditionNotes?.trim() ||
+    (selectedCategory && legacyCondition && legacyCondition !== selectedCategory ? legacyCondition : null) ||
+    null
+  const storedCategory = selectedCategory || legacyCondition
+  const encodedSummary = encodeMedicalConditionPayload(storedCategory, detailedNotes)
+
   const optionalPayload: any = {
     email: patientData.email || dummyEmail,
     national_id: patientData.nationalId || null,
@@ -454,8 +585,8 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
     phone: patientData.phone || null,
     address: patientData.address || null,
     district: patientData.district || null,
-    medical_condition: patientData.medicalCondition || null,
-    medical_history: patientData.medicalCondition || null, // Also set medical_history for compatibility
+    medical_condition: storedCategory,
+    medical_history: encodedSummary,
     // Note: last_visit may not exist in schema, handle it separately
     password_hash: computedHash || "placeholder_password_hash",
   }
@@ -471,6 +602,9 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
     last_name: patientData.lastName,
     dob: patientData.dob,
     password_hash: computedHash || "placeholder_password_hash",
+  }
+  if (encodedSummary != null) {
+    minimalPayload.medical_history = encodedSummary
   }
 
   // First try with optional fields
@@ -549,18 +683,17 @@ export const createPatient = async (patientData: CreatePatient): Promise<Patient
         }
       } else {
         // Success on reduced payload - try to update medical fields separately if they were excluded
-        if (insertResp.data && (optionalPayload as any).medical_condition != null) {
-          const medicalValue = (optionalPayload as any).medical_condition
+        if (insertResp.data && ((optionalPayload as any).medical_condition != null || (optionalPayload as any).medical_history != null)) {
           const updateData: any = {}
           
           // Try to update medical_condition if it wasn't problematic
-          if (!problematicFields.has("medical_condition")) {
-            updateData.medical_condition = medicalValue
+          if (!problematicFields.has("medical_condition") && (optionalPayload as any).medical_condition != null) {
+            updateData.medical_condition = (optionalPayload as any).medical_condition
           }
           
           // Try to update medical_history if it wasn't problematic
-          if (!problematicFields.has("medical_history")) {
-            updateData.medical_history = medicalValue
+          if (!problematicFields.has("medical_history") && (optionalPayload as any).medical_history != null) {
+            updateData.medical_history = (optionalPayload as any).medical_history
           }
           
           // Update both fields if available
@@ -815,7 +948,7 @@ export const createTask = async (taskData: CreateTaskRequest): Promise<Task> => 
       description: taskData.description,
       patient_id: taskData.patientId || null,
       vhv_id: taskData.vhvId,
-      doctor_id: taskData.doctorId,
+      doctor_id: await resolveDoctorRecordId(taskData.doctorId),
       priority: taskData.priority,
       due_date: taskData.dueDate && taskData.dueDate.trim() !== "" ? taskData.dueDate : null,
     })
@@ -834,10 +967,12 @@ export const getTasksByDoctor = async (doctorId: string): Promise<Task[]> => {
     return []
   }
 
+  const resolvedDoctorId = await resolveDoctorRecordId(doctorId)
+
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
-    .eq("doctor_id", doctorId)
+    .eq("doctor_id", resolvedDoctorId)
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -1205,6 +1340,8 @@ export const getAssignmentsWithDetails = async (doctorId: string) => {
     return []
   }
 
+  const resolvedDoctorId = await resolveDoctorRecordId(doctorId)
+
   // Fetch assignments with joined patient and VHV data in one round-trip
   const { data: joined, error: joinError } = await supabase
     .from("assignments")
@@ -1213,7 +1350,7 @@ export const getAssignmentsWithDetails = async (doctorId: string) => {
       patients:patient_id (*),
       vhvs:vhv_id (*)
     `)
-    .eq("doctor_id", doctorId)
+    .eq("doctor_id", resolvedDoctorId)
     .order("created_at", { ascending: false })
 
   if (joinError) {
@@ -1853,18 +1990,20 @@ export const assignPatient = async (assignmentData: AssignPatientRequest): Promi
     throw new Error("Supabase not configured")
   }
 
-  if (!assignmentData.doctorId) {
+  const providedDoctorId = assignmentData.doctorId?.trim()
+  if (!providedDoctorId) {
     throw new Error("Doctor ID is required for assignment")
   }
 
-  // Use upsert to handle duplicate assignments gracefully
+  const resolvedDoctorId = await resolveDoctorRecordId(providedDoctorId)
+
   const { data, error } = await supabase
     .from("assignments")
     .upsert(
       {
         patient_id: assignmentData.patientId,
         vhv_id: assignmentData.vhvId,
-        doctor_id: assignmentData.doctorId,
+        doctor_id: resolvedDoctorId,
         status: "active",
         assigned_at: new Date().toISOString(),
       },
@@ -1930,11 +2069,13 @@ export const getEmergencyAlertsByDoctor = async (doctorId: string, status?: stri
     throw new Error("Supabase not configured")
   }
 
+  const resolvedDoctorId = await resolveDoctorRecordId(doctorId)
+
   // First get all patients assigned to this doctor
   const { data: assignments, error: assignmentsError } = await supabase
     .from("assignments")
     .select("patient_id")
-    .eq("doctor_id", doctorId)
+    .eq("doctor_id", resolvedDoctorId)
 
   if (assignmentsError) {
     throw new Error(`Failed to get doctor assignments: ${assignmentsError.message}`)
@@ -2687,10 +2828,11 @@ export const getAreaTaskById = async (id: string) => {
 
 export const getAreaTasksByDoctor = async (doctorId: string) => {
   if (!supabase) return []
+  const resolvedDoctorId = await resolveDoctorRecordId(doctorId)
   const { data, error } = await supabase
     .from("area_tasks")
     .select("*")
-    .eq("doctor_id", doctorId)
+    .eq("doctor_id", resolvedDoctorId)
     .order("created_at", { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(convertAreaTaskRow)
@@ -2703,7 +2845,7 @@ export const createAreaTask = async (taskData: any) => {
     .insert({
       title: taskData.title,
       description: taskData.description,
-      doctor_id: taskData.doctorId,
+      doctor_id: await resolveDoctorRecordId(taskData.doctorId),
       vhv_id: taskData.vhvId,
       district: taskData.district || taskData.areaDistrict || null,
       priority: taskData.priority,

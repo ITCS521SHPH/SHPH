@@ -84,6 +84,9 @@ export interface Patient extends BaseEntity {
   address?: string
   district?: string
   medicalCondition?: string
+  medicalConditionCategory?: string | null
+  medicalConditionNotes?: string | null
+  medicalHistory?: string | null
   lastVisit?: Date
 }
 
@@ -289,6 +292,8 @@ export interface CreatePatient {
   email?: string
   password?: string
   medicalCondition?: string
+  medicalConditionCategory?: string
+  medicalConditionNotes?: string
   lastVisit?: string | null
 }
 

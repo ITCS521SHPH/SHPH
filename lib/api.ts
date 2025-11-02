@@ -809,6 +809,20 @@ export const emergencyApi = {
   },
 }
 
+export const doctorAnalyticsApi = {
+  getDistrictRisk: async () => {
+    if (USE_SUPABASE) {
+      const response = await fetch("/api/doctor/district-risk")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to load district risk analytics")
+      }
+      return response.json()
+    }
+    return Promise.resolve(null)
+  },
+}
+
 // Default export for compatibility
 const apiClient = {
   // Mock axios-like interface for any remaining direct usage

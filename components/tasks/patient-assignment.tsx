@@ -193,6 +193,9 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                           <p className="text-sm text-muted-foreground">
                             Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            District: {assignment.patient?.district || "Not specified"}
+                          </p>
                         </div>
                         <div className="flex gap-2">
                           {assignment.patient?.id && (
@@ -262,6 +265,7 @@ export function PatientAssignment({ doctorId, onAssignmentComplete, hideCurrentA
                           </h3>
                           <p className="text-sm text-muted-foreground">ID: {patient.nationalId}</p>
                           <p className="text-sm text-muted-foreground">Phone: {patient.phone}</p>
+                          <p className="text-sm text-muted-foreground">District: {patient.district || "Not specified"}</p>
                         </div>
                         <div className="flex gap-2 flex-wrap">
                           <Button variant="outline" onClick={() => window.location.assign(`/doctor/patients/${patient.id}/history`)}>
