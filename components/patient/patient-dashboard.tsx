@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin, Grip } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin, Phone, Mail } from "lucide-react"
 import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -18,6 +18,20 @@ import { EmergencyButton } from "@/components/emergency/emergency-button"
 import { patientDataApi, intakesApi } from "@/lib/api"
 import { useApiData } from "@/lib/useApiData"
 import { PatientAppointments } from "@/components/patient/patient-appointments"
+
+interface AssignedVHVContact {
+  assignmentId: string
+  status: string
+  assignedAt?: string | null
+  vhv: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    phone: string | null
+    district?: string | null
+  } | null
+}
 
 export function PatientDashboard() {
   const router = useRouter()
@@ -83,10 +97,26 @@ export function PatientDashboard() {
     [currentPatientId],
   )
 
+  const {
+    data: assignedVHVInfo,
+    loading: assignedVHVLoading,
+    error: assignedVHVError,
+  } = useApiData<AssignedVHVContact | null>(
+    () => (currentPatientId ? patientDataApi.getAssignedVHV(currentPatientId) : Promise.resolve(null)),
+    [currentPatientId],
+  )
+
   // Filter only approved records
   const approvedHealthRecords = useMemo(() => {
     return (healthRecords || []).filter((record: any) => record.status === "APPROVED")
   }, [healthRecords])
+
+  const assignedVHV = assignedVHVInfo?.vhv ?? null
+  const assignedVHVAssignedDateRaw = assignedVHVInfo?.assignedAt ? new Date(assignedVHVInfo.assignedAt) : null
+  const assignedVHVAssignedDate =
+    assignedVHVAssignedDateRaw && !Number.isNaN(assignedVHVAssignedDateRaw.getTime())
+      ? assignedVHVAssignedDateRaw
+      : null
 
   // 調試日誌
   console.log("Patient Dashboard Data Status:", {
@@ -109,6 +139,7 @@ export function PatientDashboard() {
     currentMedications: currentMedications.length,
     vitalTrends: vitalTrends.length,
     approvedHealthRecords: approvedHealthRecords.length,
+    assignedVHV: assignedVHV ? assignedVHV.id : null,
   })
 
   const handleSignOut = () => {
@@ -281,7 +312,8 @@ export function PatientDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3  h-auto" >
+          <TabsList className="flex w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent
+    gap-1 sm:gap-2 rounded-lg  p-1">
             <TabsTrigger
               value="appointments"
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
@@ -315,6 +347,14 @@ export function PatientDashboard() {
               <FileText className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Health Records</span>
               <span className="sm:hidden">Records</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="vhv_contact"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+            >
+              <User className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">My VHV</span>
+              <span className="sm:hidden">VHV</span>
             </TabsTrigger>
             <TabsTrigger value="resources" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3">
               <BookOpen className="h-3 w-3 md:h-4 md:w-4" />
@@ -577,6 +617,76 @@ export function PatientDashboard() {
                       </CardContent>
                     </Card>
                   ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vhv_contact" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base md:text-lg">Your Village Health Volunteer</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                  Contact details for the volunteer assigned to support you
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {assignedVHVLoading ? (
+                  <div className="space-y-2">
+                    <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-1/2 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+                  </div>
+                ) : assignedVHVError ? (
+                  <p className="text-sm text-destructive">Unable to load your VHV information right now.</p>
+                ) : assignedVHV ? (
+                  <div className="space-y-3 text-xs md:text-sm">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm md:text-base">
+                          {[assignedVHV.firstName, assignedVHV.lastName].filter(Boolean).join(" ") || "Your VHV"}
+                        </p>
+                        {assignedVHVAssignedDate ? (
+                          <p className="text-xs text-muted-foreground">
+                            Assigned on {assignedVHVAssignedDate.toLocaleDateString()}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    {assignedVHV.phone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-primary" />
+                        <a href={`tel:${assignedVHV.phone}`} className="text-sm md:text-base hover:underline">
+                          {assignedVHV.phone}
+                        </a>
+                      </div>
+                    ) : null}
+                    {assignedVHV.email ? (
+                      <div className="flex items-center gap-2 break-all">
+                        <Mail className="h-4 w-4 text-primary" />
+                        <a href={`mailto:${assignedVHV.email}`} className="text-sm md:text-base hover:underline">
+                          {assignedVHV.email}
+                        </a>
+                      </div>
+                    ) : null}
+                    {assignedVHV.district ? (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span>{assignedVHV.district}</span>
+                      </div>
+                    ) : null}
+                    {!assignedVHV.phone && !assignedVHV.email ? (
+                      <p className="text-xs text-muted-foreground">
+                        Contact details are not available yet. Please reach out to your clinic if you need assistance.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>No Village Health Volunteer has been assigned to you yet.</p>
+                    <p>Your care team will update this as soon as someone is available.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>

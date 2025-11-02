@@ -8,12 +8,31 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { PatientTaskResults } from '@/components/doctor/task-results'
-
 type ParamsMaybePromise = { id: string } | Promise<{ id: string }>
 
 function isThenable(v: any): v is Promise<any> {
   return v && typeof v.then === 'function'
+}
+
+type HistoryRiskDetails = {
+  score: number
+  factors: string[]
+}
+
+type HistoryConditionDetails = {
+  categoryId: string | null
+  label: string | null
+  riskFlag: 'HIGH' | 'MEDIUM' | 'LOW' | null
+  color?: string | null
+  notes?: string | null
+  summary?: string | null
+}
+
+type HistorySummaries = {
+  allergies?: string | null
+  chronicConditions?: string[]
+  conditionSummary?: string | null
+  conditionLabel?: string | null
 }
 
 function HistoryContent({ params }: { params: ParamsMaybePromise }) {
@@ -25,7 +44,9 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
   const [records, setRecords] = useState<any[]>([])
   const [patient, setPatient] = useState<any>(null)
   const [riskLevel, setRiskLevel] = useState<'LOW'|'MEDIUM'|'HIGH'>('LOW')
-  const [summaries, setSummaries] = useState<{ allergies?: string|null, chronicConditions?: string[] }>({})
+  const [riskDetails, setRiskDetails] = useState<HistoryRiskDetails | null>(null)
+  const [conditionDetails, setConditionDetails] = useState<HistoryConditionDetails | null>(null)
+  const [summaries, setSummaries] = useState<HistorySummaries>({})
 
   const [from, setFrom] = useState(sp.get('from') || '')
   const [to, setTo] = useState(sp.get('to') || '')
@@ -49,10 +70,14 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
       const data = await res.json()
       setPatient(data.patient)
       setRiskLevel(data.riskLevel || 'LOW')
+      setRiskDetails(data.riskDetails || null)
+      setConditionDetails(data.condition || null)
       setSummaries(data.summaries || {})
       setRecords(data.records || [])
     } catch (e: any) {
       setError(e?.message || 'Failed to load history')
+      setRiskDetails(null)
+      setConditionDetails(null)
     } finally {
       setLoading(false)
     }
@@ -71,6 +96,29 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
     }
   }, [riskLevel]) as any
 
+  const conditionBadgeVariant = useMemo(() => {
+    if (!conditionDetails?.riskFlag) return 'outline'
+    switch (conditionDetails.riskFlag) {
+      case 'HIGH':
+        return 'destructive'
+      case 'MEDIUM':
+        return 'secondary'
+      default:
+        return 'outline'
+    }
+  }, [conditionDetails?.riskFlag]) as any
+
+  const conditionColor = conditionDetails?.color || '#94A3B8'
+  const conditionPriorityText = conditionDetails?.riskFlag
+    ? conditionDetails.riskFlag.toLowerCase()
+    : null
+  const riskFactorList = useMemo(
+    () => (riskDetails?.factors || []).filter((factor) => typeof factor === 'string' && factor.trim().length > 0),
+    [riskDetails],
+  )
+  const chronicList = summaries.chronicConditions || []
+  const conditionSummaryText = conditionDetails?.summary || summaries.conditionSummary || null
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -87,22 +135,55 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
         </CardHeader>
         <CardContent>
           {patient ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <div className="text-sm text-muted-foreground">Name</div>
+                <div className="text-sm text-muted-foreground mb-1">Name</div>
                 <div className="font-medium">{patient.firstName} {patient.lastName}</div>
               </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Risk Level</div>
-                <Badge variant={riskBadgeVariant}>{riskLevel}</Badge>
+              <div> 
+                <div className="text-sm text-muted-foreground mb-1">Risk Level</div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={riskBadgeVariant}>{riskLevel}</Badge>
+                  {typeof riskDetails?.score === 'number' && (
+                    <span className="text-xs text-muted-foreground">Score {riskDetails.score}</span>
+                  )}
+                </div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Allergies</div>
+                <div className="text-sm text-muted-foreground mb-1">Condition Type</div>
+                {conditionDetails?.label ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="h-2.5 w-2.5 rounded-full border border-white/40"
+                        style={{ backgroundColor: conditionColor }}
+                      />
+                      <Badge variant={conditionBadgeVariant}>{conditionDetails.label}</Badge>
+                    </div>
+                    {conditionPriorityText && (
+                      <p className="text-xs text-muted-foreground capitalize">{conditionPriorityText} priority</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="font-medium text-muted-foreground">Not documented</div>
+                )}
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground mb-1">Allergies</div>
                 <div className="font-medium">{summaries.allergies || 'None reported'}</div>
               </div>
-              <div className="md:col-span-3">
-                <div className="text-sm text-muted-foreground">Chronic Conditions</div>
-                <div className="font-medium">{(summaries.chronicConditions || []).join(', ') || 'None'}</div>
+              <div className="md:col-span-2">
+                <div className="text-sm text-muted-foreground mb-1">Condition Summary</div>
+                <div className="font-medium">
+                  {conditionSummaryText || 'No detailed notes recorded.'}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="text-sm text-muted-foreground mb-1">Chronic Conditions</div>
+                <div className="font-medium">
+                  {chronicList.length > 0 ? chronicList.join(', ') : 'None recorded'}
+                </div>
               </div>
             </div>
           ) : (
@@ -157,7 +238,7 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
           <CardTitle>Records</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading && <div className="text-sm text-muted-foreground">Loading…</div>}
+          {loading && <div className="text-sm text-muted-foreground">Loading...</div>}
           {error && <div className="text-sm text-red-600">{error}</div>}
           {!loading && !error && records.length === 0 && (
             <div className="text-sm text-muted-foreground">No records found.</div>
@@ -190,7 +271,7 @@ function HistoryContent({ params }: { params: ParamsMaybePromise }) {
 
 export default function PatientHistoryPage({ params }: { params: ParamsMaybePromise }) {
   return (
-    <Suspense fallback={<div className="container mx-auto px-4 py-6">Loading history…</div>}>
+    <Suspense fallback={<div className="container mx-auto px-4 py-6">Loading history...</div>}>
       <HistoryContent params={params} />
     </Suspense>
   )

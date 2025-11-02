@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase-server"
+import {
+  decodeMedicalConditionPayload,
+  encodeMedicalConditionPayload,
+  formatMedicalConditionSummary,
+} from "@/lib/medical-condition-categories"
 
 export async function PUT(
   request: NextRequest,
@@ -11,6 +16,40 @@ export async function PUT(
 
     const { id } = await (context as any).params
     console.log("[v0] Updating patient:", id)
+
+    const buildResponse = (row: any) => {
+      const rawHistory = (row as any)?.medical_history ?? null
+      const decodedHistory = decodeMedicalConditionPayload(rawHistory)
+      const medicalCategory =
+        (row as any)?.medical_condition ?? decodedHistory.category ?? null
+      const medicalNotes = decodedHistory.notes ?? null
+      const hasCondition = !!medicalCategory || !!medicalNotes
+      const medicalConditionDisplay = hasCondition
+        ? formatMedicalConditionSummary(medicalCategory ?? undefined, medicalNotes ?? undefined)
+        : null
+
+      return {
+        id: row.id,
+        email: row.email,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        dob: row.dob,
+        phone: row.phone,
+        address: row.address,
+        nationalId: row.national_id,
+        district: row.district,
+        medicalCondition: medicalConditionDisplay,
+        medicalConditionCategory: medicalCategory,
+        medicalConditionNotes: medicalNotes,
+        medicalHistory: medicalNotes, // Keep medicalHistory field for backward compatibility
+        allergies: row.allergies,
+        emergencyContactName: row.emergency_contact_name,
+        emergencyContactPhone: row.emergency_contact_phone,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    }
 
     // Whitelist and map camelCase fields to DB columns
     const updates: Record<string, any> = {}
@@ -29,15 +68,51 @@ export async function PUT(
     mapIfPresent("district", "district")
     mapIfPresent("nationalId", "national_id")
     
-    // Handle medicalCondition - convert empty string to null
-    // Update both medical_condition and medical_history if provided
-    // This ensures compatibility with both column names
-    if (Object.prototype.hasOwnProperty.call(body, "medicalCondition")) {
-      const medicalValue = body.medicalCondition === "" || body.medicalCondition === null ? null : body.medicalCondition
-      // Try to update both columns - if a column doesn't exist, Supabase will ignore it
-      // This allows the system to work with either medical_condition or medical_history
-      updates["medical_condition"] = medicalValue
-      updates["medical_history"] = medicalValue
+    let nextMedicalCategory: string | null | undefined = undefined
+    let nextMedicalNotes: string | null | undefined = undefined
+
+    if (Object.prototype.hasOwnProperty.call(body, "medicalConditionCategory")) {
+      const rawCategory =
+        body.medicalConditionCategory === "" || body.medicalConditionCategory === null
+          ? ""
+          : String(body.medicalConditionCategory).trim()
+      nextMedicalCategory = rawCategory.length === 0 ? null : rawCategory.toUpperCase()
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "medicalConditionNotes")) {
+      nextMedicalNotes =
+        body.medicalConditionNotes === "" || body.medicalConditionNotes === null
+          ? null
+          : String(body.medicalConditionNotes)
+    }
+
+    // Backwards compatibility: if legacy medicalCondition field supplied without new fields, mirror to both columns
+    if (
+      Object.prototype.hasOwnProperty.call(body, "medicalCondition") &&
+      !Object.prototype.hasOwnProperty.call(body, "medicalConditionCategory") &&
+      !Object.prototype.hasOwnProperty.call(body, "medicalConditionNotes")
+    ) {
+      const medicalValue =
+        body.medicalCondition === "" || body.medicalCondition === null ? null : String(body.medicalCondition).trim()
+      const decodedLegacy = decodeMedicalConditionPayload(medicalValue)
+      if (nextMedicalCategory === undefined) {
+        nextMedicalCategory = decodedLegacy.category ?? (medicalValue || null)
+      }
+      if (nextMedicalNotes === undefined) {
+        nextMedicalNotes = decodedLegacy.notes ?? (decodedLegacy.category ? null : medicalValue)
+      }
+    }
+
+    if (nextMedicalCategory !== undefined) {
+      updates["medical_condition"] = nextMedicalCategory
+    }
+
+    if (nextMedicalCategory !== undefined || nextMedicalNotes !== undefined) {
+      const encodedSummary = encodeMedicalConditionPayload(
+        nextMedicalCategory === undefined ? null : nextMedicalCategory,
+        nextMedicalNotes === undefined ? null : nextMedicalNotes,
+      )
+      updates["medical_history"] = encodedSummary
     }
     
     mapIfPresent("lastVisit", "last_visit")
@@ -74,35 +149,14 @@ export async function PUT(
         if (retryError) throw retryError
         
         console.log("[v0] Patient updated successfully (without medical_condition)")
-        return NextResponse.json(retryData)
+        return NextResponse.json(buildResponse(retryData))
       }
       throw error
     }
 
     console.log("[v0] Patient updated successfully")
-    
-    // Convert database fields to frontend format
-    const convertedData = {
-      id: data.id,
-      email: data.email,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      dob: data.dob,
-      phone: data.phone,
-      address: data.address,
-      nationalId: data.national_id,
-      district: data.district,
-      medicalCondition: (data as any).medical_condition ?? (data as any).medical_history ?? null, // Use medical_condition if exists, fallback to medical_history
-      medicalHistory: (data as any).medical_history ?? null, // Keep medicalHistory field for backward compatibility
-      allergies: data.allergies,
-      emergencyContactName: data.emergency_contact_name,
-      emergencyContactPhone: data.emergency_contact_phone,
-      isActive: data.is_active,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    }
-    
-    return NextResponse.json(convertedData)
+
+    return NextResponse.json(buildResponse(data))
   } catch (error) {
     console.error("[v0] Error updating patient:", error)
     const message = error instanceof Error ? error.message : "Failed to update patient"

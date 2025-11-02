@@ -1,5 +1,6 @@
-"use client"
+﻿"use client"
 
+import * as SelectPrimitive from "@radix-ui/react-select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +44,7 @@ import {
   ChevronRight,
   UserPlus,
   ClipboardList,
+  Check,
   Bell,
   Edit2,
   Trash2,
@@ -50,16 +52,52 @@ import {
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { useState, useCallback, useEffect } from "react"
-import { reviewsApi, patientsApi, emergencyApi } from "../../lib/api"
+import { reviewsApi, patientsApi, emergencyApi, doctorAnalyticsApi } from "../../lib/api"
 import { useApiData } from "../../lib/useApiData"
 import type { IntakeSubmission } from "@/lib/types"
 // Removed inline TaskManagement/PatientAssignment from dashboard; moved to separate page
 import Link from "next/link"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
+import { DistrictRiskPanel } from "@/components/doctor/district-risk-panel"
 import VhvMap from "@/components/doctor/vhv-map"
 import PatientMap from "@/components/doctor/patient-map"
 import { UserRole } from "@/lib/types"
 import { AppointmentScheduler } from "@/components/doctor/appointment-scheduler"
+import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
+import {
+  MEDICAL_CONDITION_CATEGORIES,
+  MEDICAL_CONDITION_CATEGORY_LOOKUP,
+  formatMedicalConditionSummary,
+} from "@/lib/medical-condition-categories"
+
+const resolveConditionMeta = (category?: string | null) => {
+  if (!category) return null
+  const normalized = category.toUpperCase() as keyof typeof MEDICAL_CONDITION_CATEGORY_LOOKUP
+  return MEDICAL_CONDITION_CATEGORY_LOOKUP[normalized] ?? null
+}
+
+const ConditionSelectOption = ({
+  value,
+  label,
+  description,
+}: {
+  value: string
+  label: string
+  description: string
+}) => (
+  <SelectPrimitive.Item
+    value={value}
+    className="relative flex w-full cursor-default select-none flex-col items-start gap-1 rounded-sm py-2 pr-8 pl-3 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+  >
+    <SelectPrimitive.ItemText>{label}</SelectPrimitive.ItemText>
+    <span className="text-xs text-muted-foreground leading-snug">{description}</span>
+    <span className="absolute right-2 top-2 flex size-3.5 items-center justify-center">
+      <SelectPrimitive.ItemIndicator>
+        <Check className="size-4" />
+      </SelectPrimitive.ItemIndicator>
+    </span>
+  </SelectPrimitive.Item>
+)
 
 export function DoctorDashboard() {
   const router = useRouter()
@@ -113,6 +151,7 @@ export function DoctorDashboard() {
   const getApprovedReviews = useCallback(() => reviewsApi.getQueue("APPROVED"), [])
   const getAllPatients = useCallback(() => patientsApi.getAll(), [])
   const getAvailableVHVs = useCallback(() => patientsApi.getAvailableVHVs(), [])
+  const getDistrictRisk = useCallback(() => doctorAnalyticsApi.getDistrictRisk(), [])
 
   // API data hooks for pending reviews
   const {
@@ -144,6 +183,13 @@ export function DoctorDashboard() {
     refetch: refetchVHVs,
   } = useApiData(getAvailableVHVs, [])
 
+  const {
+    data: districtRisk,
+    loading: districtRiskLoading,
+    error: districtRiskError,
+    refetch: refetchDistrictRisk,
+  } = useApiData(getDistrictRisk, [])
+
   // Local state for forms and UI
   const [showAddPatientDialog, setShowAddPatientDialog] = useState(false)
   const [showNewVisitDialog, setShowNewVisitDialog] = useState(false)
@@ -154,11 +200,13 @@ export function DoctorDashboard() {
     lastName: "",
     dob: "",
     address: "",
+    district: "",
     phone: "",
     nationalId: "",
     email: "",
     password: "",
-    medicalCondition: "",
+    medicalConditionCategory: "NONE",
+    medicalConditionNotes: "",
     lastVisit: "",
   })
 
@@ -168,6 +216,9 @@ export function DoctorDashboard() {
     vhvId: "",
     notes: "",
   })
+
+  const newPatientCategoryMeta = resolveConditionMeta(newPatientForm.medicalConditionCategory)
+  const selectedPatientCategoryMeta = resolveConditionMeta(selectedPatient?.medicalConditionCategory)
 
   useEffect(() => {
     const fetchEmergencyCount = async () => {
@@ -192,13 +243,13 @@ export function DoctorDashboard() {
     try {
       if (action === "approve") {
         await reviewsApi.approve(submissionId)
-        alert("✅ Submission approved successfully!")
+        alert("? Submission approved successfully!")
         console.log("[v0] Approval successful")
       } else if (action === "request_more") {
         // For now, use a default comment - in a real app this would come from a form
         const comment = "Please provide additional information"
         await reviewsApi.requestChanges(submissionId, comment)
-        alert("📝 Changes requested - VHV has been notified")
+        alert("?? Changes requested - VHV has been notified")
         console.log("[v0] Changes requested")
       } else if (action === "in_review") {
         // Mark as in review - this will use the new API endpoint
@@ -208,7 +259,7 @@ export function DoctorDashboard() {
           body: JSON.stringify({ id: submissionId, action: "in_review" }),
         })
         if (!response.ok) throw new Error("Failed to start review")
-        alert("🔍 Review started - status updated to 'Under Review'")
+        alert("?? Review started - status updated to 'Under Review'")
         console.log("[v0] Marked as in review")
       }
 
@@ -217,76 +268,89 @@ export function DoctorDashboard() {
       refetchApproved()
     } catch (error) {
       console.error("[v0] Validation action failed:", error)
-      alert("❌ Action failed. Please try again.")
+      alert("? Action failed. Please try again.")
     }
   }
 
   const handleAddPatient = useCallback(async () => {
-    if (
-      newPatientForm.firstName &&
-      newPatientForm.lastName &&
-      newPatientForm.dob &&
-      newPatientForm.email &&
-      newPatientForm.password &&
-      newPatientForm.medicalCondition
-    ) {
-      try {
-        const newPatient = await patientsApi.create({
-          firstName: newPatientForm.firstName,
-          lastName: newPatientForm.lastName,
-          dob: newPatientForm.dob,
-          address: newPatientForm.address,
-          phone: newPatientForm.phone,
-          nationalId: newPatientForm.nationalId?.trim() || undefined, // Only send if provided and not empty
-          email: newPatientForm.email,
-          password: newPatientForm.password,
-          medicalCondition: newPatientForm.medicalCondition,
-          lastVisit: newPatientForm.lastVisit || null,
-        })
+    const trimmedFirstName = newPatientForm.firstName.trim()
+    const trimmedLastName = newPatientForm.lastName.trim()
+    const trimmedDob = newPatientForm.dob.trim()
+    const trimmedDistrict = newPatientForm.district.trim()
+    const trimmedEmail = newPatientForm.email.trim()
+    const trimmedPassword = newPatientForm.password.trim()
+    const trimmedConditionCategory = newPatientForm.medicalConditionCategory.trim()
 
-        setNewPatientForm({
-          firstName: "",
-          lastName: "",
-          dob: "",
-          address: "",
-          phone: "",
-          nationalId: "",
-          email: "",
-          password: "",
-          medicalCondition: "",
-          lastVisit: "",
-        })
-        setShowAddPatientDialog(false)
-        refetchPatients() // Refresh the patients list
-        console.log("[API] Added new patient:", newPatient)
-        alert("Patient created successfully! They can now log in with their email and password.")
-      } catch (error) {
-        console.error("[API] Failed to add patient:", error)
-        
-        // Extract user-friendly error message
-        let errorMessage = "Failed to create patient. Please try again."
-        if (error instanceof Error) {
-          errorMessage = error.message
-          
-          // Handle specific error codes from API
-          if (error.message.includes("National ID already exists") || 
-              error.message.includes("national_id")) {
-            errorMessage = "A patient with this National ID already exists. Please use a different National ID or leave it empty."
-          } else if (error.message.includes("email already exists") || 
-                     error.message.includes("email")) {
-            errorMessage = "A patient with this email already exists. Please use a different email address."
-          } else if (error.message.includes("duplicate")) {
-            errorMessage = "This patient information already exists in the system. Please check and try again."
-          }
+    const missingFields: string[] = []
+    if (!trimmedFirstName) missingFields.push("first name")
+    if (!trimmedLastName) missingFields.push("last name")
+    if (!trimmedDob) missingFields.push("date of birth")
+    if (!trimmedDistrict) missingFields.push("district")
+    if (!trimmedEmail) missingFields.push("email")
+    if (!trimmedPassword) missingFields.push("password")
+    if (!trimmedConditionCategory) missingFields.push("condition type")
+
+    if (missingFields.length > 0) {
+      alert(
+        `Please provide the following required field${missingFields.length > 1 ? "s" : ""}: ${missingFields.join(", ")}.`,
+      )
+      return
+    }
+
+    try {
+      const newPatient = await patientsApi.create({
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+        dob: trimmedDob,
+        address: newPatientForm.address.trim(),
+        district: trimmedDistrict,
+        phone: newPatientForm.phone.trim(),
+        nationalId: newPatientForm.nationalId?.trim() || undefined,
+        email: trimmedEmail,
+        password: trimmedPassword,
+        medicalConditionCategory: trimmedConditionCategory,
+        medicalConditionNotes: newPatientForm.medicalConditionNotes?.trim() || undefined,
+        lastVisit: newPatientForm.lastVisit || null,
+      })
+
+      setNewPatientForm({
+        firstName: "",
+        lastName: "",
+        dob: "",
+        address: "",
+        district: "",
+        phone: "",
+        nationalId: "",
+        email: "",
+        password: "",
+        medicalConditionCategory: "NONE",
+        medicalConditionNotes: "",
+        lastVisit: "",
+      })
+      setShowAddPatientDialog(false)
+      refetchPatients()
+      console.log("[API] Added new patient:", newPatient)
+      alert("Patient created successfully! They can now log in with their email and password.")
+    } catch (error) {
+      console.error("[API] Failed to add patient:", error)
+
+      let errorMessage = "Failed to create patient. Please try again."
+      if (error instanceof Error) {
+        errorMessage = error.message
+
+        if (error.message.includes("National ID already exists") || error.message.includes("national_id")) {
+          errorMessage =
+            "A patient with this National ID already exists. Please use a different National ID or leave it empty."
+        } else if (error.message.includes("email already exists") || error.message.includes("email")) {
+          errorMessage = "A patient with this email already exists. Please use a different email address."
+        } else if (error.message.includes("duplicate")) {
+          errorMessage = "This patient information already exists in the system. Please check and try again."
         }
-        
-        alert(`❌ ${errorMessage}`)
       }
-    } else {
-      alert("Please fill in all required fields including email, password, and medical condition.")
+
+      alert(`Error: ${errorMessage}`)
     }
   }, [newPatientForm, refetchPatients])
-
   const startReview = async (submissionId: string) => {
     // Just navigate to review page - don't change status yet
     // Status will only change when doctor actually performs an action (approve/request changes)
@@ -335,7 +399,8 @@ export function DoctorDashboard() {
       if (!selectedPatient) return
 
       console.log("[v0] Editing patient:", selectedPatient)
-      console.log("[v0] Medical condition value:", selectedPatient.medicalCondition)
+      console.log("[v0] Medical condition category:", selectedPatient.medicalConditionCategory)
+      console.log("[v0] Medical condition notes:", selectedPatient.medicalConditionNotes)
 
       const response = await fetch(`/api/doctor/patients/${selectedPatient.id}`, {
         method: "PUT",
@@ -345,10 +410,12 @@ export function DoctorDashboard() {
           lastName: selectedPatient.lastName,
           dob: selectedPatient.dob,
           address: selectedPatient.address,
+          district: selectedPatient.district || null,
           phone: selectedPatient.phone,
           nationalId: selectedPatient.nationalId,
           email: selectedPatient.email,
-          medicalCondition: selectedPatient.medicalCondition || null, // Send null if empty string
+          medicalConditionCategory: selectedPatient.medicalConditionCategory || null,
+          medicalConditionNotes: selectedPatient.medicalConditionNotes?.trim() || null,
         }),
       })
 
@@ -557,7 +624,7 @@ export function DoctorDashboard() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Temperature</label>
                 <p className="text-sm font-mono">
-                  {submission.payload?.vitals?.temp ? `${submission.payload.vitals.temp}°C` : "Not recorded"}
+                  {submission.payload?.vitals?.temp ? `${submission.payload.vitals.temp}` : "Not recorded"}
                 </p>
               </div>
               <div>
@@ -634,8 +701,8 @@ export function DoctorDashboard() {
             </h4>
             <p className="text-sm">
               {submission.payload?.consent?.consentGiven
-                ? "✅ Patient has provided consent for data collection and sharing"
-                : "❌ Consent status unclear - please verify"}
+                ? "? Patient has provided consent for data collection and sharing"
+                : "? Consent status unclear - please verify"}
             </p>
           </div>
 
@@ -867,7 +934,7 @@ export function DoctorDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7 h-auto">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-8 h-auto">
             <TabsTrigger value="emergencies" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <Bell className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Emergencies</span>
@@ -897,6 +964,11 @@ export function DoctorDashboard() {
               <Users className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Patient List</span>
               <span className="sm:hidden">Patients</span>
+            </TabsTrigger>
+            <TabsTrigger value="district_risk" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+              <Activity className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">District Risk</span>
+              <span className="sm:hidden">Risk</span>
             </TabsTrigger>
             <TabsTrigger value="patient_map" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
               <MapPin className="h-3 w-3 md:h-4 md:w-4" />
@@ -940,10 +1012,10 @@ export function DoctorDashboard() {
                         })
                         const result = await response.json()
                         if (response.ok) {
-                          alert(`✅ Created ${result.count} test review submissions!`)
+                          alert(`? Created ${result.count} test review submissions!`)
                           refetchReviews()
                         } else {
-                          alert(`❌ Failed: ${result.error}`)
+                          alert(`? Failed: ${result.error}`)
                         }
                       } catch (error) {
                         console.error("Failed to create test data:", error)
@@ -1023,7 +1095,7 @@ export function DoctorDashboard() {
                               {review.patient?.firstName} {review.patient?.lastName}
                             </CardTitle>
                             <CardDescription>
-                              Validated on {new Date(review.updatedAt).toLocaleDateString()} • Collected by{" "}
+                              Validated on {new Date(review.updatedAt).toLocaleDateString()} � Collected by{" "}
                               {review.vhv?.user?.email}
                             </CardDescription>
                           </div>
@@ -1129,6 +1201,26 @@ export function DoctorDashboard() {
                           />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="district" className="text-right">
+                            District *
+                          </Label>
+                          <Select
+                            value={newPatientForm.district || undefined}
+                            onValueChange={(value) => setNewPatientForm((prev) => ({ ...prev, district: value }))}
+                          >
+                            <SelectTrigger id="district" className="col-span-3 justify-between">
+                              <SelectValue placeholder="Select district" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-64 overflow-y-auto">
+                              {BANGKOK_DISTRICTS.map((district) => (
+                                <SelectItem key={district} value={district}>
+                                  {district}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="address" className="text-right">
                             Address
                           </Label>
@@ -1176,18 +1268,57 @@ export function DoctorDashboard() {
                             placeholder="Enter password for login"
                           />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="medicalCondition" className="text-right">
-                            Medical Condition *
+                        <div className="grid grid-cols-4 items-start gap-4">
+                          <Label htmlFor="medicalConditionCategory" className="mt-2 text-right">
+                            Condition Type *
                           </Label>
-                          <Input
-                            id="medicalCondition"
+                          <div className="col-span-3 space-y-2">
+                            <Select
+                              value={newPatientForm.medicalConditionCategory}
+                              onValueChange={(value) =>
+                                setNewPatientForm((prev) => ({ ...prev, medicalConditionCategory: value }))
+                              }
+                            >
+                              <SelectTrigger id="medicalConditionCategory" className="w-full justify-between">
+                                <SelectValue placeholder="Select a condition category" className="sr-only" />
+                                <div className="flex flex-col text-left text-sm leading-tight min-w-[22rem] md:min-w-[28rem]">
+                                  {!newPatientCategoryMeta && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Choose a condition category to help prioritize patient risk.
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectTrigger>
+                              <SelectContent className="max-h-72 overflow-y-auto min-w-[22rem] md:min-w-[28rem]">
+                                {MEDICAL_CONDITION_CATEGORIES.map((category) => (
+                                  <ConditionSelectOption
+                                    key={category.id}
+                                    value={category.id}
+                                    label={category.label}
+                                    description={category.description}
+                                  />
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              {newPatientCategoryMeta
+                                ? newPatientCategoryMeta.description
+                                : "Choose the category that best represents the patient�s ongoing health condition."}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-start gap-4">
+                          <Label htmlFor="medicalConditionNotes" className="mt-2 text-right">
+                            Notes / Details
+                          </Label>
+                          <Textarea
+                            id="medicalConditionNotes"
                             className="col-span-3"
-                            value={newPatientForm.medicalCondition}
+                            value={newPatientForm.medicalConditionNotes}
                             onChange={(e) =>
-                              setNewPatientForm((prev) => ({ ...prev, medicalCondition: e.target.value }))
+                              setNewPatientForm((prev) => ({ ...prev, medicalConditionNotes: e.target.value }))
                             }
-                            placeholder="e.g., Diabetes, Hypertension"
+                            placeholder="Add specific diagnoses, symptom notes, or context for the selected category."
                           />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -1233,7 +1364,11 @@ export function DoctorDashboard() {
                             </h4>
                             <div className="flex flex-col sm:flex-row sm:gap-4 text-xs md:text-sm text-muted-foreground">
                               <span>DOB: {new Date(patient.dob).toLocaleDateString()}</span>
-                              <span className="truncate">Condition: {patient.medicalCondition || "Not specified"}</span>
+                              <span>District: {patient.district || "Not set"}</span>
+                              <span className="truncate">
+                                Condition:{" "}
+                                {formatMedicalConditionSummary(patient.medicalConditionCategory, patient.medicalConditionNotes)}
+                              </span>
                               <span>
                                 Last Visit:{" "}
                                 {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : "Never"}
@@ -1250,20 +1385,12 @@ export function DoctorDashboard() {
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation()
-                              // Ensure medicalCondition is set from medicalHistory or medical_condition if present
-                              // Also check if medicalCondition exists directly from API response
-                              // Ensure medicalCondition is properly set, handling null/undefined
-                              const medicalConditionValue = 
-                                (patient.medicalCondition !== null && patient.medicalCondition !== undefined) ? patient.medicalCondition :
-                                (patient.medicalHistory !== null && patient.medicalHistory !== undefined) ? patient.medicalHistory :
-                                ((patient as any).medical_condition !== null && (patient as any).medical_condition !== undefined) ? (patient as any).medical_condition :
-                                ""
-                              
-                              const patientWithMedicalCondition = {
+                              const patientForEdit = {
                                 ...patient,
-                                medicalCondition: medicalConditionValue,
+                                medicalConditionCategory: patient.medicalConditionCategory || "NONE",
+                                medicalConditionNotes: patient.medicalConditionNotes || "",
                               }
-                              setSelectedPatient(patientWithMedicalCondition)
+                              setSelectedPatient(patientForEdit)
                               setShowEditPatientDialog(true)
                             }}
                           >
@@ -1289,9 +1416,16 @@ export function DoctorDashboard() {
                         <div className="mt-4 pt-4 border-t space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                <span className="text-xs md:text-sm break-words">{patient.address}</span>
+                              <div className="flex items-start gap-2">
+                                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                <div className="text-xs md:text-sm space-y-1 break-words">
+                                  <p className="font-medium text-foreground">
+                                    {patient.district || "District not set"}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    {patient.address || "No address on file"}
+                                  </p>
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -1309,7 +1443,10 @@ export function DoctorDashboard() {
                               <div>
                                 <h5 className="font-medium text-xs md:text-sm">Medical Condition</h5>
                                 <p className="text-xs md:text-sm text-muted-foreground">
-                                  {patient.medicalCondition || "Not specified"}
+                                  {formatMedicalConditionSummary(
+                                    patient.medicalConditionCategory,
+                                    patient.medicalConditionNotes,
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -1321,6 +1458,15 @@ export function DoctorDashboard() {
                 ))}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="district_risk" className="space-y-4">
+            <DistrictRiskPanel
+              data={districtRisk}
+              loading={districtRiskLoading}
+              error={districtRiskError}
+              onRetry={refetchDistrictRisk}
+            />
           </TabsContent>
 
           <TabsContent value="patient_map" className="space-y-4">
@@ -1354,7 +1500,7 @@ export function DoctorDashboard() {
       </main>
 
       <Dialog open={showEditPatientDialog} onOpenChange={setShowEditPatientDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Patient</DialogTitle>
             <DialogDescription>Update patient information</DialogDescription>
@@ -1393,6 +1539,24 @@ export function DoctorDashboard() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>District</Label>
+                <Select
+                  value={selectedPatient.district || undefined}
+                  onValueChange={(value) => setSelectedPatient({ ...selectedPatient, district: value })}
+                >
+                  <SelectTrigger className="w-full justify-between">
+                    <SelectValue placeholder="Select district" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {BANGKOK_DISTRICTS.map((district) => (
+                      <SelectItem key={district} value={district}>
+                        {district}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Phone</Label>
                 <Input
                   value={selectedPatient.phone || ""}
@@ -1415,11 +1579,48 @@ export function DoctorDashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Medical Condition</Label>
-                <Input
-                  value={selectedPatient.medicalCondition ?? ""}
-                  onChange={(e) => setSelectedPatient({ ...selectedPatient, medicalCondition: e.target.value })}
-                  placeholder="Enter medical condition"
+                <Label>Condition Type</Label>
+                <Select
+                  value={selectedPatient.medicalConditionCategory || "NONE"}
+                  onValueChange={(value) =>
+                    setSelectedPatient({ ...selectedPatient, medicalConditionCategory: value })
+                  }
+                >
+                  <SelectTrigger className="w-full justify-between">
+                    <SelectValue placeholder="Select condition category" className="sr-only" />
+                    <div className="flex flex-col text-left text-sm leading-tight min-w-[22rem] md:min-w-[28rem]">
+                      {!selectedPatientCategoryMeta && (
+                        <span className="text-xs text-muted-foreground">
+                          Choose a condition category to help prioritize patient risk.
+                        </span>
+                      )}
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto min-w-[22rem] md:min-w-[28rem]">
+                    {MEDICAL_CONDITION_CATEGORIES.map((category) => (
+                      <ConditionSelectOption
+                        key={category.id}
+                        value={category.id}
+                        label={category.label}
+                        description={category.description}
+                      />
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {selectedPatientCategoryMeta
+                    ? selectedPatientCategoryMeta.description
+                    : "Choose the category that best represents the patient�s ongoing health condition."}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes / Details</Label>
+                <Textarea
+                  value={selectedPatient.medicalConditionNotes ?? ""}
+                  onChange={(e) =>
+                    setSelectedPatient({ ...selectedPatient, medicalConditionNotes: e.target.value })
+                  }
+                  placeholder="Add details about the selected condition type"
                 />
               </div>
             </div>
@@ -1458,3 +1659,4 @@ export function DoctorDashboard() {
     </div>
   )
 }
+
