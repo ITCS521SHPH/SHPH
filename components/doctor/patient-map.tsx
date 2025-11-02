@@ -196,7 +196,7 @@ export function PatientMap({ patients }: Props) {
       </div>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 z-0">
           <div className="h-[65vh] w-full">
             <MapContainer
               center={[center.lat, center.lng]}

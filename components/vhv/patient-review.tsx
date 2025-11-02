@@ -4,110 +4,159 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle, AlertCircle, FileText, Activity, User, MapPin, Phone, ArrowLeft } from "lucide-react"
+import { CheckCircle, FileText, Activity, User, MapPin, Phone, ArrowLeft } from "lucide-react"
 
 interface PatientReviewProps {
   patient: {
-    id: number
-    name: string
-    age: number
-    address: string
-    phone: string
-    condition: string
-    dataCollection: {
-      patientInfo: { completed: boolean; items: string[] }
-      vitalSigns: { completed: boolean; items: string[] }
-      symptoms: { completed: boolean; items: string[] }
-      medicalHistory: { completed: boolean; items: string[] }
-    }
+    id?: number | string
+    name?: string
+    age?: number
+    address?: string
+    phone?: string
   }
-  formData?: any // Add formData prop
+  formData?: Record<string, any> | null
+  intakeStatus?: string | null
+  allowSubmit?: boolean
   onBack: () => void
-  onConfirm: () => void
+  onChangeData: () => void
+  onConfirm?: () => void
 }
 
-export function PatientReview({ patient, formData, onBack, onConfirm }: PatientReviewProps) {
-  // Use real form data if available, otherwise fall back to mock data
-  const collectedData = formData ? {
-    patientInfo: {
-      name: formData.patientFullName || patient.name,
-      hospitalNumber: formData.hospitalNumber || "Not provided",
-      gender: "Not specified", // This field is not in our form
-      contact: patient.phone,
-    },
-    vitalSigns: {
-      oxygenSaturation: formData.oxygenSaturation ? `${formData.oxygenSaturation}%` : "Not measured",
-      bloodPressure: formData.bloodPressureSystolic && formData.bloodPressureDiastolic 
-        ? `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic} mmHg` 
-        : "Not measured",
-      heartRate: formData.heartRate ? `${formData.heartRate} bpm` : "Not measured",
-      bloodGlucose: formData.bloodGlucose ? `${formData.bloodGlucose} mg/dL` : "Not measured",
-    },
-    physicalFunction: {
-      dyspneaScore: formData.dyspneaScore || "Not assessed",
-      balanceScore: formData.balanceScore || "Not assessed",
-      ipaqScore: formData.ipaqScore || "Not assessed",
-      sitToStandReps: formData.sitToStandReps || "Not tested",
-      sixMinuteWalk: formData.sixMinuteWalk || "Not tested",
-      sppbScore: formData.sppbScore || "Not assessed",
-      gripStrengthRight: formData.gripStrengthRight || "Not measured",
-      gripStrengthLeft: formData.gripStrengthLeft || "Not measured",
-    },
-    mentalCognitive: {
-      mocaScore: formData.mocaScore || "Not assessed",
-      fatigueSeverityScale: formData.fatigueSeverityScale || "Not assessed",
-      facitFatigueScale: formData.facitFatigueScale || "Not assessed",
-      chalderFatigueScale: formData.chalderFatigueScale || "Not assessed",
-      gad7Score: formData.gad7Score || "Not assessed",
-      hadsAnxietyScore: formData.hadsAnxietyScore || "Not assessed",
-      hadsDepressionScore: formData.hadsDepressionScore || "Not assessed",
-      beckScore: formData.beckScore || "Not assessed",
-      iesrScore: formData.iesrScore || "Not assessed",
-    },
-    vhvNotes: {
-      patientConcerns: formData.patientConcerns || "No concerns noted",
-      vhvObservations: formData.vhvObservations || "No observations noted",
-    }
-  } : {
-    // Fallback mock data when no form data is available
-    patientInfo: {
-      name: patient.name,
-      hospitalNumber: "No data available",
-      gender: "Not specified",
-      contact: patient.phone,
-    },
-    vitalSigns: {
-      oxygenSaturation: "No data collected",
-      bloodPressure: "No data collected", 
-      heartRate: "No data collected",
-      bloodGlucose: "No data collected",
-    },
-    physicalFunction: {
-      dyspneaScore: "No data collected",
-      balanceScore: "No data collected",
-      ipaqScore: "No data collected",
-      sitToStandReps: "No data collected",
-      sixMinuteWalk: "No data collected",
-      sppbScore: "No data collected",
-      gripStrengthRight: "No data collected",
-      gripStrengthLeft: "No data collected",
-    },
-    mentalCognitive: {
-      mocaScore: "No data collected",
-      fatigueSeverityScale: "No data collected",
-      facitFatigueScale: "No data collected",
-      chalderFatigueScale: "No data collected",
-      gad7Score: "No data collected",
-      hadsAnxietyScore: "No data collected",
-      hadsDepressionScore: "No data collected",
-      beckScore: "No data collected",
-      iesrScore: "No data collected",
-    },
-    vhvNotes: {
-      patientConcerns: "No concerns noted",
-      vhvObservations: "No observations noted",
-    }
+const normalizeDisplayValue = (value: any, fallback: string) => {
+  if (value === null || value === undefined) {
+    return fallback
   }
+
+  const text = `${value}`.trim()
+  return text.length > 0 ? text : fallback
+}
+
+const describeIntakeStatus = (status?: string | null) => {
+  switch (status) {
+    case "APPROVED":
+      return { label: "Validated", message: "Doctor has validated this submission." }
+    case "SUBMITTED":
+      return { label: "Submitted", message: "Waiting for doctor review." }
+    case "IN_REVIEW":
+      return { label: "In Review", message: "Doctor is reviewing this submission." }
+    case "CHANGES_REQUESTED":
+      return {
+        label: "Changes Requested",
+        message: "Doctor requested updates. Adjust the data before resubmitting.",
+      }
+    case "REJECTED":
+      return {
+        label: "Rejected",
+        message: "Doctor rejected this submission. Update the data before submitting again.",
+      }
+    case "DRAFT":
+    default:
+      return { label: "Draft", message: "Review the collected data before sending it to the doctor." }
+  }
+}
+
+export function PatientReview({
+  patient,
+  formData,
+  intakeStatus,
+  allowSubmit = false,
+  onBack,
+  onChangeData,
+  onConfirm,
+}: PatientReviewProps) {
+  const patientName = normalizeDisplayValue(formData?.patientFullName ?? patient.name, "Unknown")
+  const patientPhone = normalizeDisplayValue(patient.phone, "No phone on record")
+  const patientAddress = normalizeDisplayValue(patient.address, "No address provided")
+  const patientAge = patient.age !== undefined ? `${patient.age} years` : "Not specified"
+
+  // Use real form data if available, otherwise fall back to placeholder copy
+  const collectedData = formData
+    ? {
+        patientInfo: {
+          name: patientName,
+          hospitalNumber: normalizeDisplayValue(formData.hospitalNumber, "Not provided"),
+          gender: "Not specified",
+          contact: patientPhone,
+        },
+        vitalSigns: {
+          oxygenSaturation: formData.oxygenSaturation
+            ? `${formData.oxygenSaturation}%`
+            : "Not measured",
+          bloodPressure:
+            formData.bloodPressureSystolic && formData.bloodPressureDiastolic
+              ? `${formData.bloodPressureSystolic}/${formData.bloodPressureDiastolic} mmHg`
+              : "Not measured",
+          heartRate: formData.heartRate ? `${formData.heartRate} bpm` : "Not measured",
+          bloodGlucose: formData.bloodGlucose ? `${formData.bloodGlucose} mg/dL` : "Not measured",
+        },
+        physicalFunction: {
+          dyspneaScore: formData.dyspneaScore || "Not assessed",
+          balanceScore: formData.balanceScore || "Not assessed",
+          ipaqScore: formData.ipaqScore || "Not assessed",
+          sitToStandReps: formData.sitToStandReps || "Not tested",
+          sixMinuteWalk: formData.sixMinuteWalk || "Not tested",
+          sppbScore: formData.sppbScore || "Not assessed",
+          gripStrengthRight: formData.gripStrengthRight || "Not measured",
+          gripStrengthLeft: formData.gripStrengthLeft || "Not measured",
+        },
+        mentalCognitive: {
+          mocaScore: formData.mocaScore || "Not assessed",
+          fatigueSeverityScale: formData.fatigueSeverityScale || "Not assessed",
+          facitFatigueScale: formData.facitFatigueScale || "Not assessed",
+          chalderFatigueScale: formData.chalderFatigueScale || "Not assessed",
+          gad7Score: formData.gad7Score || "Not assessed",
+          hadsAnxietyScore: formData.hadsAnxietyScore || "Not assessed",
+          hadsDepressionScore: formData.hadsDepressionScore || "Not assessed",
+          beckScore: formData.beckScore || "Not assessed",
+          iesrScore: formData.iesrScore || "Not assessed",
+        },
+        vhvNotes: {
+          patientConcerns: formData.patientConcerns || "No concerns noted",
+          vhvObservations: formData.vhvObservations || "No observations noted",
+        },
+      }
+    : {
+        patientInfo: {
+          name: patientName,
+          hospitalNumber: "No data available",
+          gender: "Not specified",
+          contact: patientPhone,
+        },
+        vitalSigns: {
+          oxygenSaturation: "No data collected",
+          bloodPressure: "No data collected",
+          heartRate: "No data collected",
+          bloodGlucose: "No data collected",
+        },
+        physicalFunction: {
+          dyspneaScore: "No data collected",
+          balanceScore: "No data collected",
+          ipaqScore: "No data collected",
+          sitToStandReps: "No data collected",
+          sixMinuteWalk: "No data collected",
+          sppbScore: "No data collected",
+          gripStrengthRight: "No data collected",
+          gripStrengthLeft: "No data collected",
+        },
+        mentalCognitive: {
+          mocaScore: "No data collected",
+          fatigueSeverityScale: "No data collected",
+          facitFatigueScale: "No data collected",
+          chalderFatigueScale: "No data collected",
+          gad7Score: "No data collected",
+          hadsAnxietyScore: "No data collected",
+          hadsDepressionScore: "No data collected",
+          beckScore: "No data collected",
+          iesrScore: "No data collected",
+        },
+        vhvNotes: {
+          patientConcerns: "No concerns noted",
+          vhvObservations: "No observations noted",
+        },
+      }
+
+  const statusDescriptor = describeIntakeStatus(intakeStatus)
+  const showSubmitButton = allowSubmit && typeof onConfirm === "function"
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,7 +169,7 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
             </Button>
             <div>
               <h1 className="text-2xl font-bold">Data Review & Validation</h1>
-              <p className="text-muted-foreground">Review collected data before submission</p>
+              <p className="text-muted-foreground">{statusDescriptor.message}</p>
             </div>
           </div>
         </div>
@@ -134,6 +183,9 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
                 Patient Summary
+                <Badge variant="outline" className="ml-2">
+                  {statusDescriptor.label}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -142,10 +194,10 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
                   <h4 className="font-medium">Patient Information</h4>
                   <div className="space-y-1 text-sm">
                     <p>
-                      <span className="font-medium">Name:</span> {patient.name}
+                      <span className="font-medium">Name:</span> {patientName}
                     </p>
                     <p>
-                      <span className="font-medium">Age:</span> {patient.age} years
+                      <span className="font-medium">Age:</span> {patientAge}
                     </p>
                   </div>
                 </div>
@@ -154,11 +206,11 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center gap-2">
                       <MapPin className="h-3 w-3" />
-                      <span>{patient.address}</span>
+                      <span>{patientAddress}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-3 w-3" />
-                      <span>{patient.phone}</span>
+                      <span>{patientPhone}</span>
                     </div>
                   </div>
                 </div>
@@ -382,34 +434,39 @@ export function PatientReview({ patient, formData, onBack, onConfirm }: PatientR
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
-                Ready for Submission
+                {showSubmitButton ? "Ready for Submission" : "Submission Status"}
               </CardTitle>
-              <CardDescription>
-                All required data has been collected and is ready for doctor validation.
-              </CardDescription>
+              <CardDescription>{statusDescriptor.message}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="font-medium text-green-800">Data Collection Complete</span>
+              {showSubmitButton ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-800">Data Collection Complete</span>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    Review the details below and submit to the doctor when everything looks correct.
+                  </p>
                 </div>
-                <p className="text-sm text-green-700">
-                  All required sections have been completed. The data will be submitted to Dr. Michael Chen for
-                  validation and diagnosis.
-                </p>
-              </div>
+              ) : (
+                <div className="border border-muted rounded-lg p-4 mb-4 bg-muted/40">
+                  <p className="text-sm text-muted-foreground">{statusDescriptor.message}</p>
+                </div>
+              )}
 
               <Separator className="my-4" />
 
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={onBack}>
-                  Back to Edit
+                <Button variant="outline" onClick={onChangeData}>
+                  Change Data
                 </Button>
-                <Button onClick={onConfirm} className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Confirm & Submit to Doctor
-                </Button>
+                {showSubmitButton && (
+                  <Button onClick={onConfirm} className="bg-green-600 hover:bg-green-700">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Submit to Doctor
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
