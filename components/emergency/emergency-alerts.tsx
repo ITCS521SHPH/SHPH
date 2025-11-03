@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
@@ -114,6 +116,9 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
   const [loading, setLoading] = useState(true)
   const [responseNotes, setResponseNotes] = useState("")
   const [isResponding, setIsResponding] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [priorityFilter, setPriorityFilter] = useState<string>("all")
 
   const fetchAlerts = async () => {
     try {
@@ -136,6 +141,12 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
     } finally {
       setLoading(false)
     }
+  }
+
+  const resetFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("all")
+    setPriorityFilter("all")
   }
 
   useEffect(() => {
@@ -226,6 +237,39 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
     return `${diffInDays}d ago`
   }
 
+  const filteredAlerts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    return alerts.filter((alert) => {
+      const isActive = alert.status === EmergencyStatus.ACTIVE || alert.status === EmergencyStatus.ACKNOWLEDGED
+
+      if (showActiveOnly && !isActive) {
+        return false
+      }
+
+      if (statusFilter !== "all" && alert.status !== statusFilter) {
+        return false
+      }
+
+      if (priorityFilter !== "all" && alert.priority !== priorityFilter) {
+        return false
+      }
+
+      if (term) {
+        const haystack = `${alert.patientName ?? ""} ${alert.description ?? ""} ${alert.location ?? ""}`.toLowerCase()
+        if (!haystack.includes(term)) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [alerts, priorityFilter, searchTerm, showActiveOnly, statusFilter])
+
+  const hasAppliedFilters = statusFilter !== "all" || priorityFilter !== "all" || searchTerm.trim().length > 0
+  const activeAlerts = alerts.filter(
+    (alert) => alert.status === EmergencyStatus.ACTIVE || alert.status === EmergencyStatus.ACKNOWLEDGED,
+  )
+
   if (loading) {
     return (
       <Card>
@@ -236,9 +280,6 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
     )
   }
 
-  const activeAlerts = alerts.filter(
-    (alert) => alert.status === EmergencyStatus.ACTIVE || alert.status === EmergencyStatus.ACKNOWLEDGED,
-  )
 
   return (
     <div className="space-y-4">
@@ -270,13 +311,59 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by patient, description, or location"
+              className="w-full md:max-w-sm"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value={EmergencyStatus.ACTIVE}>Active</SelectItem>
+                  <SelectItem value={EmergencyStatus.ACKNOWLEDGED}>Acknowledged</SelectItem>
+                  <SelectItem value={EmergencyStatus.RESOLVED}>Resolved</SelectItem>
+                  <SelectItem value={EmergencyStatus.CANCELLED}>Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  <SelectItem value={EmergencyPriority.CRITICAL}>Critical</SelectItem>
+                  <SelectItem value={EmergencyPriority.HIGH}>High</SelectItem>
+                  <SelectItem value={EmergencyPriority.MEDIUM}>Medium</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {hasAppliedFilters && (
+                <Button variant="ghost" size="sm" onClick={resetFilters}>
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          </div>
+
           {alerts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No emergency alerts at this time</p>
             </div>
+          ) : filteredAlerts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No alerts match the current filters.</p>
+            </div>
           ) : (
-            alerts.map((alert) => (
+            filteredAlerts.map((alert) => (
               <Card
                 key={alert.id}
                 className={`border-l-4 ${

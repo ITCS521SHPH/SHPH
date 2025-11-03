@@ -859,6 +859,7 @@ export function DoctorDashboard() {
                   </div>
                 </DialogContent>
               </Dialog>
+
               <Button variant="outline" onClick={handleSignOut} size="sm">
                 Sign Out
               </Button>
@@ -1095,7 +1096,7 @@ export function DoctorDashboard() {
                               {review.patient?.firstName} {review.patient?.lastName}
                             </CardTitle>
                             <CardDescription>
-                              Validated on {new Date(review.updatedAt).toLocaleDateString()} � Collected by{" "}
+                              Validated on {new Date(review.updatedAt).toLocaleDateString()} · Collected by{" "}
                               {review.vhv?.user?.email}
                             </CardDescription>
                           </div>

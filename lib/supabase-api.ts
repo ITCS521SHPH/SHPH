@@ -150,6 +150,10 @@ type EmergencyAlertRow = Database["public"]["Tables"]["emergency_alerts"]["Row"]
   vhv_id?: string
   patient_name?: string
   triggered_by?: string
+  patient?: {
+    first_name?: string | null
+    last_name?: string | null
+  } | null
 }
 
 // Convert Supabase rows to our types
@@ -294,11 +298,26 @@ const convertEmergencyAlertRow = (row: EmergencyAlertRow): EmergencyAlert => {
     low: "LOW",
   }
 
+  const joinedPatientName =
+    row.patient && typeof row.patient === "object"
+      ? [row.patient.first_name ?? "", row.patient.last_name ?? ""]
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0)
+          .join(" ")
+      : ""
+
+  const normalizedPatientName =
+    typeof row.patient_name === "string" && row.patient_name.trim().length > 0
+      ? row.patient_name.trim()
+      : joinedPatientName
+
+  const safePatientName = normalizedPatientName.length > 0 ? normalizedPatientName : "Unknown Patient"
+
   return {
     id: row.id,
     patientId: row.patient_id,
-    patientName: row.patient_name,
-    triggeredBy: row.triggered_by,
+    patientName: safePatientName,
+    triggeredBy: row.triggered_by || row.patient_id,
     priority: priorityMap[row.priority] || (row.priority as any),
     status: statusMap[row.status] || (row.status as any),
     description: row.description || undefined,
@@ -2028,7 +2047,10 @@ export const getEmergencyAlerts = async (status?: string, priority?: string): Pr
     throw new Error("Supabase not configured")
   }
 
-  let query = supabase.from("emergency_alerts").select("*").order("created_at", { ascending: false })
+  let query = supabase
+    .from("emergency_alerts")
+    .select("*, patient:patients(first_name,last_name)")
+    .order("created_at", { ascending: false })
 
   if (status) {
     query = query.eq("status", status)
@@ -2053,7 +2075,7 @@ export const getEmergencyAlertsByPatient = async (patientId: string): Promise<Em
 
   const { data, error } = await supabase
     .from("emergency_alerts")
-    .select("*")
+    .select("*, patient:patients(first_name,last_name)")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false })
 
@@ -2090,7 +2112,7 @@ export const getEmergencyAlertsByDoctor = async (doctorId: string, status?: stri
   // Then get all emergency alerts for these patients
   let query = supabase
     .from("emergency_alerts")
-    .select("*")
+    .select("*, patient:patients(first_name,last_name)")
     .in("patient_id", patientIds)
     .order("created_at", { ascending: false })
 
@@ -2131,7 +2153,7 @@ export const getEmergencyAlertsByVHV = async (vhvId: string, status?: string): P
   // Then get all emergency alerts for these patients
   let query = supabase
     .from("emergency_alerts")
-    .select("*")
+    .select("*, patient:patients(first_name,last_name)")
     .in("patient_id", patientIds)
     .order("created_at", { ascending: false })
 
@@ -2192,7 +2214,7 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
 
   const { data: patientRecord, error: patientError } = await supabase
     .from("patients")
-    .select("id")
+    .select("id, first_name, last_name")
     .eq("id", alertData.patientId)
     .single()
 
@@ -2208,18 +2230,20 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
   const safeLocation =
     typeof alertData.location === "string" && alertData.location.trim() ? alertData.location.trim() : null
 
+  const insertPayload: Record<string, any> = {
+    patient_id: alertData.patientId,
+    doctor_id: assignedDoctorId,
+    vhv_id: assignedVHVId,
+    priority: dbPriority,
+    status: "active",
+    description: safeDescription,
+    location: safeLocation,
+  }
+
   const { data, error } = await supabase
     .from("emergency_alerts")
-    .insert({
-      patient_id: alertData.patientId,
-      doctor_id: assignedDoctorId,
-      vhv_id: assignedVHVId,
-      priority: dbPriority,
-      status: "active", // Default status
-      description: safeDescription,
-      location: safeLocation,
-    })
-    .select()
+    .insert(insertPayload)
+    .select("*, patient:patients(first_name,last_name)")
     .single()
 
   if (error) {
