@@ -5,12 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin, Phone, Mail } from "lucide-react"
+import { User, Calendar, FileText, Heart, Bell, ExternalLink, BookOpen, MapPin, Phone, Mail, Menu } from "lucide-react"
 import Link from "next/link"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
 import { useRouter } from "next/navigation"
@@ -44,6 +51,7 @@ export function PatientDashboard() {
     reason: "",
     preferredTime: "",
   })
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   // 獲取當前患者 ID（這裡需要從認證系統獲取）
   const isPlaceholderId = currentUser?.id && ["admin_id", "doctor_id", "vhv_id", "patient_id"].includes(currentUser.id)
@@ -224,15 +232,15 @@ export function PatientDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-1 items-start sm:items-center gap-3">
               <User className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
                 <h1 className="text-xl md:text-2xl font-bold">My Health Dashboard</h1>
                 <p className="text-sm text-muted-foreground">{currentUser?.name || currentUser?.email || "Patient"}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/patient/profile" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
@@ -242,6 +250,48 @@ export function PatientDashboard() {
               <Button variant="outline" onClick={handleSignOut} size="sm">
                 Sign Out
               </Button>
+            </div>
+            <div className="md:hidden">
+              <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Open navigation menu">
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[320px]" aria-describedby={undefined}>
+                  <DialogHeader>
+                    <DialogTitle>Navigation</DialogTitle>
+                  </DialogHeader>
+                  <div className="mt-6 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Signed in as</p>
+                      <p className="text-sm text-muted-foreground break-words">
+                        {currentUser?.name || currentUser?.email || "Patient"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setMobileNavOpen(false)
+                        router.push("/patient/profile")
+                      }}
+                    >
+                      Update Location
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setMobileNavOpen(false)
+                        handleSignOut()
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>

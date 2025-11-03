@@ -8,7 +8,14 @@ import { PatientReview } from "./patient-review"
 import { StructuredDataForm } from "./structured-data-form"
 import { TaskFormViewer } from "./task-form-viewer"
 import { EmergencyProtocols } from "./emergency-protocols"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,6 +37,7 @@ import {
   Bell,
   Shield,
   Plus,
+  Menu,
 } from "lucide-react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
@@ -188,6 +196,7 @@ export function VHVDashboard() {
   const [completedSections, setCompletedSections] = useState<string[]>([])
   const [currentIntakeId, setCurrentIntakeId] = useState<string | null>(null)
   const [activeEmergencyCount, setActiveEmergencyCount] = useState(0)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [undoableActions, setUndoableActions] = useState<{
     [key: string]: { type: string; data: any; timeoutId: NodeJS.Timeout }
   }>({})
@@ -995,8 +1004,8 @@ export function VHVDashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-1 items-start sm:items-center gap-3">
               <Activity className="h-6 w-6 md:h-8 md:w-8 text-primary" />
               <div>
                 <h1 className="text-xl md:text-2xl font-bold">VHV Dashboard</h1>
@@ -1015,7 +1024,7 @@ export function VHVDashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden md:flex flex-wrap items-center gap-2">
               <Button variant="ghost" asChild size="sm">
                 <Link href="/vhv/profile">
                   <span className="hidden sm:inline">My Profile</span>
@@ -1025,6 +1034,48 @@ export function VHVDashboard() {
               <Button variant="outline" onClick={handleSignOut} size="sm">
                 Sign Out
               </Button>
+            </div>
+            <div className="md:hidden">
+              <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Open navigation menu">
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[320px]" aria-describedby={undefined}>
+                  <DialogHeader>
+                    <DialogTitle>Navigation</DialogTitle>
+                  </DialogHeader>
+                  <div className="mt-6 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Signed in as</p>
+                      <p className="text-sm text-muted-foreground break-words">
+                        {currentUser?.name || currentUser?.email || "Village Health Volunteer"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setMobileNavOpen(false)
+                        router.push("/vhv/profile")
+                      }}
+                    >
+                      My Profile
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setMobileNavOpen(false)
+                        handleSignOut()
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
