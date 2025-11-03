@@ -104,6 +104,18 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
 
   const handleCreateAppointment = async () => {
     try {
+      const scheduledDateTime = new Date(`${appointmentForm.scheduledDate}T${appointmentForm.scheduledTime}:00`)
+      if (Number.isNaN(scheduledDateTime.getTime())) {
+        alert("Please provide a valid date and time")
+        return
+      }
+
+      const now = new Date()
+      if (scheduledDateTime < now) {
+        alert("Appointment time must be in the future")
+        return
+      }
+
       const selectedPatient = patients.find((p) => p.id === appointmentForm.patientId)
       if (!selectedPatient) {
         alert("Please select a patient")
@@ -153,6 +165,18 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
     if (!selectedAppointment) return
 
     try {
+      const scheduledDateTime = new Date(`${appointmentForm.scheduledDate}T${appointmentForm.scheduledTime}:00`)
+      if (Number.isNaN(scheduledDateTime.getTime())) {
+        alert("Please provide a valid date and time")
+        return
+      }
+
+      const now = new Date()
+      if (scheduledDateTime < now) {
+        alert("Appointment time must be in the future")
+        return
+      }
+
       const response = await fetch(`/api/doctor/appointments/${selectedAppointment.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -531,8 +555,8 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                         <Input
                           type="date"
                           value={appointmentForm.scheduledDate}
+                          min={new Date().toISOString().split("T")[0]}
                           onChange={(e) => setAppointmentForm({ ...appointmentForm, scheduledDate: e.target.value })}
-                           min={new Date().toISOString().split('T')[0]}
                         />
                       </div>
                       <div className="space-y-2">
@@ -673,6 +697,7 @@ export function AppointmentScheduler({ doctorId, patients }: AppointmentSchedule
                   <Input
                     type="date"
                     value={appointmentForm.scheduledDate}
+                    min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => setAppointmentForm({ ...appointmentForm, scheduledDate: e.target.value })}
                   />
                 </div>
