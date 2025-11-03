@@ -166,10 +166,22 @@ export function StructuredDataForm({
       const [firstName, ...restLast] = (updatedData.patientFullName || '').toString().trim().split(' ')
       const lastName = restLast.join(' ').trim()
 
+      const normalizeText = (value: unknown): string | undefined => {
+        if (value === null || value === undefined) return undefined
+        const text = String(value).trim()
+        return text.length > 0 ? text : undefined
+      }
+      const normalizeNumber = (value: unknown): number | undefined => {
+        if (value === null || value === undefined || value === "") return undefined
+        const num = Number(value)
+        return Number.isFinite(num) ? num : undefined
+      }
+
       const mappedPayload = {
         visitMeta: {
           visitDateTime: visitDate ? new Date(visitDate).toISOString() : new Date().toISOString(),
           vhvId: undefined,
+          vhvName: normalizeText(vhvName),
           locationText: '',
         },
         patientBasics: {
@@ -177,44 +189,45 @@ export function StructuredDataForm({
           lastName: (lastName || '').trim(),
           dob: '',
           contactPhone: '',
+          hospitalNumber: normalizeText(updatedData.hospitalNumber),
         },
         symptoms: {
-          chiefComplaint: (updatedData.patientConcerns || '').toString().trim(),
+          chiefComplaint: normalizeText(updatedData.patientConcerns) || '',
         },
         vitals: {
-          temp: updatedData.temperature !== '' ? Number(updatedData.temperature) : undefined,
-          systolic: updatedData.bloodPressureSystolic !== '' ? Number(updatedData.bloodPressureSystolic) : undefined,
-          diastolic: updatedData.bloodPressureDiastolic !== '' ? Number(updatedData.bloodPressureDiastolic) : undefined,
-          hr: updatedData.heartRate !== '' ? Number(updatedData.heartRate) : undefined,
-          spo2: updatedData.oxygenSaturation !== '' ? Number(updatedData.oxygenSaturation) : undefined,
-          glucose: updatedData.bloodGlucose !== '' ? Number(updatedData.bloodGlucose) : undefined,
+          temp: normalizeNumber(updatedData.temperature),
+          systolic: normalizeNumber(updatedData.bloodPressureSystolic),
+          diastolic: normalizeNumber(updatedData.bloodPressureDiastolic),
+          hr: normalizeNumber(updatedData.heartRate),
+          spo2: normalizeNumber(updatedData.oxygenSaturation),
+          glucose: normalizeNumber(updatedData.bloodGlucose),
         },
         assessments: {
           physicalFunction: {
-            dyspneaScore: updatedData.dyspneaScore || '',
-            balanceScore: updatedData.balanceScore || '',
-            ipaqScore: updatedData.ipaqScore || '',
-            sitToStandReps: updatedData.sitToStandReps || '',
-            sixMinuteWalk: updatedData.sixMinuteWalk || '',
-            sppbScore: updatedData.sppbScore || '',
-            gripStrengthRight: updatedData.gripStrengthRight || '',
-            gripStrengthLeft: updatedData.gripStrengthLeft || '',
+            dyspneaScore: normalizeText(updatedData.dyspneaScore),
+            balanceScore: normalizeText(updatedData.balanceScore),
+            ipaqScore: normalizeText(updatedData.ipaqScore),
+            sitToStandReps: normalizeText(updatedData.sitToStandReps),
+            sixMinuteWalk: normalizeText(updatedData.sixMinuteWalk),
+            sppbScore: normalizeText(updatedData.sppbScore),
+            gripStrengthRight: normalizeText(updatedData.gripStrengthRight),
+            gripStrengthLeft: normalizeText(updatedData.gripStrengthLeft),
           },
           mentalCognitive: {
-            mocaScore: updatedData.mocaScore || '',
-            fatigueSeverityScale: updatedData.fatigueSeverityScale || '',
-            facitFatigueScale: updatedData.facitFatigueScale || '',
-            chalderFatigueScale: updatedData.chalderFatigueScale || '',
-            gad7Score: updatedData.gad7Score || '',
-            hadsAnxietyScore: updatedData.hadsAnxietyScore || '',
-            hadsDepressionScore: updatedData.hadsDepressionScore || '',
-            beckScore: updatedData.beckScore || '',
-            iesrScore: updatedData.iesrScore || '',
+            mocaScore: normalizeText(updatedData.mocaScore),
+            fatigueSeverityScale: normalizeText(updatedData.fatigueSeverityScale),
+            facitFatigueScale: normalizeText(updatedData.facitFatigueScale),
+            chalderFatigueScale: normalizeText(updatedData.chalderFatigueScale),
+            gad7Score: normalizeText(updatedData.gad7Score),
+            hadsAnxietyScore: normalizeText(updatedData.hadsAnxietyScore),
+            hadsDepressionScore: normalizeText(updatedData.hadsDepressionScore),
+            beckScore: normalizeText(updatedData.beckScore),
+            iesrScore: normalizeText(updatedData.iesrScore),
           },
         },
         vhvNotes: {
-          patientConcerns: (updatedData.patientConcerns || '').toString().trim(),
-          vhvObservations: (updatedData.vhvObservations || '').toString().trim(),
+          patientConcerns: normalizeText(updatedData.patientConcerns) || '',
+          vhvObservations: normalizeText(updatedData.vhvObservations) || '',
         },
       }
 

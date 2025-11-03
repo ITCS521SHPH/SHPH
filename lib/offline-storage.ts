@@ -97,6 +97,38 @@ class OfflineStorageManager {
     })
   }
 
+  async deleteFormData(patientId: string): Promise<void> {
+    if (!this.db) await this.init()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["formData"], "readwrite")
+      const store = transaction.objectStore("formData")
+
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+
+      store.delete(`form-${patientId}`)
+
+      try {
+        const index = store.index("patientId")
+        const keyRange = IDBKeyRange.only(patientId)
+        const cursorRequest = index.openCursor(keyRange)
+
+        cursorRequest.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result
+          if (cursor) {
+            store.delete(cursor.primaryKey as IDBValidKey)
+            cursor.continue()
+          }
+        }
+
+        cursorRequest.onerror = () => reject(cursorRequest.error)
+      } catch (error) {
+        console.warn("Failed to clear legacy offline form data", error)
+      }
+    })
+  }
+
   async getAllUnsyncedFormData(): Promise<OfflineFormData[]> {
     if (!this.db) await this.init()
 
@@ -310,4 +342,8 @@ export const initOfflineStorage = () => {
   return offlineStorage.init().then(() => {
     offlineStorage.setupAutoSync()
   })
+}
+
+export const clearOfflineFormData = (patientId: string) => {
+  return offlineStorage.deleteFormData(patientId)
 }

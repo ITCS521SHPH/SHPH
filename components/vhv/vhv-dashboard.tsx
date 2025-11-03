@@ -29,6 +29,7 @@ import {
   Target,
   Bell,
   Shield,
+  Plus,
 } from "lucide-react"
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { clearCurrentUser, getCurrentUserFromStorage } from "@/lib/auth"
@@ -37,7 +38,7 @@ import Link from "next/link"
 import { patientsApi, intakesApi, tasksApi, emergencyApi, vhvApi, areaTasksApi } from "@/lib/api"
 import { BANGKOK_DISTRICTS } from "@/lib/bangkok-districts"
 import { useApiData } from "@/lib/useApiData"
-import { initOfflineStorage, getOfflineFormData } from "@/lib/offline-storage"
+import { initOfflineStorage, getOfflineFormData, clearOfflineFormData } from "@/lib/offline-storage"
 import { EmergencyAlerts } from "@/components/emergency/emergency-alerts"
 import { UserRole } from "@/lib/types"
 import {
@@ -395,7 +396,13 @@ export function VHVDashboard() {
         return
       }
 
-      console.log("Creating new intake for patient:", patient.id)
+      const patientId = patient.id.toString()
+
+      console.log("Creating new intake for patient:", patientId)
+      // Clear any cached form data so a fresh visit starts clean
+      await clearOfflineFormData(patientId)
+      setCompletedSections([])
+
       // Create a new intake submission when starting data collection
       const newIntake = await intakesApi.create(patient.id, currentUser?.id)
       console.log("New intake created:", newIntake)
@@ -1293,6 +1300,19 @@ export function VHVDashboard() {
                                         <span className="hidden sm:inline">Continue Visit</span>
                                         <span className="sm:hidden">Continue</span>
                                       </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleOpenDataForm(patient)
+                                        }}
+                                        className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                      >
+                                        <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                        <span className="hidden sm:inline">New Visit</span>
+                                        <span className="sm:hidden">New</span>
+                                      </Button>
                                       {hasCompletableIntake && (
                                         <Button
                                           variant="outline"
@@ -1312,19 +1332,34 @@ export function VHVDashboard() {
                                   )
                                 } else {
                                   return (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleOpenPatientReview(patient, latestIntake)
-                                      }}
-                                      className="flex-1 sm:flex-initial text-xs md:text-sm"
-                                    >
-                                      <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                                      <span className="hidden sm:inline">View Visit</span>
-                                      <span className="sm:hidden">View</span>
-                                    </Button>
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleOpenPatientReview(patient, latestIntake)
+                                        }}
+                                        className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                      >
+                                        <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                        <span className="hidden sm:inline">View Visit</span>
+                                        <span className="sm:hidden">View</span>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleOpenDataForm(patient)
+                                        }}
+                                        className="flex-1 sm:flex-initial text-xs md:text-sm"
+                                      >
+                                        <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                                        <span className="hidden sm:inline">New Visit</span>
+                                        <span className="sm:hidden">New</span>
+                                      </Button>
+                                    </>
                                   )
                                 }
                               })()}

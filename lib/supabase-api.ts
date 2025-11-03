@@ -2222,13 +2222,6 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
     throw new Error("Patient not found. Please ensure the patient record exists before creating an emergency alert.")
   }
 
-  const patientNameParts = [
-    typeof patientRecord.first_name === "string" ? patientRecord.first_name.trim() : "",
-    typeof patientRecord.last_name === "string" ? patientRecord.last_name.trim() : "",
-  ].filter((part) => part.length > 0)
-
-  const resolvedPatientName = patientNameParts.join(" ").trim() || "Unknown Patient"
-
   const safeDescription =
     typeof alertData.description === "string" && alertData.description.trim()
       ? alertData.description.trim()
@@ -2237,20 +2230,20 @@ export const createEmergencyAlert = async (alertData: CreateEmergencyAlertReques
   const safeLocation =
     typeof alertData.location === "string" && alertData.location.trim() ? alertData.location.trim() : null
 
+  const insertPayload: Record<string, any> = {
+    patient_id: alertData.patientId,
+    doctor_id: assignedDoctorId,
+    vhv_id: assignedVHVId,
+    priority: dbPriority,
+    status: "active",
+    description: safeDescription,
+    location: safeLocation,
+  }
+
   const { data, error } = await supabase
     .from("emergency_alerts")
-    .insert({
-      patient_id: alertData.patientId,
-      patient_name: resolvedPatientName,
-      triggered_by: alertData.patientId,
-      doctor_id: assignedDoctorId,
-      vhv_id: assignedVHVId,
-      priority: dbPriority,
-      status: "active", // Default status
-      description: safeDescription,
-      location: safeLocation,
-    })
-    .select()
+    .insert(insertPayload)
+    .select("*, patient:patients(first_name,last_name)")
     .single()
 
   if (error) {
