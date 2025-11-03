@@ -191,19 +191,9 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
       let list = (availableVHVs || []) as any[]
       const term = vhvSearch.trim().toLowerCase()
       if (term) {
-        list = list.filter((v: any) => {
-          const fullName =
-            (v.name as string | undefined)?.toLowerCase() ||
-            `${(v.firstName as string | undefined) || ""} ${(v.lastName as string | undefined) || ""}`
-              .trim()
-              .toLowerCase()
-
-          return (
-            fullName.includes(term) ||
-            v.email?.toLowerCase().includes(term) ||
-            v.district?.toLowerCase().includes(term)
-          )
-        })
+        list = list.filter(
+          (v: any) => v.email?.toLowerCase().includes(term) || v.district?.toLowerCase().includes(term),
+        )
       }
       return list
     } catch {
@@ -1159,18 +1149,8 @@ export function TaskManagement({ doctorId, patientId, vhvId, defaultTaskType }: 
                                         onCheckedChange={() => toggleVhvSelection(v.id)}
                                       />
                                       <span>
-                                        {(() => {
-                                          const displayName =
-                                            (v.name as string | undefined)?.trim() ||
-                                            `${(v.firstName as string | undefined) || ""} ${
-                                              (v.lastName as string | undefined) || ""
-                                            }`
-                                              .trim()
-                                          const fallback =
-                                            v.email?.split("@")[0] || (v.email as string | undefined) || "Unnamed VHV"
-                                          const nameToShow = displayName || fallback
-                                          return `${nameToShow}${v.district ? ` - ${v.district}` : ""}`
-                                        })()}
+                                        {v.email?.split("@")[0]}
+                                        {v.district ? " - " + v.district : ""}
                                       </span>
                                     </label>
                                   ))}
