@@ -167,11 +167,36 @@ export async function GET(
       riskFactors.push('Open high-priority task assigned')
     }
 
+    const toIsoString = (value: any) => {
+      if (!value) return null
+      try {
+        if (value instanceof Date) {
+          return value.toISOString()
+        }
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? null : date.toISOString()
+      } catch {
+        return null
+      }
+    }
+
     const riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = (() => {
       if (recentHighPriorityAlert || riskScore >= 6) return 'HIGH'
       if (riskScore >= 3) return 'MEDIUM'
       return 'LOW'
     })()
+
+    const latestIntakeSummary = latestApprovedIntake
+      ? {
+          id: latestApprovedIntake.id,
+          status: latestApprovedIntake.status || null,
+          submittedAt: toIsoString(latestApprovedIntake.createdAt),
+          updatedAt: toIsoString(latestApprovedIntake.updatedAt),
+          payload: latestApprovedIntake.payload || null,
+          attachments: Array.isArray(latestApprovedIntake.attachments) ? latestApprovedIntake.attachments : [],
+          riskFlags: intakeFlags,
+        }
+      : null
 
     // Helpers for cleaning embedded schemas from task descriptions
     const stripFormSchema = (text?: string) => {
@@ -209,6 +234,7 @@ export async function GET(
       priority?: 'low' | 'medium' | 'high' | 'urgent'
       approved?: boolean
       hasForm?: boolean
+      details?: Record<string, unknown>
     }
 
     const records: Rec[] = []
@@ -267,6 +293,7 @@ export async function GET(
       const clean = stripFormSchema(rawDesc)
       const formNote = extractFormSummary(rawDesc)
       const hasForm = /<FORM_SCHEMA>[\s\S]*?<\/FORM_SCHEMA>/i.test(rawDesc)
+      const rawDescription = rawDesc
       records.push({
         id: (t as any).id,
         type: 'task',
@@ -275,6 +302,18 @@ export async function GET(
         summary: (clean || formNote || '').trim(),
         priority: pr,
         hasForm,
+        details: {
+          description: clean || (t as any).description || null,
+          rawDescription,
+          status: (t as any).status || null,
+          priority: pr,
+          dueDate: (t as any).dueDate || null,
+          completedAt: (t as any).completedAt || null,
+          createdAt: (t as any).createdAt || null,
+          updatedAt: (t as any).updatedAt || null,
+          formResponse: (t as any).formResponse ?? null,
+          hasForm,
+        },
       })
     }
     for (const s of approvedIntakes || []) {
@@ -347,6 +386,7 @@ export async function GET(
         conditionSummary: normalizedConditionSummary,
         conditionLabel: conditionMeta?.label ?? null,
       },
+      latestIntake: latestIntakeSummary,
       records: filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     })
   } catch (error) {
