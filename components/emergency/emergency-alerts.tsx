@@ -377,8 +377,8 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-semibold text-lg">{alert.patientName}</h4>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-lg break-words">{alert.patientName}</h4>
                         <Badge className={getPriorityColor(alert.priority)}>{alert.priority}</Badge>
                         <Badge variant="outline" className={getStatusColor(alert.status)}>
                           {alert.status.replace("_", " ")}
@@ -386,18 +386,18 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
                       </div>
 
                       {alert.description && (
-                        <p className="text-sm text-muted-foreground mb-2">
+                        <p className="text-sm text-muted-foreground mb-2 break-words">
                           <strong>Situation:</strong> {alert.description}
                         </p>
                       )}
 
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
                           {getTimeAgo(alert.createdAt)}
                         </div>
                         {alert.location && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 break-words">
                             <MapPin className="h-4 w-4" />
                             {alert.location}
                           </div>
@@ -413,7 +413,7 @@ export function EmergencyAlerts({ userId, userRole, showActiveOnly = false }: Em
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-wrap gap-2 mt-4">
                     {alert.status === EmergencyStatus.ACTIVE && (
                       <>
                         <Button

@@ -348,7 +348,7 @@ export function PatientDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-2 md:col-span-1">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs md:text-sm font-medium">Health Score</CardTitle>
               <Heart className="h-3 w-3 md:h-4 md:w-4 text-purple-500" />

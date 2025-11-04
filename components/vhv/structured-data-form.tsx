@@ -368,25 +368,31 @@ export function StructuredDataForm({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Patient Home Visit - Data Collection Form
-              </CardTitle>
-              <CardDescription>
-                VHV: {vhvName} • Date: {visitDate}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-3">
-              <Progress value={overallProgress} className="w-32" />
-              <span className="text-sm font-medium">{overallProgress}% Complete</span>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+<Card>
+  <CardHeader>
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+      {/* Left Section: Title + Description */}
+      <div className="flex flex-col gap-1">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg font-semibold leading-tight">
+          <FileText className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+          Patient Home Visit – Data Collection Form
+        </CardTitle>
+        <CardDescription className="text-xs sm:text-sm text-muted-foreground">
+          VHV: {vhvName} • Date: {visitDate}
+        </CardDescription>
+      </div>
+
+      {/* Right Section: Progress */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        <Progress value={overallProgress} className="w-full sm:w-32" />
+        <span className="text-xs sm:text-sm font-medium text-muted-foreground sm:text-right">
+          {overallProgress}% Complete
+        </span>
+      </div>
+    </div>
+  </CardHeader>
+</Card>
+
 
       {/* Section 1: Patient Information */}
       <Card className={sections[0].completed ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>

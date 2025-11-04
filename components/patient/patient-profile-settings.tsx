@@ -132,25 +132,31 @@ export function PatientProfileSettings() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold">My Profile & Location</h1>
-            <p className="text-muted-foreground">Keep your contact information and current location up to date.</p>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5" />
-              <span>{locationSummary}</span>
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1 text-left">
+              <h1 className="text-2xl font-bold">My Profile & Location</h1>
+              <p className="text-muted-foreground">Keep your contact information and current location up to date.</p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" />
+                <span className="line-clamp-2">{locationSummary}</span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild>
-              <Link href="/patient/dashboard">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Dashboard
-              </Link>
-            </Button>
-            <Button variant="outline" onClick={handleSignOut}>
-              Sign Out
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="ghost" className="w-full sm:w-auto justify-center" asChild>
+                <Link href="/patient/dashboard" className="flex items-center justify-center">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Dashboard
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto justify-center"
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
